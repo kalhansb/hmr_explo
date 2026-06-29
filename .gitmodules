@@ -6,3 +6,7 @@
 	path = ws/src/explo_planner
 	url = https://github.com/kalhansb/explo_planner.git
 	branch = main
+[submodule "ws/src/hmr_localisation"]
+	path = ws/src/hmr_localisation
+	url = https://github.com/kalhansb/hmr_localisation.git
+	branch = main
