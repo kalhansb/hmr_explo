@@ -1,0 +1,8 @@
+[submodule "ws/src/scovox"]
+	path = ws/src/scovox
+	url = https://github.com/kalhansb/scovox.git
+	branch = major-refactor
+[submodule "ws/src/explo_planner"]
+	path = ws/src/explo_planner
+	url = https://github.com/kalhansb/explo_planner.git
+	branch = main

@@ -1,0 +1,22 @@
+# ---- large data / local caches (never commit) ----
+# bags/ ~54 GB recorded rosbags; .vscode browse.vc.db ~1 GB IntelliSense cache
+bags/
+.vscode/
+.claude/
+.cleanup_backup_*/
+
+# ---- glim folders: excluded for now ----
+# glim_localisation is local-only (no remote yet); add as a submodule later.
+# glim_upstream is vendored upstream GLIM source.
+/ws/src/glim_localisation/
+/ws/src/glim_upstream/
+
+# ---- python / build cruft ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# ---- stray ROS/colcon artifacts at the workspace root ----
+/build/
+/install/
+/log/
