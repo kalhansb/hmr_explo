@@ -35,7 +35,16 @@ case "$MODE" in
   map)    DRIVER=run_glim_scovox.sh ;;
   odom)   DRIVER=run_glim_scovox_odom.sh ;;
   viz)    DRIVER=run_glim_scovox_viz.sh ;;
-  *) echo "unknown mode '$MODE' (map|odom|viz)"; exit 1 ;;
+  # raw: same GLIM driver as `map` (plays /ouster/points + /imu/data, captures the
+  # scovox map), but scovox runs on the RAW cloud with native gyro deskew.
+  raw)    DRIVER=run_glim_scovox.sh ;;
+  # rawoff: deskew-OFF control (same raw cloud, deskew_mode:off) — baseline for
+  # the deskew A/B comparison at identical rate/range.
+  rawoff) DRIVER=run_glim_scovox.sh ;;
+  # rawctl: placement control — raw cloud with OLD TF behavior (0.2s timeout +
+  # Time(0) fallback) — baseline for the exact-stamp-placement A/B.
+  rawctl) DRIVER=run_glim_scovox.sh ;;
+  *) echo "unknown mode '$MODE' (map|odom|viz|raw|rawoff|rawctl)"; exit 1 ;;
 esac
 
 dc_glim()   { docker compose -f "$GLIM_DIR/compose.yaml"   "$@"; }

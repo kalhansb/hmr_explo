@@ -49,6 +49,9 @@ DUR="${1:-}"
 DUR_ARG=""; [ -n "$DUR" ] && DUR_ARG="--playback-duration $DUR"
 RVIZ="${RVIZ:-}"                            # RVIZ=1 -> open RViz + leave nodes up at end
 RVIZ_CFG="$HERE/seg_experiment.rviz"
+MODEL="${MODEL:-}"                          # MODEL=<hf-id> -> override seg model_name
+                                            # (empty = seg_node default: Mapillary Mask2Former).
+                                            # e.g. MODEL=facebook/mask2former-swin-large-ade-semantic
 
 dc_loc()    { docker compose -f "$LOC_DIR/compose.yaml"    "$@"; }
 dc_seg()    { docker compose -f "$SEG_DIR/compose.yaml"    "$@"; }
@@ -119,11 +122,12 @@ echo "[orch] waiting for NDT map load + activation…"
 dc_loc exec -T ros bash -lc 'for i in $(seq 1 60); do grep -aq "Activating end" /tmp/ndt.log 2>/dev/null && { echo NDT_ACTIVE; exit 0; }; sleep 1; done; echo NDT_TIMEOUT; tail -5 /tmp/ndt.log'
 
 # 2) online seg node in hmr_seg (default output_frame=camera_color_frame).
-echo "[orch] launching seg node in hmr_seg…"
-dc_seg exec -d seg bash -lc '
+#    MODEL (if set) overrides the seg model_name (default = Mapillary Mask2Former).
+echo "[orch] launching seg node in hmr_seg${MODEL:+ (model=$MODEL)}…"
+dc_seg exec -d seg bash -lc "
   source /opt/ros/jazzy/setup.bash
-  cd /seg && exec python3 -m seg_pipeline.seg_node --ros-args -p use_sim_time:=true > /root/seg.log 2>&1
-'
+  cd /seg && exec python3 -m seg_pipeline.seg_node --ros-args -p use_sim_time:=true ${MODEL:+-p model_name:=$MODEL} > /root/seg.log 2>&1
+"
 
 # 3) SCovox RGB-D semantic node in scovox. The RGB-D (depth+seg) path is selected by
 #    leaving input_pointcloud_topic at its default "" (empty) — do NOT pass it on the
