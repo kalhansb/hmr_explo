@@ -189,7 +189,7 @@ dc_scovox exec -d scovox bash -lc '
     -p mode:=persistent -p enable_tsdf:=false \
     -p min_depth:=0.3 -p max_depth:=6.0 \
     -p min_range:=1.0 -p max_range:=20.0 -p range_decay_length:=-1.0 \
-    -p deskew_mode:=auto -p downsample_voxel_size:=0.5 \
+    -p deskew_mode:=auto -p downsample_voxel_size:=0.1 \
     -p tf_lookup_timeout_sec:=1.0 -p tf_require_exact:=true \
     -p startup_tf_stable_sec:=0.0 -p startup_tf_jump_threshold:=10.0 -p runtime_tf_gate:=false \
     -p "semantic_color_map_keys:=[8405120,15999976,10025880,4605510,7048739,10066329,16427550,14423100,16711680,142,4620980,12491161,6710940,0]" \
