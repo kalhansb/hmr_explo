@@ -16,6 +16,12 @@
 #     an RGB-D hit on a voxel LiDAR never touched (prior p_occ=0.5) would commit
 #     semantics on prior-only geometry and defeat LiDAR authority.
 #
+# Per-node param sets are versioned in the submodules (this script carries only
+# the wiring, extrinsics, and env-knob overrides):
+#   hmr_localisation/config/gt_ouster_ndt_tree_fused.yaml     NDT (launch args + extrinsics doc'd in its header)
+#   scovox/config/scovox_fused_lidar_rgbd.yaml                fused mapping node (KERNEL_L/CARVE_BAND override it)
+#   scovox/src/seg_pipeline/config/seg_fused_experiment.yaml  seg node (MODEL overrides it)
+#
 # Containers / roles (one DDS graph: host net + ipc host + ROS_DOMAIN_ID=0):
 #   hmr_loc (svc ros)   : EKF (odom->base_link) + NDT (map->odom, loads gt_map_us050)
 #                         + 3 static extrinsic publishers (base_link->{os_lidar,imu,
@@ -121,7 +127,7 @@ dc_loc exec -d ros bash -lc '
   export FASTRTPS_DEFAULT_PROFILES_FILE=/ws/config/fastdds_shm.xml   # SHM for big clouds
   ros2 launch /ws/launch/ekf_odom.launch.py use_sim_time:=true > /tmp/ekf.log 2>&1 &
   ros2 launch lidar_localization_ros2 lidar_localization.launch.py \
-    localization_param_dir:=/ws/config/gt_ouster_ndt_tree_realtime.yaml \
+    localization_param_dir:=/ws/config/gt_ouster_ndt_tree_fused.yaml \
     cloud_topic:=/ouster/points imu_topic:=/imu/data use_sim_time:=true \
     global_frame_id:=map odom_frame_id:=odom base_frame_id:=base_link \
     use_imu_preintegration:=true imu_preintegration_use_base_frame_transform:=true \
@@ -152,48 +158,23 @@ if [ -z "$LIDAR_ONLY" ]; then
   echo "[orch] launching seg node in hmr_seg${MODEL:+ (model=$MODEL)}…"
   dc_seg exec -d seg bash -lc "
     source /opt/ros/jazzy/setup.bash
-    cd /seg && exec python3 -m seg_pipeline.seg_node --ros-args -p use_sim_time:=true ${MODEL:+-p model_name:=$MODEL} > /root/seg.log 2>&1
+    cd /seg && exec python3 -m seg_pipeline.seg_node --ros-args --params-file /seg/config/seg_fused_experiment.yaml ${MODEL:+-p model_name:=$MODEL} > /root/seg.log 2>&1
   "
 else
   echo "[orch] LIDAR_ONLY=1 → skipping seg node (no RGB-D/semantics; scovox will map LiDAR only)."
 fi
 
 # 3) SCovox FUSED node in scovox — ONE node, BOTH streams into ONE SemSplitMap.
-#    RGB-D path: depth+seg topics (unchanged from run_seg_experiment.sh).
-#    LiDAR path (NEW): input_pointcloud_topic:=/ouster/points + deskew + downsample.
-#    fuse_lidar_rgbd:=true selects per-source HitWeights profiles (built in-node from
-#    the lidar_*/rgbd_* params below). Ranges are per-stream by construction: RGB-D is
-#    gated by min_depth/max_depth (0.3–6 m), LiDAR by min_range/max_range (1–20 m);
-#    range_decay_length:=-1 keeps min_range/max_range off the RGB-D path.
+#    Full param set lives in scovox/config/scovox_fused_lidar_rgbd.yaml (see its
+#    header for the fusion policy + per-stream range gating); the two env knobs
+#    are appended AFTER the file so they win (later assignment overrides).
 echo "[orch] launching SCovox FUSED node in scovox…"
 dc_scovox exec -d scovox bash -lc '
   source /opt/ros/jazzy/setup.bash; source /scovox/install/setup.bash
   exec ros2 run scovox_mapping scovox_mapping_node --ros-args -r __node:=scovox_node \
-    -p use_sim_time:=true \
-    -p fuse_lidar_rgbd:=true \
-    -p depth_topic:=/scovox/depth/image_raw \
-    -p depth_info_topic:=/scovox/depth/camera_info \
-    -p seg_topic:=/scovox/segmentation/colored \
-    -p input_pointcloud_topic:=/ouster/points \
-    -p imu_topic:=/imu/data \
-    -p dataset_mode:=false \
-    -p integration_frame:=map -p map_frame:=map -p base_frame:=base_link \
-    -p lidar_base_frame:=os_lidar -p rgbd_base_frame:=camera_color_frame \
-    -p lidar_w_occ:=8.0 -p lidar_w_free:=4.0 \
-    -p rgbd_w_occ:=0.0 -p rgbd_w_free:=0.0 -p rgbd_geometry_off:=true \
-    -p rgbd_dirichlet_min_p_occ:=0.55 \
+    --params-file /scovox/config/scovox_fused_lidar_rgbd.yaml \
     -p rgbd_kernel_radius:='"$KERNEL_L"' \
-    -p resolution:=0.10 -p carve_band:='"$CARVE_BAND"' \
-    -p num_classes:=14 -p max_semantic_classes:=14 -p semantic_top_k:=2 \
-    -p semantic_mode:=dirichlet -p dirichlet_prior:=0.01 \
-    -p mode:=persistent -p enable_tsdf:=false \
-    -p min_depth:=0.3 -p max_depth:=6.0 \
-    -p min_range:=1.0 -p max_range:=20.0 -p range_decay_length:=-1.0 \
-    -p deskew_mode:=auto -p downsample_voxel_size:=0.1 \
-    -p tf_lookup_timeout_sec:=1.0 -p tf_require_exact:=true \
-    -p startup_tf_stable_sec:=0.0 -p startup_tf_jump_threshold:=10.0 -p runtime_tf_gate:=false \
-    -p "semantic_color_map_keys:=[8405120,15999976,10025880,4605510,7048739,10066329,16427550,14423100,16711680,142,4620980,12491161,6710940,0]" \
-    -p "semantic_color_map_classes:=[1,2,3,4,5,6,7,8,9,10,11,12,13,0]" \
+    -p carve_band:='"$CARVE_BAND"' \
     > /tmp/scovox.log 2>&1
 '
 

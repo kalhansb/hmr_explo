@@ -38,6 +38,16 @@
 #   NUM_CLASSES=14       # B7: Dirichlet dimension (header-only; ~no BW effect. control).
 #   SEMANTIC_TOP_K=2     # B6: wire K_TOP is COMPILE-LOCKED; this only clamps <= built K_TOP.
 #                        #   To truly sweep K_TOP you must rebuild scovox_core. (see plan B6)
+#   SHARE_RATE_HZ=0.0    # C1: >0 = timer-coalesced scovox_bin publish at this rate (Hz);
+#                        #   <=0 = legacy per-scan publish inline in the sensor callbacks.
+#   SHARE_CHANGE_GATE=1  # C2: 1 = per-voxel change gate vs LAST-EMITTED wire state (default);
+#                        #   0 = legacy wire (every touched voxel re-sent every publish).
+#   SHARE_GATE_P_EPS=0.02  # C2a: |dp_occ| re-emit threshold.
+#   SHARE_GATE_EV_REL=0.10 # C2b: relative evidence-growth re-emit threshold.
+#   SHARE_Z_MIN=0.0      # C3: shared-ROI z-band (m); min>=max = off. Applied on the sender
+#   SHARE_Z_MAX=0.0      #   wire AND mirrored as the dscovox ingest clip. Must be a
+#                        #   SUPERSET of explo_planner roi_min_z/roi_max_z (see the
+#                        #   KEEP IN SYNC comments in exploration_params.yaml).
 #   KERNEL_L=0.4         # RGB-D->LiDAR BKI spread radius (m); matches run_fused.
 #   MODEL=<hf-id>        # override seg model_name (matches run_fused).
 #   LIDAR_ONLY=1         # occupancy-only arm: no seg / no camera topics (Beta stream only).
@@ -68,6 +78,12 @@ MAX_RANGE="${MAX_RANGE:-20.0}"
 SHARE_TSDF="${SHARE_TSDF:-0}"
 NUM_CLASSES="${NUM_CLASSES:-14}"
 SEMANTIC_TOP_K="${SEMANTIC_TOP_K:-2}"
+SHARE_RATE_HZ="${SHARE_RATE_HZ:-0.0}"
+SHARE_CHANGE_GATE="${SHARE_CHANGE_GATE:-1}"
+SHARE_GATE_P_EPS="${SHARE_GATE_P_EPS:-0.02}"
+SHARE_GATE_EV_REL="${SHARE_GATE_EV_REL:-0.10}"
+SHARE_Z_MIN="${SHARE_Z_MIN:-0.0}"
+SHARE_Z_MAX="${SHARE_Z_MAX:-0.0}"
 KERNEL_L="${KERNEL_L:-0.4}"
 MODEL="${MODEL:-}"
 LIDAR_ONLY="${LIDAR_ONLY:-}"
@@ -80,6 +96,7 @@ RVIZ_CFG="$HERE/seg_experiment.rviz"
 case "$NROBOTS" in 1|2|3) ;; *) echo "NROBOTS must be 1..3 (got $NROBOTS)"; exit 2;; esac
 # share_tsdf must co-enable the local TSDF grid (you can't ship a TSDF you never built).
 if [ "$SHARE_TSDF" = "1" ]; then STSDF=true;  ETSDF=true; else STSDF=false; ETSDF=false; fi
+if [ "$SHARE_CHANGE_GATE" = "1" ]; then SGATE=true; else SGATE=false; fi
 
 dc_loc()    { docker compose -f "$LOC_DIR/compose.yaml"    "$@"; }
 dc_seg()    { docker compose -f "$SEG_DIR/compose.yaml"    "$@"; }
@@ -114,7 +131,7 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-echo "[orch] map-sharing bandwidth run: NROBOTS=$NROBOTS res=$RESOLUTION ds=$DOWNSAMPLE carve=$CARVE_BAND max_range=$MAX_RANGE share_tsdf=$STSDF split=${COVERAGE_SPLIT}"
+echo "[orch] map-sharing bandwidth run: NROBOTS=$NROBOTS res=$RESOLUTION ds=$DOWNSAMPLE carve=$CARVE_BAND max_range=$MAX_RANGE share_tsdf=$STSDF split=${COVERAGE_SPLIT} share_rate_hz=$SHARE_RATE_HZ change_gate=$SGATE z_band=[$SHARE_Z_MIN,$SHARE_Z_MAX]"
 echo "[orch] bringing up containers…"
 dc_loc up -d
 if [ -z "$LIDAR_ONLY" ]; then dc_seg up -d; fi
@@ -181,6 +198,7 @@ dc_scovox exec -d -e IT="$INPUT_TOPICS" scovox bash -lc "$SRC
     -p \"input_topics:=\$IT\" \
     -p pointcloud_topic:=/dscovox/pointcloud \
     -p semantic_top_k:=$SEMANTIC_TOP_K \
+    -p share_roi_z_min:=$SHARE_Z_MIN -p share_roi_z_max:=$SHARE_Z_MAX \
     > /tmp/dscovox.log 2>&1"
 
 # 4) N fused rolling mappers. Params = run_fused's fused block, with ONLY:
@@ -193,6 +211,9 @@ launch_mapper() {
     -e RES="$RESOLUTION" -e DS="$DOWNSAMPLE" -e MRANGE="$MAX_RANGE" -e CB="$CARVE_BAND" \
     -e KL="$KERNEL_L" -e NC="$NUM_CLASSES" -e STK="$SEMANTIC_TOP_K" \
     -e STSDF="$STSDF" -e ETSDF="$ETSDF" \
+    -e SRHZ="$SHARE_RATE_HZ" -e SGATE="$SGATE" \
+    -e SPEPS="$SHARE_GATE_P_EPS" -e SEREL="$SHARE_GATE_EV_REL" \
+    -e SZMIN="$SHARE_Z_MIN" -e SZMAX="$SHARE_Z_MAX" \
     scovox bash -lc "$SRC"'
     exec ros2 run scovox_mapping scovox_mapping_node --ros-args -r __ns:=$RNS -r __node:=scovox_node \
       -p use_sim_time:=true \
@@ -213,6 +234,9 @@ launch_mapper() {
       -p num_classes:=$NC -p max_semantic_classes:=$NC -p semantic_top_k:=$STK \
       -p semantic_mode:=dirichlet -p dirichlet_prior:=0.01 \
       -p mode:=rolling -p enable_tsdf:=$ETSDF -p share_tsdf:=$STSDF \
+      -p share_rate_hz:=$SRHZ -p share_change_gate:=$SGATE \
+      -p share_gate_p_eps:=$SPEPS -p share_gate_evidence_rel:=$SEREL \
+      -p share_roi_z_min:=$SZMIN -p share_roi_z_max:=$SZMAX \
       -p min_depth:=0.3 -p max_depth:=6.0 \
       -p min_range:=1.0 -p max_range:=$MRANGE -p range_decay_length:=-1.0 \
       -p deskew_mode:=auto -p downsample_voxel_size:=$DS \
@@ -289,7 +313,7 @@ fi
 # 7) results.
 echo
 echo "================ MAP-SHARING BANDWIDTH RESULTS ================"
-echo "config: NROBOTS=$NROBOTS res=$RESOLUTION ds=$DOWNSAMPLE carve_band=$CARVE_BAND max_range=$MAX_RANGE share_tsdf=$STSDF top_k=$SEMANTIC_TOP_K classes=$NUM_CLASSES split=$COVERAGE_SPLIT lidar_only=${LIDAR_ONLY:-0}"
+echo "config: NROBOTS=$NROBOTS res=$RESOLUTION ds=$DOWNSAMPLE carve_band=$CARVE_BAND max_range=$MAX_RANGE share_tsdf=$STSDF top_k=$SEMANTIC_TOP_K classes=$NUM_CLASSES split=$COVERAGE_SPLIT lidar_only=${LIDAR_ONLY:-0} share_rate_hz=$SHARE_RATE_HZ change_gate=$SGATE gate_eps=$SHARE_GATE_P_EPS/$SHARE_GATE_EV_REL z_band=[$SHARE_Z_MIN,$SHARE_Z_MAX]"
 if [ "$RECORD" = "1" ]; then
   echo "--- AUTHORITATIVE wire measurement (recorded bag; reliable QoS catches every sample) ---"
   dc_scovox exec -T scovox bash -lc "$SRC"'
