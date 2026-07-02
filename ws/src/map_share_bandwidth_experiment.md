@@ -260,3 +260,28 @@ For each sweep arm, restart the affected mapper(s) with the changed param (rebui
 - `ws/src/scovox/src/scovox_msgs/msg/ScovoxMapBinary.msg` (header + version + little_endian + `uint8[] data`)
 - `ws/src/hmr_localisation/config/fastdds_shm.xml` (SHM default, 256 MB, UDPv4 fallback)
 - Sweep-default configs: `ws/src/scovox/src/scovox_mapping/config/lidar_mapping.yaml`, `rgbd_semantic_mapping.yaml`
+
+## 11. Update (2026-07-02): distributed-fusion topology test
+
+`run_mapshare_experiment.sh` now also tests the REAL fleet topology, not just
+the wire: **one dscovox merger per robot** (`/robotK/dscovox_node`, base params
+from `dscovox_params.yaml`), each fusing ALL robots' `scovox_bin` streams, so
+every robot ends the run holding its own copy of the global map — exactly the
+multi-robot design in the scovox README ("Multi-robot mapping").
+
+**Fusion proof — `SPLIT_BAND=1` (default when `NROBOTS>=2`):** robot K *shares*
+only slice K of `[SPLIT_ZMIN, SPLIT_ZMAX]` (default `[-0.5, 2.0]`, the
+real-robot band in `scovox_robot_share.yaml`), while still mapping everything
+locally. Any voxel robot K's fused map holds inside a *peer's* slice can only
+have arrived over that peer's `scovox_bin` stream. After playback, step 8 of
+the script:
+
+1. greps each merger log's last `dscovox_diag` line — every merger must have
+   seen all N sources, with non-zero and cross-robot-symmetric fused totals;
+2. calls each `/robotK/dscovox_node/get_region` (services still answer after
+   `/clock` stops) with a thin probe slab at the centre of every sender slice
+   and requires non-zero voxels in every *peer* slab;
+3. prints `FUSION VERIFY: PASS/FAIL`.
+
+For pure bandwidth sweeps (Sections 1–10), run with `SPLIT_BAND=0` to restore
+the original whole-map (or `SHARE_Z_MIN/MAX`-banded) duplicate-source arms.

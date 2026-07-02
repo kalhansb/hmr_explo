@@ -33,3 +33,22 @@ cd ws/src
 
 Outputs land in `ws/src/glim_localisation/output/` (trajectory CSV, GLIM map PCD,
 SCovox occupancy map, evaluation docs).
+
+## Real-robot trials
+
+**Distributed multi-robot mapping** (per-robot SCovox mapper + DSCovox merger,
+each robot ending up with the global fused map) has a start-to-finish runbook —
+single robot and two robots — in
+[`distributed_mapping.md`](distributed_mapping.md).
+
+Each package README carries a brief Docker recipe for hardware:
+
+- `ws/src/hmr_localisation` — "Real robot (live sensors, Docker)": the NDT
+  `map → odom → base_link` TF tree via `scripts/run_localization_live.sh`.
+- `ws/src/scovox` — "Running on a robot" / "Multi-robot mapping": per-robot
+  mapper + merger with the low-bandwidth share param files.
+- `ws/src/explo_planner` — "Real-robot trials (Docker)": overlay build + run
+  inside the scovox container.
+
+Multi-robot mapping assumes every robot runs the hmr_localisation NDT tree
+against the same ground-truth map, so the fleet shares one global `map` frame.
