@@ -39,7 +39,7 @@ SCovox occupancy map, evaluation docs).
 **Distributed multi-robot mapping** (per-robot SCovox mapper + DSCovox merger,
 each robot ending up with the global fused map) has a start-to-finish runbook —
 single robot and two robots — in
-[`distributed_mapping.md`](distributed_mapping.md).
+[`scovox/docs/distributed_mapping.md`](ws/src/scovox/docs/distributed_mapping.md).
 
 Each package README carries a brief Docker recipe for hardware:
 
