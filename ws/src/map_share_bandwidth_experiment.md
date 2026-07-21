@@ -8,7 +8,7 @@ Measuring the inter-robot uplink of the SCovox stack: `scovox_node` (mode=`rolli
 
 ## 1. Objective & Hypotheses
 
-**Objective.** Quantify, in bytes/s per robot and aggregated at the merger, the true inter-robot bandwidth of SCovox map sharing under the shipped wire format (envelope `version=4`, blob codec `FORMAT_VERSION=5`, `K_TOP=2`, `share_tsdf=false`), and characterize how that bandwidth scales with the map-sharing knobs and with fleet size `N`.
+**Objective.** Quantify, in bytes/s per robot and aggregated at the merger, the true inter-robot bandwidth of SCovox map sharing under the shipped wire format (envelope `version=5`, blob codec `FORMAT_VERSION=5`, `K_TOP=2`, `share_tsdf=false`), and characterize how that bandwidth scales with the map-sharing knobs and with fleet size `N`.
 
 **What "bandwidth" means here.** The only bytes a robot-to-robot radio would carry are the LZ4-compressed `ScovoxMapBinary.data` deltas on `/robotK/scovox_node/scovox_bin`. Everything else (`~/scovox` full map, `~/pointcloud`, `~/planning_map`, `/dscovox/pointcloud`) is a *local* viz/planning output and must never be counted as link bandwidth.
 
@@ -28,7 +28,7 @@ Measuring the inter-robot uplink of the SCovox stack: `scovox_node` (mode=`rolli
 
 ## 2. What Exactly Is Being Shared, and What Is Measured
 
-**The shared payload.** `scovox_msgs/msg/ScovoxMapBinary` published on `~/scovox_bin` → resolves to `/robotK/scovox_node/scovox_bin`. Fields: `std_msgs/Header` + `uint8 version` + `bool little_endian` + `uint8[] data`, where `data` is an **LZ4-compressed BinarySerializer frame** carrying only the voxels touched since the last publish (`drainTouchedBeta` / `drainTouchedDir`). `share_tsdf=false` → TSDF is **not** on the wire.
+**The shared payload.** `scovox_msgs/msg/ScovoxMapBinary` published on `~/scovox_bin` → resolves to `/robotK/scovox_node/scovox_bin`. Fields: `std_msgs/Header` + `uint8 version` + `bool little_endian` + `geometry_msgs/Transform map_from_source` + `uint8[] data`, where `map_from_source` is the producer's `map ← header.frame_id` pose (carried so the merger needs no TF; fixed 56 B on the wire) and `data` is an **LZ4-compressed BinarySerializer frame** carrying only the voxels touched since the last publish (`drainTouchedBeta` / `drainTouchedDir`). `share_tsdf=false` → TSDF is **not** on the wire.
 
 **Two regimes to separate cleanly:**
 
@@ -68,7 +68,7 @@ BW_agg   ≈ Σ_k BW_robot,k   (≈ N · BW_1 for duplicate source)
 where:
 - `f_pub` = actual emit cadence ≈ once **per integrated scan** (bounded by sensor rate; `scovox_publish_rate` drives the *viz* `sm_timer`, NOT `scovox_bin`).
 - `r_LZ4` = **empirically unknown compression ratio** (0<r≤1). Voxel coords in a scan are spatially clustered → LZ4 should do well on the 12-byte coord triples; **measure it, do not assume.** Report `r_LZ4 = mean(serialized data.size) / S_raw`.
-- `E_env` = ROS2 envelope + RTPS/CDR framing per message: `Header` (stamp 8 B + `frame_id` string) + `version` u8 + `little_endian` bool + `data` length prefix (4 B) + CDR alignment + RMW overhead. Order ~tens–hundreds of bytes/msg; only material at low `f_pub`/tiny deltas.
+- `E_env` = ROS2 envelope + RTPS/CDR framing per message: `Header` (stamp 8 B + `frame_id` string) + `version` u8 + `little_endian` bool + `map_from_source` (7×float64 = 56 B, fixed) + `data` length prefix (4 B) + CDR alignment + RMW overhead. Order ~tens–hundreds of bytes/msg; only material at low `f_pub`/tiny deltas — and `map_from_source` adds a constant 56 B to every message, so it matters most in that same low-`f_pub`/tiny-delta regime.
 
 **Worked example (order-of-magnitude, to be replaced by measured numbers).**
 Assume one scan touches `N_beta = 4000` occupancy voxels (surface + full-ray carved free space at res 0.10 m) and `N_dir = 800` semantic voxels:
@@ -257,7 +257,7 @@ For each sweep arm, restart the affected mapper(s) with the changed param (rebui
 - `ws/src/scovox/src/scovox_mapping/src/scovox_node.cpp` (`bin_pub_` rolling-only 526-536; `publishBinaryMap` 1475-1591; header.frame_id=int_frame 1570; envelope v4 1571-1575; at-prior gates 1521-1556; mode default 259; integration_frame default 233)
 - `ws/src/scovox/src/scovox_mapping/src/dscovox_node.cpp` (c-slam-disabled 24-33; source keyed by frame_id 98-104; input_topics + reliable bin_qos 133-210; version/endian reject 298-321)
 - `ws/src/scovox/src/scovox_core/include/scovox/binary_serializer.hpp` (FORMAT_VERSION=5 @84, MAX_NUM_CLASSES 4096, per-beta/per-dir sizes, share_tsdf); `voxel.hpp` (`K_TOP=2`)
-- `ws/src/scovox/src/scovox_msgs/msg/ScovoxMapBinary.msg` (header + version + little_endian + `uint8[] data`)
+- `ws/src/scovox/src/scovox_msgs/msg/ScovoxMapBinary.msg` (header + version + little_endian + `geometry_msgs/Transform map_from_source` + `uint8[] data`)
 - `ws/src/hmr_localisation/config/fastdds_shm.xml` (SHM default, 256 MB, UDPv4 fallback)
 - Sweep-default configs: `ws/src/scovox/src/scovox_mapping/config/lidar_mapping.yaml`, `rgbd_semantic_mapping.yaml`
 
