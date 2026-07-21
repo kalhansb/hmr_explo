@@ -16,7 +16,10 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 
-# ---- stray ROS/colcon artifacts at the workspace root ----
+# ---- ROS/colcon build artifacts (this workspace lives in ws/) ----
 /build/
 /install/
 /log/
+/ws/build/
+/ws/install/
+/ws/log/
