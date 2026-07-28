@@ -19,7 +19,7 @@
 # the planner yaml): the map z-band rides with the robot, candidates snap to
 # local ground + clearance (true 3D waypoints on /goal_pose — nav2 would use
 # only x/y/yaw, the z rides along). There is NO 2D planning_map in this run:
-# require_planning_map: false puts the planner in its straight-line fallback
+# use_planning_map: false puts the planner in its straight-line fallback
 # (Euclidean candidate costs, no 2D reachability/free-cell filter) — obstacle
 # rejection happens against the 3D map instead (candidate_occ_thresh + ground
 # snapping). See scovox/config/exploration_fused_bag.yaml header.
@@ -179,7 +179,7 @@ else
 fi
 
 # 3) SCovox FUSED node in scovox — run_fused_experiment.sh params file. The 2D
-#    planning_map stays OFF: the planner runs require_planning_map: false and
+#    planning_map stays OFF: the planner runs use_planning_map: false and
 #    scores candidates by straight-line distance (live/GT 2D maps both proved
 #    too sparse on this site — see the planner yaml header), so nothing
 #    consumes the projection and publishing it would only burn CPU.

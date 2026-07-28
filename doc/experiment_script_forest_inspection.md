@@ -145,7 +145,7 @@ Yaw 25° faces the robots down-row (+u), into the AO's long axis.
 | `done_action` | idle — planner stays up at DONE and exploits targets released at the cue (field runs never use shutdown) |
 | `candidate_enable_polar` | true at RS — then check goal spacing: if goals bunch near the robot, go frontier-only (false) for the timed runs (open item 9) |
 | `max_steps` | 200 |
-| `require_planning_map` | false (no planning_map; Nav2 GT costmap owns feasibility) |
+| `use_planning_map` | false (no planning_map; Nav2 GT costmap owns feasibility) |
 | `output_csv` | `/tmp/<run_id>_<robot>.csv` |
 | NDT map | `gt_map_us050.pcd`, per-robot configs |
 
