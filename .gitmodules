@@ -10,3 +10,11 @@
 	path = ws/src/hmr_localisation
 	url = https://github.com/kalhansb/hmr_localisation.git
 	branch = main
+[submodule "ws/src/hmr_sim"]
+	path = ws/src/hmr_sim
+	url = https://github.com/kalhansb/hmr_sim.git
+	branch = main
+[submodule "ws/src/simple_nav_3d"]
+	path = ws/src/simple_nav_3d
+	url = https://github.com/kalhansb/simple_nav_3d.git
+	branch = main
