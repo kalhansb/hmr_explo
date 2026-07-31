@@ -60,7 +60,7 @@
 #   SHARE_Z_MIN=0.0      # C3: shared-ROI z-band (m); min>=max = off. Applied on the sender
 #   SHARE_Z_MAX=0.0      #   wire AND mirrored as the dscovox ingest clip. Must be a
 #                        #   SUPERSET of explo_planner roi_min_z/roi_max_z (see the
-#                        #   KEEP IN SYNC comments in exploration_params.yaml).
+#                        #   KEEP IN SYNC comments in shared_params.yaml).
 #                        #   Only honored when SPLIT_BAND=0 (SPLIT_BAND assigns the bands).
 #   SPLIT_BAND=1         # fusion-proof mode (default; forced off when NROBOTS=1): robot K
 #                        #   SHARES only slice K of [SPLIT_ZMIN,SPLIT_ZMAX]; the mergers

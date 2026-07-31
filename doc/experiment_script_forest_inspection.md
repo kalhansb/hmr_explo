@@ -127,7 +127,7 @@ spread.
 
 Yaw 25° faces the robots down-row (+u), into the AO's long axis.
 
-**Parameters at onset** (`exploration_params.yaml`; log the config git SHA):
+**Parameters at onset** (`shared_params.yaml`; log the config git SHA):
 
 | Parameter | Value |
 | --- | --- |
