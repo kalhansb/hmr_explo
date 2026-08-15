@@ -611,6 +611,61 @@ doubles (0.14 → 0.31 m/s). **This changes what every arm does**, so no run
 recorded before 2026-08-15 may be pooled with one after, and the three values
 are recorded in every run manifest.
 
+### 3.14 The link was lossy, not just slow — first mode pilot discarded (2026-08-15)
+
+The whole design assumes the radio is a **delay**: a robot's deltas queue during
+an outage and *drain at the next contact*, which is what B0a is (§5.1, "the gap
+opens during each outage and snaps shut at each contact"). The emulator does not
+guarantee that. `reliable_queue_max_bytes` defaulted to 64 MiB and on overflow
+`hmr_comms_sim_node` drops the **oldest** queued delta and never retransmits it,
+so those voxels are gone from the receiver's merged map for the rest of the run
+— the gap can never snap shut, and the receiver's unknown fraction, which is
+both the primary endpoint and the DONE criterion, is biased upward.
+
+It fired at the calibrated operating point. Counted from the bag rather than
+inferred: atlas published **3345** `scovox_bin` deltas and bestla received
+**3190** — 155 missing, matching the emulator's own `drop_overflow=153`. The
+`off` arm lost **1180 in both directions**. Severity tracked the arm's outage
+exposure (off 0.77 disconnected, modes 0.29), which makes the loss a
+*treatment-correlated* confound rather than symmetric noise: the arm that
+disconnects most also loses the most map, and then explores worse, and drifts
+further apart. All three phase-3 mode runs are discarded (archived under
+`_invalid_overflow/`).
+
+What survives, and why:
+
+- **Phase 1 controls (tx=160): clean, zero drops.** The link never leaves the
+  top tier, so nothing queues. The 0.4922 floor and the 0.55 criterion stand.
+- **Phase 2 calibration: unaffected.** The sweep computes link states from
+  replayed geometry — SNR/bandwidth/connected never depend on queue occupancy —
+  so `tx_power_dbm = -14.0` is still the right severity.
+- **Solo run (tx=-60): 6193 drops, result still valid.** At 0.00 % connected
+  nothing is ever delivered, so dropping a queued delta and holding it are
+  indistinguishable in outcome. The gate cannot know that; the reading of it
+  can. Treat a deliberately-blacked-out arm's overflow count as uninformative.
+
+Two fixes, both in the harness rather than the emulator's defaults, since the
+required depth is offered-load × longest-outage and both move with voxel
+resolution and `tx_power_dbm`:
+
+1. `reliable_queue_max_bytes` is now a `comms_sim.launch.py` argument, set by
+   `RELAY_QUEUE_BYTES` (default **1 GiB**) and recorded in the manifest.
+   Sizing: ~120 kB/s per direction (2 Hz × ~60 kB) against a full T=3600 s
+   blackout is ~430 MB, so 1 GiB carries 2.4× margin at ≤2 GiB of RAM for both
+   directions. This raises the cap so the gate stops firing for real — the
+   overflow counter remains a hard gate.
+2. **`GATES_STRICT=1` now fails the run on the run-time gates, not only the
+   bring-up gates.** It previously covered bring-up alone, so all three invalid
+   runs exited 0 and the campaign driver logged `OK rc=0` on the line directly
+   below its own `RUN INVALID` banner. The verdict is now written to the
+   manifest as `run_gates_verdict=`, and `run_campaign.sh` re-runs an INVALID
+   cell instead of skipping it as complete — otherwise resume would preserve
+   corrupted cells forever.
+
+The general lesson is the one worth keeping: **a validity gate that cannot fail
+the run is a log message.** The gate was correct, fired every 30 s for the
+entire campaign, and printed the exact diagnosis; nothing consumed its verdict.
+
 ---
 
 ## 4. Calibration — one severity (offline, no Gazebo, cheap)
