@@ -334,6 +334,187 @@ needed for the mode comparison itself:
    suppression against `link_states`. Without this, merge attribution (§5.3)
    and the manoeuvre triggers themselves are confounded.
 
+### 3.9 explo_planner ↔ scovox rev-8 compatibility — CHECKED, clear (2026-08-14)
+
+`scovox@1a689a6` landed a **rev-8 wire codec** (u8 sqrt-companded evidence
+payloads + packed u8 class ids) and `SCOVOX_K_TOP` work. Since
+`total_observed_voxels` is the primary endpoint's input, this was audited before
+building anything on top of it. **The planner is unaffected**, for four
+independent reasons:
+
+1. **No `.msg` changed.** `1a689a6` touches no file under `scovox_msgs/`; rev 8
+   is the *binary* codec (`ScovoxMapBinary`, scovox_node → dscovox_node). The
+   planner subscribes to `ScovoxMap`, which dscovox publishes **after** the
+   decode, so it sits downstream of every rev-8 change.
+2. **The planner never reads semantics.** `MapCache::updateFromScovoxMap`
+   (`map_cache.cpp:46-88`) reads `position`, `a_occ`, `a_free` and nothing else,
+   so packed class ids cannot reach it. `class_id` is `uint16` in
+   `ScovoxSemanticEvidence.msg` regardless — the u8 packing is wire-only and is
+   unpacked on receipt. (`tree_detector_node.cpp:260-264` does read
+   `semantic_evidence`, but it reads the same unchanged msg field and is not
+   launched by this harness.)
+3. **The voxel count's boundary is preserved by design.** `total_voxels` is a
+   raw cell count of the ROI-clipped grid (`map_cache.cpp`, `computeStats`), not
+   an evidence threshold — so the only way rev 8 could move it is by changing
+   which records survive the receiver's refold. That is exactly what the sqrt
+   companding exists to prevent: linear u8 would have opened a dead band around
+   the prior and dropped ~0.8 % of records (young voxels vanishing from peers'
+   maps), whereas companding keeps the q=0→1 step equal to rev 7's u16 step and
+   reconstructs the at-prior value **bit-exactly**
+   (`binary_serializer.hpp:78-93`).
+4. **Skew fails loud, not silent.** `deserialize` throws `bad VERSION` on a
+   codec mismatch and the frame is dropped with a warning
+   (`binary_serializer.hpp:343-345`); `K_TOP_wire` is asserted to match the
+   receiver's.
+
+**Residual risk is build skew, not code.** Encoder and decoder both live in
+`scovox`, so a stale install of either rejects *every* frame and the planner
+never leaves `WAIT_FOR_MAP`.
+
+⚠️ **The "empty CSV" tell this section used to rely on is gone.** With
+`metrics_period_sec: 5.0` the sampler emits a row every 5 s in *every* state,
+`WAIT_FOR_MAP` included — so total codec skew now produces a full-length CSV of
+zeros (`total_observed_voxels=0`, `mean_eig=0`, `unknown_fraction=1`) rather
+than an empty file. Detect it from the logs and from `state`, not from file
+size.
+
+Pre-campaign steps, both required:
+
+1. **Rebuild `scovox` and confirm no `bad VERSION` / `K_TOP` warnings** in the
+   scovox_node and dscovox_node logs before the first timed run. Note that
+   `colcon build --packages-select scovox_mapping` on its own compiles against
+   the *installed* `scovox_core` headers and fails on a stale install; build
+   `scovox_core scovox_mapping` together.
+2. **Check `state` in the first CSV rows.** A run stuck in `WAIT_FOR_MAP` is
+   now indistinguishable from a healthy one by row count alone.
+
+**§3.9's scope claim has also narrowed.** It argued the planner is insulated
+from scovox because it consumes only the decoded `ScovoxMap` from dscovox. That
+is no longer the whole interface: the planner now also subscribes to an
+`OccupancyGrid` published directly by `scovox_node`
+(`~/global_planning_map`, §3.10), so scovox's 2D projection is on the planner's
+critical path for candidate acceptance and reachability. The rev-8 argument
+above is unaffected — the projection shares no code with the wire codec — but
+"the planner does not touch scovox" is no longer true as stated.
+
+---
+
+### 3.10 The 2D planning map in sim — enabled, and what it changed (2026-08-15)
+
+Sim runs now enable the planner's 2D planning map (`use_planning_map:=true`).
+Getting there required a new publisher, because neither existing one works:
+
+| Candidate source | Why not |
+|---|---|
+| `/<r>/dscovox_node/planning_map` — the planner's **default** topic | Does not exist. `dscovox_node` publishes no `OccupancyGrid` at all; it exposes only a `GetOccupancyGrid` service. |
+| `/<r>/scovox_node/planning_map` | A 20 m robot-centred crop, and its extent **is** `simple_nav_3d`'s local-planner window (that planner has no window param of its own). Consuming it rejects every frontier beyond ~10 m — `isCellOccupied` treats out-of-bounds as occupied — and widening it puts the whole world through the local A* on the control path. |
+| `mode: persistent` (fixed envelope) | Disables the `ScovoxMapBinary` publish that multi-robot map sharing depends on. |
+
+**Resolution:** `scovox_node` gained a second, world-fixed planning-map
+publisher on `~/global_planning_map`, sharing the projection code with the
+rolling one but with its own envelope, resolution and publish period. Default
+off. The harness sizes it from `ROI_HALF` (3× = 150 m @ 0.4 m/cell) and
+rate-limits it to 1 Hz — the projection + inflation run on `scovox_node`'s
+integration thread, so the period is a real-time budget, not just bandwidth.
+
+Three switches were pinned deliberately, each guarding against a *silent*
+change of meaning rather than a crash:
+
+- **`done_coverage_source:=scovox`.** The `auto` default switches to the 2D
+  planning map the instant one is received. Enabling the map would therefore
+  have swapped the termination metric from 2.5D column coverage to 2D cell
+  coverage against the same `done_unknown_fraction`, changing when every run
+  ends — with nothing in the output saying so.
+- **`cost_grid_radius_cap_m:=10 × ROI_HALF`.** The reachability filter is dead
+  code while `use_planning_map` is false, so its auto cap
+  (`candidate_max_radius + 2` = **10 m**) has never been exercised. That bound
+  is sized for *polar* candidates; frontier centroids have no range limit, and
+  `FRONTIER_ONLY=1` removes the polar set entirely. Left on auto, every frontier
+  more than 10 m of walked distance away returns `kInfCost` and is rejected —
+  exploration degenerates to 10 m hops or stalls, and looks like a result.
+  (The auto default is arguably wrong for any frontier-driven planner; it is
+  latent in the field only because field runs publish no planning map.)
+- **A hard readiness gate on the topic.** With `use_planning_map=true` the
+  planner *blocks in INIT* until a map arrives, so a topic typo or a launch arg
+  defaulting to `0.0` presents as two planners that never start — an hour in,
+  with no error anywhere.
+
+**Comparability note:** this makes sim runs non-comparable with the 2026-08-02
+campaign CSVs. Both the candidate free/occupied filter and the cost-grid
+reachability filter were entirely inactive there, so `rejected_by_unreachable`,
+`rejected_by_minpos` and goal selection do not mean the same thing.
+
+### 3.11 Adversarial review — defects found and fixed (2026-08-15)
+
+Two independent reviews of the §3 build work. Confirmed defects, all fixed:
+
+| # | Defect | Consequence if unfixed |
+|---|---|---|
+| 1 | `if gates.py … \| tee …; then` tested **tee's** exit status (no `pipefail`) | Every gate failure reported success; `GATES_STRICT` was dead code |
+| 2 | `RECONNECT_MODE=off` was not implementable — `reconnectModeFromString` falls back to `RENDEZVOUS` on any unknown string | The control arm silently ran `rendezvous` twice; both pre-registered contrasts compared an arm with itself |
+| 3 | `exploitation_enabled` left at the yaml's `true`, scheduler still running | §3.5 requires exploration-only; comms severity would drive exploitation stalls straight into the primary endpoint |
+| 4 | Metrics sampler re-ingests the fused map + walks every voxel every 5 s on a **single-threaded** executor | Delays the 1 Hz beacon past `coord_claim_ttl_sec` → peers read MISSING with the link healthy → spurious manoeuvre charged to the radio |
+| 5 | `reconnect_distance_m` was range-**to-goal**, documented as distance travelled | Inverts the overhead comparison: arriving reads ~0, giving up early reads large |
+| 6 | The unknown fraction — the primary endpoint *and* the DONE criterion — was in no CSV column | Runs could not be scored on their own stopping rule |
+| 7 | `gate_qos` skipped topics with no publisher (`if not pubs: continue`) | The "relay never formed" case its docstring names first went undetected |
+| 8 | `gate_overflow` used a **wall** timeout against a **sim-clock** publisher | Healthy runs flagged invalid for low RTF |
+| 9 | Nothing asserted the independent variable varied | A COMMS=1 run where the link never dropped yields a complete, plausible dataset that is really a control run |
+| 10 | No hang gate; the new timer rows made the specified "no CSV row for N minutes" detector unable to fire | A permanently stuck planner produces a full-length, flat, plausible run |
+| 11 | No run manifest | Arm, seed and `tx_power_dbm` existed only in the operator's scrollback |
+| 12 | `/hmr_comms_sim/stats` not bagged | `backlog_bytes` / `drop_airtime` — the only evidence for the B0a gate and the shared-airtime confound — unrecoverable |
+| 13 | `rx_qos_depth: 500` raised only the **publisher**; `dscovox_node` read at `KeepLast(50)` | Reconnect burst discarded at the reader; silent voxel loss, no counter |
+| 14 | planning_map stored with no frame check, then indexed with raw world XY | Correct only while `map→odom` is identity; nothing enforced or reported it |
+
+**Since fixed (2026-08-15):** the 8 `pine_*` includes now count toward
+attenuation. `tree_name_substring` (scalar, `"tree"`) became
+`tree_name_substrings` (list, `["tree", "pine"]`), and an `<include>` is matched
+on its instance name **or** its model URI, so `model://cmu_pine_tree` qualifies
+either way. Verified at startup: 88 tree positions loaded from `flatforestv2`,
+equal to the world's real trunk count (80 `Oak tree_*` + 8 `pine_*`), with no
+double-counting of pines that match both substrings. Both species share the one
+`tree_radius_m` / `tree_attenuation_db`; neither model has an analytic trunk
+(both collide as meshes), so the world affords no per-species radius. All 8 pines
+lie inside the ±50 m sim ROI, so this changes link traces rather than being
+cosmetic — **any link statistics captured before this date are not comparable**
+with runs after it. Quantified over 20k uniform robot pairs in ±50 m at the
+shipped defaults: mean trees per link 1.399 → 1.540 (+10 %), 13.3 % of link
+geometries change count, and **2.27 % of links flip 0 → ≥1 trees**, which is the
+one that matters — that flip switches the BER model from AWGN to Rayleigh, a
+discontinuity rather than a 12 dB nudge. At the §4 operating point it costs
+≈2 pp connectivity, worth ≈1.1 dB of `tx_power_dbm`. **Corollary for §4:** a
+calibration performed against 80 trees is now ~1 dB optimistic. It likely still
+lands inside the 55–70 % acceptance band, but it must be re-checked, not assumed.
+
+Because the change is uncommitted, `-dirty` alone could not tell an 80-tree run
+from an 88-tree one — both carried the same provenance string. The harness now
+writes `comms_trees_loaded=` into the run manifest and suffixes each `-dirty`
+marker with a hash of that repo's working tree, so runs either side of this fix
+are distinguishable from the artifacts alone.
+
+Two same-class defects fixed alongside, found by the review: `"pine"` does not
+match `pinus_pinaster` (20 instances in each of three shipped forest worlds), so
+`"pinus"`, `"euca"` and `"ulex"` joined the defaults — `realistic_forest` went
+from 45 matched plants to 110. And the node now logs the distinct names it
+*rejected*, so a world whose species this build cannot see says so at startup
+instead of quietly reporting a plausible number. Shrubs stay excluded on purpose:
+`tree_attenuation_db` is a trunk figure.
+
+The perimeter walls stay uncounted, and this is correct rather than a
+concession: the 56 `wall_*` includes form a **closed square at ±52 m**, and the
+sim ROI is ±50 m (`ROI_HALF`). A straight segment between two points inside a
+convex region cannot cross that region's boundary, so no robot-to-robot link
+that stays inside the ROI can ever be occluded by a wall — the attenuation they
+would contribute is exactly zero, not merely small. (Two caveats, both benign: a
+link hugging the boundary can bring a wall centre within the ~2 m Fresnel+trunk
+width, and the point-obstacle test would model a 7.5 m panel as a point anyway.
+Neither arises while the planner keeps goals inside the ROI.)
+
+Not fixed, carried as known limitations: `prox_hold_count` measures "close **and**
+connected" because peer poses arrive only via the gated intent beacon, so it
+under-reports the close approaches pursuit is predicted to cause; `hmr_sim` is
+copy-installed, not symlink-installed, so edits to `comms_sim_params.yaml`
+require a rebuild to take effect.
+
 ---
 
 ## 4. Calibration — one severity (offline, no Gazebo, cheap)
