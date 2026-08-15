@@ -666,6 +666,74 @@ The general lesson is the one worth keeping: **a validity gate that cannot fail
 the run is a log message.** The gate was correct, fired every 30 s for the
 entire campaign, and printed the exact diagnosis; nothing consumed its verdict.
 
+### 3.15 The radio was lossy for the wrong reason, and no gate ever said so (2026-08-15)
+
+Two defects found by an independent adversarial review, both of which invalidate
+every phase-3 run made before this entry.
+
+**The port changed the radio model.** `hmr_comms_sim_node` was derived from the
+Gazebo plugin `hmr_sim/src/HMRNetSim.cc`. There, `ber`/`per` are computed *only
+to be published*, and delivery is decided by the bandwidth state machine alone:
+PDR 1.0 below the SNR ≥ 2 dB boundary, 1e-8 above it. The port promoted that
+diagnostic into a per-message coin flip. It is wrong on its own terms —
+`AwgnQam64Ber`/`RayleighQam64Ber` hardcode `spectral_efficiency = 72e6/20e6`,
+i.e. 64-QAM at the **top** rate, regardless of which tier `NextBandwidth`
+selected. A link that correctly downshifted to 7.2 Mbps was charged the error
+rate of a gear it was not in: slow *and* lossy for one weak signal, the opposite
+of what rate adaptation is for.
+
+Measured at the calibrated `tx_power_dbm = -14.0`: median BER on **connected**
+samples 0.116, which kills a 200-byte beacon with probability 1−1e-70. Robots
+exchanged **3544 intent beacons; 7 arrived (0.2 %)**. Since `last_contact_` is
+fed by intents, peer records never formed, `startPursuit` declined every time
+("record of 'bestla' is 1611s old (max 180s)"), and **`PURSUE` appears in zero
+CSV rows campaign-wide** — the §2.3 mode-collapse trap, fired structurally
+rather than by bad luck. The artifact was also backwards: 60 kB map deltas flowed
+anyway because the reliable path capped retransmission cost at `retx_cap = 4.0`,
+so the model killed small control messages and spared large bulk ones.
+
+Fixed by deferring to the state machine, as the plugin does: gear 0 delivers
+nothing, any other gear delivers everything at that gear's speed, and
+degradation reaches the experiment as airtime pressure and backlog. Verified end
+to end at 20 m and tx = −14 (link BER 0.0749): `relayed 142, drop_ber 0`.
+
+**No run-time gate has ever adjudicated a run.** All 10 runs on disk logged
+`gateswatch ignored SIGINT`; not one contains a `watch` or `outage` line. The
+cause is not handler logic — SIGINT never reached a handler. The harness starts
+the watcher as a background job of a *non-interactive* shell, which POSIX gives
+`SIGINT` as `SIG_IGN`, and CPython honours an inherited `SIG_IGN` rather than
+installing its `KeyboardInterrupt` handler. Teardown then escalated to SIGKILL,
+which cannot be caught, taking the summary with it. So `gate_outage_occurred` —
+the check that **the independent variable actually varied** — has never returned
+a verdict, while runs carried `run_gates_verdict=CLEAN` earned on bring-up gates
+alone. Registering SIGINT explicitly is the fix; the harness now reads a missing
+watch summary as SUSPECT rather than CLEAN.
+
+**Consequences for §4 and §5.2.** The −14 dBm calibration was scored on
+`connected`, which under the ported model did not imply delivery; under the
+restored model it does, so the sweep's premise holds again and no re-sweep is
+required. Every phase-3 number recorded before this entry is void.
+
+**Corrections to earlier entries, from the same review.** §2.1's control
+makespans (1362/1938/1969) are *run-end* times; the criterion crossings are
+1350.2/1895.4/1950.1 — two different definitions were mixed. The floor is
+0.49218 (atlas) vs 0.49235 (bestla), not identical to four decimal places.
+"0.52 crossed at ≈ 2100–2200" is actually ≈ 1777, which *understates* how cheap
+tightening the criterion is. §5.2's "bestla never reached 0.55" is literally
+correct — its sub-threshold samples begin at t = 3678, 21 s past the horizon —
+but it survives by 0.00056, and §2.5's own rule (T ≈ 3× control makespan ≈
+5800 s) was not followed; at the specified horizon bestla crosses and the B0b
+defence collapses. Treat it as unresolved, not as measured.
+
+**Open, not yet fixed:** `analyze_runs.py` has no horizon bound (it parses one
+and never uses it), so it scores censored runs as finished from teardown data;
+it pools arms across transmit powers; it discards an outage still open at trace
+end (1225 s in one pursuit run); `reconnect_elapsed_sec` is read one row too
+late and is always −1. Re-running INVALID cells (§3.14 fix 2) is selection on a
+post-treatment variable and should be restricted to infrastructure failures.
+And §3.14's bag evidence can no longer be re-derived — the bags were deleted to
+reclaim disk, which was a mistake.
+
 ---
 
 ## 4. Calibration — one severity (offline, no Gazebo, cheap)
