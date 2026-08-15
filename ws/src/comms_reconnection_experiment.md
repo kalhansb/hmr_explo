@@ -174,6 +174,45 @@ pilot: confirm unreturned rays leave columns unknown (the analysis above infers
 it — no return ⇒ no ray ⇒ no carve); the control's unknown-fraction plateau
 confirms or corrects the 42 % figure.*
 
+**MEASURED (2026-08-15): the floor is 0.4922, and `done_unknown_fraction` is
+now 0.55.** A full-length control run (5411 sim s, both robots ~1930 m
+travelled) drove the ROI unknown fraction to 0.4922 by t ≈ 2900 s, after which
+it did **not move at all** for the remaining 2600 sim s — identical to four
+decimal places on both robots — while they covered a further ~950 m each and
+the fused map grew 0.9 %. The last hundred goals stayed inside
+x ∈ [−27.7, 42.5], y ∈ [−17.6, 37.5]. That is a floor, not a slow asymptote.
+
+The 42 % geometry estimate above is therefore *optimistic*, and the reason is
+the planner rather than the world. Utility is `info_gain / (ε + path_cost)`,
+and while the map is mostly unknown `info_gain` is near-constant across the
+candidate set — measured 6 % spread against a ninefold spread in `path_cost` —
+so `argmax(U)` degenerates to `argmin(cost)`. That makes the planner a
+diffusive nearest-frontier crawler; a forest's trunk shadows regenerate
+frontier clusters inside the region it has already covered, so a distant
+unexplored corner never wins on cost. It saturates at roughly **half** a ±50
+ROI and then cycles there indefinitely. Three related fixes were needed before
+it explored at all (§3.13); none of them changes this asymptotic behaviour,
+they only stop it deadlocking in the first minute.
+
+Consequence for the endpoint: **time-to-team-knowledge-complete now means
+"time to reach the coverage a well-connected team reaches", not "time to map
+the ROI"**. At 0.55 the criterion lands in the fast early phase, where map
+sharing is what separates the arms, and all three control runs terminated
+naturally rather than censoring at T. The threshold *is* the endpoint
+definition, so it must be identical across every arm; it is recorded in each
+run manifest. This also raises the stakes on §5.2's solo-reachability check,
+since a criterion this far above zero is more plausibly reachable by one robot
+alone — which is exactly the B0b failure the check exists to catch.
+
+**Control pilot, 3 runs at `tx_power_dbm: 160` (link never drops):** makespans
+1362 / 1938 / 1969 sim s, 25–36 min wall each, none censored. Because the
+fading trace is inert at that power, seeds 1–3 differ *only* through unseeded
+noise (sim physics, DDS timing) — so their **CV of 19 %** is a direct
+measurement of the unseeded-noise floor that §7 phase 3 was meant to obtain
+from a same-seed repeat. Pairing on the fade stream cannot strip variance that
+does not come from the fade stream, so this argues for **more** seeds in the
+matrix, not fewer.
+
 ### 2.2 Manoeuvres must fire more than once
 
 `finishOrRendezvous` runs only at exhaustion, so one reconnect event per run.
@@ -515,6 +554,63 @@ under-reports the close approaches pursuit is predicted to cause; `hmr_sim` is
 copy-installed, not symlink-installed, so edits to `comms_sim_params.yaml`
 require a rebuild to take effect.
 
+### 3.12 Voxel resolution 0.10 → 0.20 (2026-08-15)
+
+At 0.10 m a run long enough to reach coverage termination is not
+computationally feasible on this box, and the failure mode is silent. The
+lidar path carves free space along the **whole** ray (`carve_band: -1`) out to
+`max_range: 20`, so every beam writes ~200 voxels. The fused map passed 12.7 M
+voxels by t ≈ 550 s and was still growing linearly with explored area.
+Everything downstream scales with it — dscovox integration, the full
+`ScovoxMap` publish, and the planner's ingest plus whole-grid walk — and past
+a few million voxels the planner's map subscription simply stops keeping up:
+one robot ran **three minutes on a frozen map**, still driving, still logging
+steps, its coverage curve flat while its teammate's kept climbing, with no
+error anywhere. `voxel_resolution_m` is now a `simple_nav_3d` launch argument
+(default 0.10, unchanged) and the harness passes 0.20. Same run then holds
+~700 k voxels and reaches a *lower* unknown fraction at equal sim time.
+
+This is **not** a free knob under `COMMS=1`, and it is why §4 must be
+calibrated at the resolution the campaign runs at: the `scovox_bin` deltas are
+what the radio carries, so an ~8× change in payload is an ~8× change in the
+offered load the airtime model must move. No `tx_power_dbm` transfers across it.
+
+### 3.13 Exploration deadlocked before it explored (2026-08-15)
+
+The first control pilot never explored. Both robots entered a two-point
+oscillation within a minute and stayed in it — atlas between goals 0.87 m
+apart, bestla 0.63 m — for the whole run. Nothing reported it: every process
+healthy, steps advancing (so the harness hang gate, which watches the step
+counter, saw progress), CSV filling, unknown fraction pinned at 0.87 having
+moved 0.001 in 100 sim s. It would have produced a full-length run with a flat,
+plausible coverage curve.
+
+Cause is the same `info/(ε+cost)` degeneracy described in §2.1. Three
+independent things then make "the nearest frontier" a fixed point, and all
+three needed fixing (each opt-in, each defaulting to the shipped behaviour):
+
+1. **`candidate_min_goal_dist_m`** (harness: 4.0). The nearest frontier is
+   usually under a metre away, and a VLP-16's ±15° vertical FOV covers a band
+   ~0.3 m tall at that range — the voxels that made it a frontier are
+   physically unobservable from it. `goal_xy_tolerance` (0.4 m) is far too
+   small to catch this, and the failed-goal blacklist never fires because
+   every one of these goals is *reached*, on time.
+2. **`frontier_z_lo_offset_m` / `frontier_z_hi_offset_m`** (harness: 5.7 /
+   2.5, giving absolute z ∈ [0.2, 1.5]). The frontier search band was the full
+   9.5 m ROI slab; a lidar's free space is a wedge bounded by its vertical FOV,
+   so the whole upper and lower surface of that wedge is frontier at every
+   range, permanently. With fix 1 alone the ping-pong just moved out to 4.3 m.
+3. **`visited_goal_radius_m` / `visited_goal_ttl_sec`** (harness: 6.0 / 180).
+   Even with a consumable band, trunk shadows regenerate clusters however
+   thoroughly an area is observed, so two neighbouring clusters trade places as
+   "nearest" forever. With fixes 1+2 the robots still alternated between two
+   goals 4.7 m apart for six consecutive steps.
+
+With all three, goals walk out across the ROI and effective speed roughly
+doubles (0.14 → 0.31 m/s). **This changes what every arm does**, so no run
+recorded before 2026-08-15 may be pooled with one after, and the three values
+are recorded in every run manifest.
+
 ---
 
 ## 4. Calibration — one severity (offline, no Gazebo, cheap)
@@ -538,6 +634,46 @@ achievable outage granularity.
 55–70 % disconnected; median outage > 5 s (claim TTL, §2.3); time-since-contact
 at exhaustion < 180 s in most traces (§2.3 window). No second severity level is
 calibrated — R3 cut the damage curve.
+
+**DONE (2026-08-15): `tx_power_dbm = -14.0`.** Swept −6/−10/−14/−18/−22/−26
+against all three phase-1 control bags (`calibrate_txpower.sh`, 18 points).
+−14 is the *only* value passing all three criteria on all three bags:
+
+| bag | duty | outages | median outage | tsc at exhaustion |
+|---|---|---|---|---|
+| seed 1 | 0.573 | 53 | 8.4 s | 26.0 s |
+| seed 2 | 0.616 | 43 | 7.0 s | 0.0 s |
+| seed 3 | 0.604 | 63 | 9.0 s | 23.6 s |
+
+−18 passed on seed 1 alone (seed 2 median outage 4.4 s, seed 3 duty 0.712);
+−10 on seed 2 alone. The window is narrow and −14 sits mid-window.
+
+Two things make this number **non-transferable**, both of which change the
+offered load rather than the radio:
+
+- It is calibrated at `voxel_resolution_m: 0.20`, not the launch default 0.10
+  (§3.12). The `scovox_bin` deltas *are* what the link carries, so an ~8×
+  change in payload is an ~8× change in what the airtime model has to move.
+- It is calibrated against 88 trees, not 80 (§3.11).
+
+It is also far below the shipped 30 dBm, and that is a property of the
+scenario, not an error: the two robots stay close. Measured over the three
+control runs (27 763 link samples), median separation is 35 m (p90 66 m,
+p99 92 m) and trees per link average 0.86. A closed-form estimate from that
+geometry — `SNR = tx + 101 − 49.17 − 20 log10 d − 11.98 N`, connected at
+SNR > 2 — puts the 55–70 % band at −14…−18 dBm before any sweep was run,
+and the sweep landed on −14. Anything near 30 dBm keeps the link up ~98 %
+of the time at these separations.
+
+**Sweep hygiene, learned the hard way.** The control bags contain
+`/hmr_comms_sim/link_states` recorded at the control's own `tx_power_dbm`.
+Replaying the bag wholesale republishes those rows onto the topic the sweep's
+logger subscribes to, interleaving control-power rows with swept-power rows —
+and since the control is deliberately run where the link never drops, every
+sweep point reads far more connected than it is. Play only `/clock` and the
+pose topics. The check that catches it: `snr_db + path_loss_db − 101`
+recovers the transmit power each row was computed at, and it must equal the
+swept value on every row.
 
 **Carry into analysis:** replayed duty cycle is an estimate — once comms change
 behaviour, trajectories change. Re-measure **realized** disconnection fraction
