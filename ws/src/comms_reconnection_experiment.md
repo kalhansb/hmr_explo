@@ -722,6 +722,32 @@ pass on duplication alone; if it cannot, `off` completes only through contact
 and the endpoint measures exactly what it claims. Measure both in the pilot:
 solo time-to-criterion vs merge-driven time-to-criterion.
 
+**MEASURED (2026-08-15) — B0b survives, but on the second robot, not the
+first.** Run at `tx_power_dbm: -60` (link 0.00 % connected across every
+sample, verified), so each robot explores on its own map with the teammate
+physically present:
+
+| | reached 0.55 | at | distance |
+|---|---|---|---|
+| atlas, solo | yes | 2010 s | 727 m |
+| bestla, solo | **never** (T = 3600 s) | — | 1271 m |
+| team, control (merged) | yes | median 1938 s | ~490 m each |
+
+So a single robot *can* get there alone, and atlas did it only ~4 % slower
+than the fully-merged team. Taken per-robot that is close to the B0b failure
+mode. What protects the endpoint is that it is a **team** makespan over
+*every* robot: bestla never arrived despite driving 1271 m — 75 % further than
+atlas — so the team run censored. Merging is what rescues the unlucky robot,
+not what carries the lucky one.
+
+Carry as a validity caveat, and watch it in phase 3: if `off` comes close to
+the mode arms, the first thing to suspect is that 0.55 is lenient enough for
+duplication to substitute for merging. The lever is to tighten the criterion
+toward the 0.4922 floor (0.52 was crossed at ≈ t 2100–2200 in the floor
+probe), at the cost of longer runs and more censoring. Note the solo numbers
+cannot be re-read at a stricter threshold from this run: atlas went DONE on
+crossing 0.55 and stopped exploring, so its curve ends there by construction.
+
 ### 5.3 Mode diagnostics
 
 **Merge attribution — the mechanism evidence.** Classify every contact event
