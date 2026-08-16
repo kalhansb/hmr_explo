@@ -847,6 +847,102 @@ continuously and leaves the manoeuvre nothing to do. If so the value of a
 reconnection policy *rises* with severity — a sharper claim than "policy beats
 no policy", and one this pilot is too small to test.
 
+### 3.19 Transmit power was never a legal variable (2026-08-16)
+
+Every severity level in this plan so far was produced by moving
+`tx_power_dbm` — the control at 160, the calibrated condition at −14, total loss
+at −60, and the whole §4 sweep from −6 to −26. That is not a variable. Both
+robots carry the same radio, its power is fixed hardware, and no field
+experiment can turn it down. In the link model
+
+    SNR = tx_power + 101 − 49.17 − 20·log10(d) − 11.98·N_trees − fade
+
+`tx_power` is a constant offset, so lowering it 8 dB is *arithmetically* the
+same as moving the robots twice as far apart or adding two thirds of a trunk —
+but it is not the same experiment, because a power cut changes nothing about
+where the robots can drive or what the lidar sees.
+
+The arithmetic shows what the knob was really standing in for. The shipped radio
+is 30 dBm and these runs used −14: 44 dB of detuning, and 44 ÷ 11.98 = **3.7 tree
+trunks**. The transmit power was a silent proxy for tree density all along.
+
+It had to be, because the world cannot break a real radio. At 30 dBm with the
+geometry these runs produced (25–68 m apart, 0.66–1.43 trunks on the link):
+
+    30 + 101 − 49.17 − 33.98 − 16.77 = 31.1 dB   →  top tier, never disconnects
+
+`flatforestv2` carries 88 trees over the ±50 m ROI, about 88 stems/ha — open
+woodland. Reaching the 2 dB cutoff at 50 m needs ~3.8 trunks on the link, i.e.
+roughly 240 stems/ha, which is an ordinary managed forest. **There were no
+outages to study, so the radio was detuned until outages appeared.**
+
+§3.17 already had the evidence and stopped short of this conclusion: at one
+fixed power, realised duty ran 0.43–0.87, while the entire 20 dB sweep produced
+0.45–0.92. The environment alone was already generating the whole range the
+radio knob was being used to generate.
+
+Consequences. Severity must come from the forest — tree density is the honest
+treatment, and it is honest precisely because it also changes navigation and
+occlusion, which a power cut cannot imitate. The ideal-comms control is now
+`--comms 0` (no emulator, one broadcast domain), never a magic 160 dBm radio.
+Phase 4 as written is withdrawn. A denser world needs its own Phase 1, since the
+0.4922 floor and the 0.55 criterion were calibrated in `flatforestv2` and do not
+transfer.
+
+What survives: §3.16's mechanism verification is about the planner, not the
+radio. What does not: the severity ladder, and any reading of §4 as calibration
+of a physical variable.
+
+### 3.20 Inter-robot map divergence separates the comms conditions (2026-08-16)
+
+Time-to-criterion is settled before the arm is reachable (§3.16) and is badly
+conditioned near 0.55; final unknown_fraction scores the stopping rule, because
+each condition stops at a different sim time. Scored instead at *matched* sim
+time, the better-informed robot advances at nearly the same rate however bad the
+link is. Degraded comms does not slow the team down — **it pulls the two robots
+apart**. The quantity that moves is
+
+    divergence(t) = |unknown_fraction_A(t) − unknown_fraction_B(t)|
+
+taken as the median over matched times (`sim/map_divergence.py`):
+
+    condition                    median divergence      n     × logger noise
+    ideal comms (tx=160)         0.00000 – 0.00027      3        0.0 – 0.1
+    realistic   (tx=−14)         0.01090 – 0.05816      8        3.7 – 56.5
+    no comms    (tx=−60)         0.01724 – 0.02135      2       20.7 – 26.2
+
+No overlap; the worst ideal run is 41× below the best realistic one.
+
+This metric is the only one tried with an **exact null**: if every delta reaches
+both robots, both MapCaches hold the same union and report the same
+unknown_fraction. That is a property of delivery, not of the planner — which is
+what makes the number usable at all here, because the ideal cells ran on
+`explo_planner 2d9cd44-dirty` / `hmr_sim c7608f1` against the current
+`a75f14b` / `2e9e6c1`, two of the three repos dirty. Their *coverage rate* is
+not comparable across that gap and must not be quoted; their divergence is,
+because no planner version can make two identical maps disagree. The check
+confirms it: ideal-comms divergence lands at 0.0–0.1× the logger's own noise
+floor, i.e. below one sampling step.
+
+Two limits that the table hides.
+
+**Aggregate over the run; never classify an instant.** Under realistic comms
+divergence collapses to zero on every reconnect — 7 of the 8 realistic runs touch
+values below the ideal runs' *peak* at some point. The run median separates
+cleanly; a spot reading does not.
+
+**Divergence is not monotone in severity.** It is zero when the link is perfect
+and near-zero again when the link never comes up (both robots stay equally
+ignorant, symmetrically); it peaks at *partial* connectivity, where one robot
+takes a merge burst the other misses. So it answers "is comms intact?" and "how
+unequal is the team's knowledge?", not "how bad is this link?". Read beside the
+laggard's own coverage — low divergence also describes two robots that are
+equally uninformed, which is what pursuit produced in §3.18.
+
+Still owed: an ideal-comms control at the *current* build via `--comms 0`. The
+structural argument above is what licenses using the stale cells in the meantime,
+and it should not be leaned on any longer than necessary.
+
 ---
 
 ## 4. Calibration — one severity (offline, no Gazebo, cheap)
