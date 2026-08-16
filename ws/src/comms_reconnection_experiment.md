@@ -1262,6 +1262,19 @@ This is the answer to §3.19's open question. Severity is available, it is
 environmental, and it is roughly an order of magnitude bigger than anything the
 sparse world could reach.
 
+**The 0.55 criterion transfers, and the reason it is safe is narrower than
+that.** The worry (§3.23) was that a denser stand shadows more voxels and would
+move the achievable floor. Measured, it does not: dense runs bottom out at
+0.5268–0.5477 against the sparse world's 0.5407–0.5410, so 0.55 is reachable in
+both and every dense cell so far ended `all_done` rather than censored. But the
+comparison this criterion is used for — realistic vs perfect (§3.26), and the
+four modes (Phase 7) — is **entirely within one world**, so the threshold enters
+both arms as a shared constant and cannot confound them whatever it means
+physically. The number that would need real calibration is a *cross-world*
+coverage comparison, and this plan does not make one: a dense-world
+`unknown_fraction` counts trunk voxels as observed that the sparse world does not
+contain at all, so the two are not the same quantity and must not be pooled.
+
 ---
 
 ## 4. Calibration — one severity (offline, no Gazebo, cheap)
