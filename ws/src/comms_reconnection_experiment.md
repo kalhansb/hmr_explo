@@ -1533,6 +1533,79 @@ cost one re-run and one 40-line script.
 
 ---
 
+### 3.29 The pipeline's own noise is larger than the effect under test (2026-08-17)
+
+Three adversarial reviews of the Phase 7 design converged on one number, and it
+was already sitting on disk.
+
+**`seed` does not seed the world.** It reaches only the comms emulator
+(`run_explo_sim_rviz.sh:651`, inside `if [ "$COMMS" = "1" ]`). The scenario, the
+spawn poses and the planner carry no RNG. So an **ideal-comms** campaign run at
+three different seeds is three runs of *one identical configuration* —
+`p6denseperfect_off_seed{1,2}` even share a planner build, and their manifests
+differ in exactly one inert line. Their team completion times:
+
+    t_team    890 s     1429 s     2700 s      <-- 3.03x spread, CV 45 %
+
+**That band is wider than any arm difference this campaign has produced.** The
+Phase 3b deltas that looked like a clean 2× win for every manoeuvre — −1212,
+−1305, −1241 s against control — all sit inside it. They were never an effect.
+
+**It is the endpoint, not the physics.** The same three runs, re-read at higher
+thresholds:
+
+    unknown<=0.55    890  1429  2700     3.03x    CV 45.4 %
+    unknown<=0.60    594   685   955     1.61x    CV 20.6 %
+    unknown<=0.65    499   550   600     1.20x    CV  7.5 %
+    unknown<=0.75    225   229   250     1.11x    CV  4.7 %
+
+By 0.55 the coverage curve has gone nearly flat — one series spent 77 minutes of
+sim time to gain three percentage points — so time-to-threshold inverts a flat
+function and converts ROS/Gazebo scheduling jitter into minutes of apparent
+difference. The amplification varies ~900× *between seeds of the same arm*, which
+is why the variance is not just large but wildly heteroscedastic.
+
+**Power.** At CV 0.56 and n=5 per arm, an exact permutation test on medians has
+80 % power only against a **~70 % speed-up**. The effect's own ceiling is the
+measured penalty of realistic versus perfect comms — the most a perfect
+reconnection policy could possibly recover — and in the dense world that came out
+**−24 %, p = 0.70, with the wrong sign**: realistic comms finished *faster* than
+perfect comms. Detecting a plausible 10–20 % effect would need roughly 86–382
+runs per arm, against ~30–60 min per run.
+
+**Two arithmetic traps worth recording.** The difference-of-medians statistic at
+n=5 has only 12 of 252 splits tied at the extreme, so the smallest p it can ever
+emit is 12/252 = 0.0476 — meaning a Bonferroni threshold of 0.0167 for three arms
+is *unreachable for any data whatsoever*. And pairing on seed, which looks like
+the obvious fix, is worse: the within-seed correlation is 0.21 (an 11 % cut in
+the sd of the difference), while the paired permutation floor at n=5 pairs is
+2/2⁵ = 0.0625, so p < 0.05 goes from improbable to arithmetically impossible.
+
+**Consequence: Phase 7 is a pilot, not a ranking.** The honest output is an
+effect size with its interval plus the noise floor it must be read against — at
+n=5 that interval spans roughly ×0.47 to ×2.13, i.e. consistent with the arm
+being twice as fast or twice as slow. `modes_compare.py` now prints the noise
+floor from replicates, marks each delta INSIDE it or clearing it by *N*×, and
+carries a power banner computed from the arms' own pooled CV.
+
+**The one free rescue** is the threshold ladder. The noise collapses from CV 45 %
+to 7.5 % between 0.55 and 0.65 *on data already collected*, so re-reading the
+same runs at 0.60–0.65 costs nothing and is far better powered. 0.55 remains the
+headline — it is the planner's own DONE rule and the completion time the team
+actually pays in wall clock — but a ranking that exists only at 0.55 is a ranking
+of where the threshold fell on each seed's curve, and the ladder says so out
+loud. The ladder also distinguishes a flip *near* completion (the endpoint is
+noise) from an early-vs-late reversal, which is a **result**: a manoeuvre spends
+time not exploring, so it can trail at 0.70 and lead at 0.55.
+
+**What must not be written**, however the matrix lands: that any mode "wins", is
+"best", or is "recommended"; that an arm "outperformed the control (p = 0.048)"
+— 0.0476 is the arithmetic floor, not evidence; or that a null result shows the
+modes are equivalent, since with an MDE of 70 % a null excludes essentially
+nothing.
+
+---
+
 ## 4. Calibration — one severity (offline, no Gazebo, cheap)
 
 Emulator fading is a function of `(seed, tick)`, independent of traffic
