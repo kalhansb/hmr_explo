@@ -1378,6 +1378,73 @@ perfect against 805 m degraded (+56%).
 >
 > n = 1 for the dense ideal arm; two more cells are running. But the yield
 > figures are within-run measurements and do not depend on n.
+>
+> **THE CORRECTION ABOVE IS ITSELF WITHDRAWN IN PART (§3.27).** It was written
+> off `p6denseperfect_off_seed1` alone. Seeds 2 and 3 crossed at 885.6 s and
+> 1423.9 s, so the ideal arm's leader range is 886–2700 s against the realistic
+> arm's 1365–1845 s: **overlapping, with the ideal median FASTER** (1424 vs
+> 1550). There is no systematic leader slowdown. Seed 1's 2700 s plateau was one
+> run, not the arm. `vox_per_m_late` likewise overlaps at n = 3 and points the
+> other way (ideal 2428 vs realistic 1347). What survives is §3.26's original
+> claim — the leader is near-invariant — and the observation that seed 1
+> plateaued. What does not survive is "the criterion systematically favours
+> degraded comms", which remains a live hypothesis with one run behind it.
+
+### 3.27 The dense comparison separates — and is confounded by a silent QoS drop (2026-08-16)
+
+Phase 6, 6/6 cells clean: the dense forest at the shipped 30 dBm (`p6dense`)
+against the same world with no emulator (`p6denseperfect`), `off` arm both sides.
+
+**The manipulation finally bites.** `peer_visible_frac` 0.9959 vs 0.4327, a clean
+split — against Phase 5's 0.9953 vs 0.9748, which was no treatment at all. The
+environment lever did what §3.25 said it would.
+
+    metric              perfect            realistic          sep
+    peer visible frac   0.996/0.996/1.000  0.433/0.523/0.317  CLEAN
+    laggard lag s       0.11/4.48/4.99     10.1/125.0/1060.5  CLEAN
+    laggard drove m     0.04/2.10/4.15     4.6/45.4/378.5     CLEAN
+    map divergence      0.0000 all three   0.0011/0.0000/0.0002 CLEAN
+    t LEADER cross s    2700/886/1424      1845/1550/1365     overlap
+    plan ms p50         295/290/330        280/260/300        overlap (control quiet)
+
+So the leader's crossing time does NOT separate — §3.26's original claim stands
+and the §3.26 correction's counter-claim does not. The whole measurable effect
+is again in the laggard.
+
+**But the realistic arm's merged maps are holed, and the loss has no counter.**
+Final disagreement between the two robots' copies of the merged map:
+
+    p5real   sparse realistic     0.05 %   0.01 %
+    p6denseperfect                0.04 %
+    p6dense  dense realistic      1.76 %   1.49 %   1.78 %   <-- all three seeds
+
+30–40× the others. It is not the reliable backlog: `reliable_topics` carries
+`scovox_node/scovox_bin`, the 64 MiB→1 GiB pre-relay queue never overflowed, and
+`drop_overflow` is zero. It is `rx_qos_depth: 500`, whose own comment predicts
+this exactly — *"samples past the depth are dropped SILENTLY: drop_overflow only
+sees the pre-relay queue, so the loss would land as missing voxels in the merged
+map with no statistic anywhere saying so."* Deltas run ~2 Hz, so the 861 s outage
+queues ~1720 messages against a depth of 500. The depth was raised 100→500 for
+the SPARSE world, whose worst outage was 19 s ≈ 40 messages. The dense world is
+45× that. `dscovox_node`'s own `scovox_bin_qos_depth` (also 500) must be raised
+with it or the burst simply overruns the subscriber instead.
+
+**Consequence: Phase 6's separation is real but its size is not attributable.**
+Part of the laggard lag and all of the residual divergence may be permanently
+missing voxels rather than delayed ones — and the config comment says outright
+that this "would confound the map-merging experiments". The dense cells must be
+re-run with both depths sized to the run length, not the sparse world's outages.
+Phase 7 was auto-started into the same world by the phase-6 chain and was
+stopped 38 s in for this reason.
+
+**Two lesser reading hazards in the same table.** The matched horizon collapsed
+to 1060 s (set by the fastest ideal cell) while runs reach 2875 s, so every
+horizon-clipped metric — `vox_per_m_late`, `unknown_at_dist`, divergence, the
+`unknown_*` family — is measured over the first third of the longest runs and
+says nothing about late-run behaviour. `laggard_lag`, `lag_dist` and the crossing
+times are computed over the full run and are unaffected. And `vox_per_m_late`'s
+window here (773–1060 s) is not "late" at all, which is why it disagrees with the
+hand-cut t = 1400–2200 slice in §3.26's correction.
 
 ---
 
