@@ -1333,6 +1333,52 @@ identical in the laggard's own map. The quantity that does separate them is
 distance-to-matched-coverage-level, which on the detuned check read 515 m for
 perfect against 805 m degraded (+56%).
 
+> **CORRECTION (2026-08-16, same day, from the first dense ideal-comms cell).**
+> The caution immediately above is not a caution. It is the dominant effect, and
+> it falsifies this section's second claim.
+>
+> `p6denseperfect_off_seed1` — dense world, `--comms 0`, both robots holding an
+> identical map — crossed the criterion at **2700 s**, against 1365–1845 s for
+> the *realistic* dense runs. Its laggard lag was 0 s exactly, as predicted, but
+> its leader was far slower, not invariant. Its `unknown_fraction` sat at
+> 0.5504 → 0.5502 for 1000 s while the robots drove 254 m.
+>
+> Late-run information yield, t = 1400 → 2200, shows why:
+>
+>     condition             robot    drove    new voxels   voxels/m
+>     dense perfect         atlas   253.7 m       31 912        126
+>     dense perfect         bestla  168.2 m       23 183        138
+>     dense realistic s1    bestla  174.3 m      142 823        820
+>     dense realistic s2    bestla   73.5 m      132 099       1796
+>
+> The ideal-comms robots drive **further for a sixth of the information**.
+> `unknown_fraction` is measured on each robot's OWN map, so it **rewards
+> redundant coverage**: a degraded-comms robot has cheap unknown right beside it
+> — the ground its partner already covered — and harvests it at 6–14× the yield
+> per metre, while a robot that already holds the union has only the genuinely
+> hard, far-away voxels left. **The per-robot criterion therefore systematically
+> favours degraded comms late in a run.**
+>
+> What stands: the laggard measurements. Under realistic comms it trails by
+> 10–1060 s and drives up to 378 m at full speed, not idling — measured within
+> the realistic runs and untouched by this.
+>
+> What is withdrawn: "the leader's time is near-invariant, so the entire comms
+> effect lives in the gap." The leader's time moved, in the opposite direction,
+> for an artifactual reason.
+>
+> What this means for the design: **the stopping rule is not a team-knowledge
+> criterion.** §5.2 defines the endpoint as every robot's *own* map reaching
+> saturation, and that definition is satisfiable by duplication. The endpoint
+> that is not is one that charges for travel —
+> distance-to-matched-coverage-level — or one evaluated on the union map, which
+> these `--record 0` runs cannot reconstruct. Until that is settled, no
+> comparison between a shared-map arm and a partitioned-map arm should be read
+> off crossing times alone.
+>
+> n = 1 for the dense ideal arm; two more cells are running. But the yield
+> figures are within-run measurements and do not depend on n.
+
 ---
 
 ## 4. Calibration — one severity (offline, no Gazebo, cheap)
@@ -1426,13 +1472,22 @@ two-robot known gap is the unmerged-maps signature.
 
 ### 5.2 Primary endpoint: time-to-team-knowledge-complete
 
-> **CONFIRMED AND DECOMPOSED (2026-08-16, §3.26).** This endpoint is the right
-> one and it is now known *why*: the leader's time to criterion is near-invariant
-> across comms conditions (1336–1845 s, fully overlapping), so the whole comms
-> effect lives in the gap to the second robot — 0–4 s at the shipped radio in the
-> sparse world, 10–1060 s in the dense one. Report it decomposed:
-> `t_lead_cross` (invariant control), `laggard_lag` (**primary**), `lag_dist`
-> (the cost in robot metres). Read out with `sim/comms_metrics.py`.
+> **DECOMPOSED, AND PARTLY BROKEN (2026-08-16, §3.26 + its correction).**
+> Report this endpoint decomposed — `t_lead_cross`, `laggard_lag`, `lag_dist`,
+> via `sim/comms_metrics.py`. The laggard gap is real: 0–4 s at the shipped
+> radio in the sparse world, 10–1060 s in the dense one, and the laggard spends
+> it driving at full speed, up to 378 m.
+>
+> **But this endpoint as defined is satisfiable by duplication and biased
+> toward degraded comms.** It asks each robot's OWN map to saturate, and a robot
+> cut off from its partner has cheap unknown beside it — its partner's ground —
+> which it harvests at 6–14× the voxels per metre of a robot that already holds
+> the union. The first dense ideal-comms cell crossed at 2700 s against 1365–
+> 1845 s realistic *because* it had nothing cheap left to cover. The
+> solo-reachability caveat below anticipated exactly this failure mode; it is now
+> observed, and it is larger than the effect the endpoint was meant to measure.
+> Do not read a shared-map arm against a partitioned-map arm off crossing times
+> alone.
 
 Sim time until **every** robot's known map reaches the saturation criterion
 (the §2.1 floor + margin), censored at T. Under `off` a robot gets there when
