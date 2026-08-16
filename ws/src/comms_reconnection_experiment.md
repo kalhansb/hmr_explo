@@ -1111,6 +1111,72 @@ spread across the whole run, max residual 0.70 s. The anchors do not depend on
 any manoeuvre having happened, which matters — a run whose only firings were too
 short to be sampled still gets a time base.
 
+### 3.23 At the shipped radio, realistic comms IS perfect comms (2026-08-16)
+
+The first comparison of the two conditions with **nothing detuned**: both arms
+carry `tx_power_dbm = 30.0`, the shipped radio, on both robots. The only
+difference is whether the emulator is in the path at all — `--comms 0` leaves
+both robots on their direct topics in one broadcast domain, `--comms 1` puts the
+relay hop, delay, airtime budget, fading and disconnection logic between them.
+Same build, same world, paired seeds, `off` arm so no manoeuvre confounds it.
+6/6 cells clean.
+
+Inter-robot map divergence (§3.20), median over matched sim times:
+
+    p5perfect_off_seed3   0.00000      p5real_off_seed2   0.00000
+    p5perfect_off_seed1   0.00008      p5real_off_seed1   0.00003
+    p5perfect_off_seed2   0.00027      p5real_off_seed3   0.00003
+
+**Completely interleaved, every cell at 0.0-0.2x the logger noise floor.** The
+realistic arm is if anything the tighter of the two. There is no effect to
+measure.
+
+That is not because the link is flawless. It does drop:
+
+    run                 duty    outages   median   longest
+    p5real_off_seed1  0.0256          7     6.6 s    16.6 s
+    p5real_off_seed2  0.0078          3     4.4 s     7.6 s
+    p5real_off_seed3  0.0296          9     3.4 s    19.4 s
+
+19 outages pooled, driven by geometry exactly as the model says — they happen
+when the robots reach 82-91 m apart with up to 5 trunks on the path, and the
+deep fades take SNR to −20 dB. But every one of them is **under 30 s, median
+3.8 s**, and the reliable relay drains the backlog on reconnect long before
+either robot's coverage can fall behind. The team loses ~35 s of connectivity
+out of a ~1700 s run and not one voxel of shared knowledge.
+
+Set against the detuned runs this is the whole story of the project so far:
+
+    condition                     duty          divergence      x noise
+    perfect (--comms 0)           0.000         0.00000-0.00027   0.0-0.2
+    realistic (30 dBm, honest)    0.008-0.030   0.00000-0.00003   0.0
+    detuned (tx = -14 dBm)        0.426-0.867   0.01090-0.05816   3.7-56.5
+
+Detuning the radio 44 dB multiplied outage duty by 15-100x. **That factor, not
+any property of comms, is what every "severity level" in this plan measured.**
+
+Consequences, and they are the point of the exercise:
+
+- **§3.20's separation stands, and is now correctly attributed.** Divergence
+  does cleanly separate a *degraded* link from a healthy one. What it separates
+  is not realistic-versus-perfect; it is detuned-versus-honest.
+- **The reconnection manoeuvres have nothing to do here.** They fire at
+  exploration exhaustion against a peer missing beyond the claim TTL. A 4 s
+  outage never reaches that test. In this world, at this radio, the manoeuvre is
+  unreachable by construction — which is the deepest form of §3.16's objection.
+- **A one-line correction to a claim made earlier today.** A 300 s probe at
+  30 dBm showed 100 % connectivity and was read as "the honest radio never
+  drops". It does; the probe simply ended while the robots were still 8.5 m
+  apart. Short runs cannot see this because the mechanism is dispersal. The
+  full-length runs are the evidence.
+
+The remaining question is unchanged and now has a number attached: an honest
+comms experiment needs a world where outages last minutes rather than seconds.
+`flatforest_dense` (250 stems/ha against flatforest's 74, `densify_forest.py`)
+is built for exactly that — it puts ~3.9 trunks in the Fresnel corridor of a
+50 m link where 3.83 is the cutoff. It has NOT been run yet, and it needs its
+own §2.1 calibration first.
+
 ---
 
 ## 4. Calibration — one severity (offline, no Gazebo, cheap)
