@@ -1392,6 +1392,13 @@ perfect against 805 m degraded (+56%).
 
 ### 3.27 The dense comparison separates — and is confounded by a silent QoS drop (2026-08-16)
 
+> **PARTIALLY WITHDRAWN by §3.28 (2026-08-17).** The separation result in the
+> first half of this section stands. The QoS-overflow diagnosis in the second
+> half — everything under "the realistic arm's merged maps are holed" — is
+> **wrong** and was refuted by the re-run it demanded. The map gap is undrained
+> backlog, not lost voxels, and the dense cells did **not** need re-running.
+> Read §3.28 before citing anything below about `rx_qos_depth`.
+
 Phase 6, 6/6 cells clean: the dense forest at the shipped 30 dBm (`p6dense`)
 against the same world with no emulator (`p6denseperfect`), `off` arm both sides.
 
@@ -1445,6 +1452,84 @@ says nothing about late-run behaviour. `laggard_lag`, `lag_dist` and the crossin
 times are computed over the full run and are unaffected. And `vox_per_m_late`'s
 window here (773–1060 s) is not "late" at all, which is why it disagrees with the
 hand-cut t = 1400–2200 slice in §3.26's correction.
+
+---
+
+### 3.28 WITHDRAWN: the map gap is drained backlog, not lost voxels (2026-08-17)
+
+§3.27 concluded that the dense cells' 1.5–1.8 % merged-map disagreement was a
+silent `rx_qos_depth: 500` overflow, and demanded a re-run before Phase 7 could
+proceed. The re-run was done. **It refuted the diagnosis.**
+
+    rx_qos_depth / scovox_bin_qos_depth = 500     1.76 %   1.49 %   1.78 %
+    rx_qos_depth / scovox_bin_qos_depth = 4000    3.58 %   0.10 %
+
+3.58 % at depth 4000 is worse than every run at depth 500. Deepening a queue
+cannot make an overflow worse, so overflow is not the mechanism. The arithmetic
+in §3.27 was sound (861 s × ~2 Hz ≈ 1720 deltas against a depth of 500) and the
+config comment did predict exactly this failure — which is precisely why it was
+believed. A prediction that fits is not a measurement.
+
+**Ruled out second: a measurement artifact.** §3.27's number came from comparing
+each robot's *last* CSV row, so a robot that logged longer would look like it had
+a fuller map. Recomputing at the latest **common** sim time moves nothing
+(3.58 → 3.60, 1.76 → 1.76, 1.49 → 1.49); the two planners stop within 0.0–7.5 s
+of each other.
+
+**What it actually is.** Traced through a run the gap is transient, not
+cumulative — percent disagreement sampled every 100 s over the last 600 s:
+
+    dense realistic   27.9  28.8  36.9  38.3   7.0   2.5    opens, then drains
+    dense realistic    8.0   8.0   6.8   6.7   5.0   1.1
+    dense realistic    1.2   0.7   7.8   5.3   1.0   0.1
+    dense ideal        0.0   0.0   0.0   0.0   0.0   0.0    never opens at all
+
+The gap opens **during** an outage, which is the treatment working rather than
+failing: each robot keeps mapping from its own sensors while the peer's deltas
+sit undelivered in the emulator's reliable queue, so the two merged maps are
+legitimately different for as long as the radio is down. On reconnect the backlog
+drains and the gap collapses. A 38 % mid-run gap healing to 2.5 % is a link
+recovering. Under perfect comms it is flat zero, because there is nothing to
+drain.
+
+So the end-of-run number is not an integrity measure. It is **how much backlog
+was still draining at the instant the run hit `all_done`**, and it scales with
+outage severity — sparse 0.01–0.05 %, dense up to 3.6 %, ideal 0.03–0.09 %. That
+makes it a treatment-intensity reading and a legitimate **secondary** map-
+completeness metric, which is how `modes_compare.py` now reports it (`map_end`
+alongside `map_peak`).
+
+**Three consequences.**
+
+1. **§3.27's re-run demand is void.** The dense cells were never corrupted, so
+   Phase 6's separation is fully attributable after all. The laggard lag is
+   delayed voxels, not missing ones.
+
+2. **Failing runs on this was backwards.** `map_agreement.py` was written as a
+   strict gate at 0.5 %. With `GATES_STRICT=1` and `run_campaign.sh` aborting
+   after three consecutive failures, and 2 of 3 cells failing it, the gate was on
+   course to kill the 12-cell Phase 7 matrix over a non-defect — and it would
+   have discarded preferentially the cells where the comms treatment bit
+   *hardest*, leaving a matrix biased toward runs where the radio barely
+   mattered. It is now report-only.
+
+3. **Queue depth stays at 4000, but as insurance, not as a fix.** Overflow is
+   unobserved, not refuted: `drop_overflow` only ever sees the relay's own
+   pre-relay queue, so nothing in this experiment measures the reader-side burst
+   independently. 240 MB per queue is cheap on a 62 GB box. The sizing rule in
+   `comms_sim_params.yaml` is kept.
+
+**What would still be a real defect**, and is worth keeping the peak column for:
+a gap that opens and never closes while the link is up. Deltas carry absolute
+voxel state and the receiver snapshot-replaces, so any voxel observed again
+self-heals; permanent loss can only survive in voxels never revisited. `end` far
+below `peak` is a drained backlog; `end ≈ peak` with the link long restored is
+not.
+
+**Method note.** The failure mode here was not the wrong arithmetic — it was
+treating a mechanism that *explained* the data as a mechanism that *caused* it,
+and then hard-coding it into a gate before testing it. The test that settled it
+cost one re-run and one 40-line script.
 
 ---
 
