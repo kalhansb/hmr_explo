@@ -820,6 +820,12 @@ number of manoeuvres actually fired:
 
     arm mean:  off 0.5138 | hybrid 0.5198 | rendezvous 0.5261 | pursuit 0.5325
 
+**The `fired` column above undercounts — see §3.22.** It was read off the
+sampled CSV `state` column, which cannot see manoeuvres shorter than its ~5–10 s
+period. Log-derived, hybrid fired **7** and **4**, not 5 and 3; the other six
+cells are unchanged. The conclusion below does not turn on it — the arm that
+fired most still did not win — but no later analysis should use that column.
+
 **The control arm has the best mean final map.** Within-arm spread (hybrid
 0.0335, pursuit 0.0324) exceeds the spread of the arm means (0.0187), so nothing
 here is separable at n = 2. Regressing completeness on duty_pre across all eight
