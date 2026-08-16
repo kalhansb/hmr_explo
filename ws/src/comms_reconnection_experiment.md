@@ -1275,6 +1275,64 @@ coverage comparison, and this plan does not make one: a dense-world
 `unknown_fraction` counts trunk voxels as observed that the sparse world does not
 contain at all, so the two are not the same quantity and must not be pooled.
 
+### 3.26 Comms does not slow exploration — it slows completion (2026-08-16)
+
+The endpoint question, answered. **Degraded comms does not slow exploration
+down.** Across every condition on disk, from a 97%-connected link to a
+27%-connected one, the first robot to reach the coverage criterion does so at
+1336–1845 s and the ranges overlap completely. The radio does not make a robot
+explore more slowly.
+
+What it delays is **completion**, because the run does not end until the
+*second* robot reaches the criterion:
+
+    condition                  leader crosses   laggard trails by   laggard drove
+    sparse perfect              1336-1701 s            0-10 s          1.4-4.3 m
+    sparse realistic 30 dBm     1440-1800 s             0-4 s          2.7-6.5 m
+    dense realistic 30 dBm      1365-1845 s          10-1060 s        3.6-378.5 m
+    sparse detuned -14 dBm      1365-1385 s          10-2045 s        8.4-736.8 m
+
+**This is §5.2's pre-registered primary endpoint, and it survives contact with
+the data.** §5.2 already defined the endpoint as sim time until *every* robot
+reaches saturation, and its B0b probe already showed the signature: bestla never
+arrived despite driving 1271 m, 75% further than atlas. What §3.26 adds is the
+decomposition — the leader's time is near-invariant, so the **entire** comms
+effect lives in the gap — and a price for it.
+
+**The laggard is not waiting on the radio.** The expected picture was a robot
+stalled until a backlog drained, then jumping. That is not what happens. During
+its lag window the laggard drives at 0.357–0.364 m/s against a 0.320–0.352 m/s
+whole-run average — full speed, the whole time. It is out covering ground to
+learn for itself what its partner already knew. In the dense forest that cost
+**378 m of driving**; detuned, **737 m**. Under perfect comms the same gap costs
+2–5 m.
+
+So the cost of realistic comms is not latency and not lost coverage. It is
+**duplicated robot-metres by the robot that was cut off**, and a mission that
+cannot be declared finished until that robot has driven them.
+
+Consequences for the design:
+
+- **`laggard_lag` is promoted to the reported primary**, with `lag_dist` (the
+  cost in robot metres) beside it and `t_lead_cross` as the near-invariant
+  companion that shows the effect is not in exploration rate.
+- **Censoring is now load-bearing, not a nuisance.** A run whose laggard never
+  arrives is the *worst* case for its condition, not a missing observation.
+  Dropping it biases the comparison toward "no effect" exactly when the effect
+  is largest, so `comms_metrics.py` records those as lower bounds and flags any
+  group median that is itself a lower bound. §5.2's B0b probe is precisely such
+  a run.
+- **This is the mechanism the reconnection modes claim to fix.** Their value is
+  supposed to be moving the laggard's merge earlier and making it scheduled
+  rather than lucky. That claim is now stated as a number they must move:
+  laggard lag, 10–1060 s in the dense forest under `off`. Phase 7 tests it.
+
+One caution carried forward. `unknown_fraction` cannot distinguish the laggard
+re-covering its partner's ground from exploring genuinely new ground — both look
+identical in the laggard's own map. The quantity that does separate them is
+distance-to-matched-coverage-level, which on the detuned check read 515 m for
+perfect against 805 m degraded (+56%).
+
 ---
 
 ## 4. Calibration — one severity (offline, no Gazebo, cheap)
@@ -1367,6 +1425,14 @@ signature). Its trajectory carries the story; its end state is merely F2. The
 two-robot known gap is the unmerged-maps signature.
 
 ### 5.2 Primary endpoint: time-to-team-knowledge-complete
+
+> **CONFIRMED AND DECOMPOSED (2026-08-16, §3.26).** This endpoint is the right
+> one and it is now known *why*: the leader's time to criterion is near-invariant
+> across comms conditions (1336–1845 s, fully overlapping), so the whole comms
+> effect lives in the gap to the second robot — 0–4 s at the shipped radio in the
+> sparse world, 10–1060 s in the dense one. Report it decomposed:
+> `t_lead_cross` (invariant control), `laggard_lag` (**primary**), `lag_dist`
+> (the cost in robot metres). Read out with `sim/comms_metrics.py`.
 
 Sim time until **every** robot's known map reaches the saturation criterion
 (the §2.1 floor + margin), censored at T. Under `off` a robot gets there when
