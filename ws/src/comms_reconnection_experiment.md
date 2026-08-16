@@ -1179,6 +1179,91 @@ own §2.1 calibration first.
 
 ---
 
+### 3.24 Which metrics can see comms at all (2026-08-16)
+
+§3.23 reported a null. A null is only informative if the instrument that
+produced it can detect an effect when one exists, so before running the dense
+world the whole candidate endpoint list was put on one bench:
+`sim/comms_metrics.py`. Eleven metrics per run, every time-indexed quantity read
+at a **matched sim-time horizon** — the minimum over all runs in the comparison
+of the last time both robots had logged — because each run stops at its own
+coverage threshold and an endpoint read at run end scores the stopping rule as
+much as the condition.
+
+Two of the eleven are not endpoints and are meant to be read first:
+
+- **`peer_visible_frac`** — manipulation check. The fraction of planner rows in
+  which the robot could see a live peer. If this does not separate, the emulator
+  did nothing in this world, and no downstream metric can be carrying a real
+  effect; any that appear to are noise.
+- **`plan_ms_p50`** — negative control. Median planner solve time has no causal
+  path from the radio. If it separates, the two arms differed in CPU load rather
+  than comms, and §3.8's warning applies: executor lag is indistinguishable from
+  a radio outage in this output.
+
+**The instrument check.** Run against the withdrawn detuned cells (§3.19), where
+a genuinely broken link is known to exist, the battery does see it:
+
+    metric                perfect    detuned    separation
+    peer visible frac      0.9953     0.2468    CLEAN
+    map divergence         0.0001     0.0086    CLEAN     (+11155%)
+    t to matched level    740.1 s   1178.0 s    overlap      (+59%)
+    m to matched level    514.7 m    805.3 m    overlap      (+56%)
+    plan ms p50            420 ms     355 ms    overlap   (control, quiet)
+
+So the battery is sensitive, the negative control stays quiet, and at n≈3 only
+two metrics separate *cleanly*: the manipulation check and map divergence.
+Effort costs move by more than half in the right direction but their between-run
+variance swallows it — they need seeds, not a better definition.
+
+**The same battery on §3.23's Phase 5 pair finds nothing, including the
+manipulation check**: `peer_visible_frac` 0.9953 perfect vs 0.9748 realistic. The
+emulator was in the path and had almost nothing to do. That is the correct
+reading of the Phase 5 null — not "these metrics are blind" but "there was no
+treatment". Every other row overlapped, and the largest apparent gap
+(`deconflict rej frac`, +194%) sat at permutation p = 1.000.
+
+**A metric this bench threw out.** The first effort metric was team distance
+divided by the unknown-fraction reduction since t=200 s. It separated cleanly —
+in the *wrong direction*, scoring the detuned runs as 24% more efficient. The
+cause is the denominator: by t=200 s the perfect-comms robots have already
+merged maps, so they start the window with less room left to improve, before any
+robot has done extra work. **A ratio anchored to a condition-dependent baseline
+measures the baseline.** It was replaced with endpoints matched on coverage level
+rather than time — time-to-level and distance-to-level at the deepest unknown
+fraction every run reaches — which have no such anchor.
+
+**Report separation, not significance.** At n = 3 vs 3 the exact permutation null
+over C(6,3) = 20 splits pairs every split with its complement, so the smallest
+attainable two-sided p is 2/20 = **0.10**. Nothing at this n can be significant,
+and the tool prints its own floor beside the p column to stop that number being
+read as evidence. The reportable quantity is whether the two groups' ranges
+overlap at all; a clean split at n = 3 is a reason to run more seeds, not a
+result.
+
+### 3.25 The forest, not the radio, is the severity knob (2026-08-16)
+
+The dense stand was run at the **shipped 30 dBm on both robots**, changing only
+the world. Measured over full runs rather than probes:
+
+    world              stems/ha   conn%   SNR med   trees med   outages   longest
+    flatforest               81    97.4    41.0 dB        1.0       3-9      19 s
+    flatforest_dense        250    44.5    -1.3 dB        4.0     37-38     861 s
+
+`p6dense_off_seed2` spent **73% of its run disconnected** with a median SNR of
+−24 dB and a single outage lasting 860.6 s. That is past the 180 s
+`pursuit_staleness_max_sec` bound, past the 5 s claim TTL, and 45× the longest
+outage the sparse world ever produced — obtained without touching a single robot
+parameter. Both dense cells still reached `all_done` with CLEAN gates, so the
+coverage endpoint survives the denser stand and the pilot is not being run into a
+world that cannot terminate.
+
+This is the answer to §3.19's open question. Severity is available, it is
+environmental, and it is roughly an order of magnitude bigger than anything the
+sparse world could reach.
+
+---
+
 ## 4. Calibration — one severity (offline, no Gazebo, cheap)
 
 Emulator fading is a function of `(seed, tick)`, independent of traffic
