@@ -965,6 +965,56 @@ Still owed: an ideal-comms control at the *current* build via `--comms 0`. The
 structural argument above is what licenses using the stale cells in the meantime,
 and it should not be leaned on any longer than necessary.
 
+### 3.21 "Time to exploration saturation" is not a separate metric (2026-08-16)
+
+Proposed as a replacement for time-to-criterion, on the reasoning that it is not
+read off a flat part of the curve and it sits upstream of the arm. Measured, it
+turns out to be the same event under another name.
+
+Every run on disk leaves EXPLORE at an unknown fraction of 0.511–0.549 — all of
+them just under the 0.55 criterion. `explo_planner_node.cpp:2194` is why: the
+transition fires on `unk < done_unknown_fraction_`. **Saturation time IS
+time-to-criterion**, so §3.16 applies to it unchanged.
+
+It also fails to separate the conditions, and fails in the direction that shows
+why:
+
+    condition     n   mean saturation   range
+    perfect       3        1775 s       1389–1995
+    realistic     8        1130 s        820–1445
+    none          2        2580 s       2055–3106
+
+The ranges overlap (1389–1445) and *perfect is slower than realistic*, which is
+backwards. That is the §3.20 build gap: saturation time is a coverage-rate
+quantity, so unlike divergence it does **not** survive comparison across the
+stale control build. It cannot be quoted until the `--comms 0` control is re-run.
+
+This also corrects an earlier reading in this file's working notes: perfect
+1702 s vs realistic 2374 s, reported as a clean 1.39× dose-response. That used
+only the two `off` cells for realistic, one of which (`p3b_off_seed2`, both
+robots crossing at 3476 s) is a large outlier. With all 8 realistic cells the
+ordering reverses. There was never a monotonic time effect.
+
+There is no genuine saturation to measure instead. `frontier_voxels` grows
+monotonically for the whole run (93k → 1.54M in `p3b_off_seed1`); it counts the
+boundary of an expanding map, not work remaining, and it never falls. The
+planner's own comment at line 1000 says why: *"EIG scores don't fall sharply as
+the map saturates (the FOV raycast always finds some unobserved voxels at the
+cone edge), so unknown fraction is the reliable signal here."* The exploration
+curve never flattens to zero, so 0.55 is an arbitrary line drawn across a curve
+that has no natural end — which is exactly why crossing it is badly conditioned.
+
+To make true exhaustion observable at all, `done_unknown_fraction <= 0` disables
+coverage termination (line 1002) and runs go until the planner genuinely runs
+out of candidates. That is a different and much longer experiment — the solo run
+needed 3880 s with the criterion active — and it would first need the §3.19
+denser world, since candidate supply in an open ROI is what the frontier-only
+caveat at `run_explo_sim_rviz.sh:82-87` warns about.
+
+Polar candidates were already off for every run on disk
+(`candidate_enable_polar=false`, from the `FRONTIER_ONLY=1` default), so nothing
+in the results above involves the polar grid.
+
 ---
 
 ## 4. Calibration — one severity (offline, no Gazebo, cheap)
