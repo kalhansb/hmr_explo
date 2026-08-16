@@ -734,6 +734,119 @@ post-treatment variable and should be restricted to infrastructure failures.
 And §3.14's bag evidence can no longer be re-derived — the bags were deleted to
 reclaim disk, which was a mistake.
 
+### 3.16 The outcome is settled before the treatment is applied (2026-08-16)
+
+The p3b pilot (8 cells, 4 arms × 2 seeds, tx = −14 dBm, T = 5400 s) ran clean:
+8/8 complete, 0 failures, every cell CLEAN on a *real* run-time verdict — the
+first block in which §3.15's watcher fix let the outage gate adjudicate at all.
+All four mechanisms were then observed executing end to end. Pursuit: *"'bestla'
+out of comms (record 9s old) → chasing its trail head (−42.07, −18.03), budget
+240s"* then *"team reconnected mid-chase (1/1) → re-planning against merged
+map"*. Rendezvous: *"team incomplete (0/1 peers) → returning to last-connected
+anchor"* then *"team reconnected en route"*. Hybrid: chase first, barrier
+fallback. Under the §3.15 radio the peer record was 1611 s stale and `PURSUE`
+appeared in zero rows campaign-wide; it now fires with records 5–19 s old.
+
+The mechanisms work. The experiment still cannot see them, for a structural
+reason.
+
+`finishOrRendezvous` is reached only at exhaustion. In `p3b_pursuit_seed1` atlas
+crosses the 0.55 criterion at t = 855.4 s and enters `PURSUE` at t = 900.8 s —
+**45 s after the stated outcome is already determined**. No arm can move
+time-to-criterion at any n, with any radio. The pilot's crossing times (off
+1395 s, rendezvous 1046 s, pursuit 1045 s, hybrid 1686 s) are samples of
+trajectory luck, not an ordering.
+
+Two further properties of that metric, both measured here:
+
+- **It is badly conditioned.** Near 0.55 the coverage curve is flat —
+  `p1control_off_seed3` stays within 0.0004 of 0.5660 for 126 consecutive
+  seconds, a slope of ~8e−05 per second, so a coverage difference of 0.001
+  becomes 12 s of crossing time. Read the same five runs two ways: CV 28.7 % on
+  time-to-criterion against 3.0 % on mean unknown fraction over a fixed window.
+  That, not exploration variance, is the "19 % noise floor" of §2.5.
+- **Better conditioning does not rescue it.** An integrated metric over the
+  exploration window is a well-conditioned readout of the phase in which every
+  arm is identical.
+
+The outcome must therefore be **post-exhaustion map completeness** — the final
+`unknown_fraction`, the quantity the manoeuvre exists to improve — with
+time-to-criterion demoted to descriptive. Post-exhaustion *gain* (saturation
+minus final) is a useful diagnostic of whether the manoeuvre did anything, but
+must not be the primary: it rewards saturating at a worse level, and in this
+pilot ranked pursuit far above `off` where absolute completeness put them
+0.0016 apart.
+
+### 3.17 The robots choose how bad their own comms are (2026-08-16)
+
+Every p3b cell ran at the single calibrated power tx = −14 dBm. Realised
+pre-treatment outage duty across those cells: **0.426 to 0.867**. The §4 sweep
+moved duty from 0.45 at −6 dBm to 0.92 at −26 dBm, so run-to-run variation at
+*one* power spans nearly the whole range that 20 dB of transmit power was used
+to control.
+
+The cause is geometry, not the radio. Median inter-robot distance ranges 25 m to
+68 m and mean trees-on-link 0.66 to 1.43 across the same cells; path loss goes
+as 20·log10(d) with 11.98 dB per intervening trunk. Where the robots go sets
+their own link budget, and where they go depends on what they have merged, which
+depends on the link. Severity is an outcome, not a treatment.
+
+Consequences for measurement:
+
+- **Duty must be cut before any robot stops exploring.** A chase closes distance
+  and lifts the duty, so an arm partly determines its own reported severity —
+  hybrid reads 0.745 over the full run against 0.867 pre-treatment. Only the
+  pre-treatment figure is admissible as a covariate.
+- **The treatment applies only conditionally.** `shouldRendezvous` requires the
+  peer to be *missing* at exhaustion. In `p3b_pursuit_seed2` both robots reached
+  exhaustion with the team present, the manoeuvre correctly declined, and the
+  arm degenerated to `off`. An arm's mean therefore mixes fired and not-fired
+  runs and dilutes whatever effect exists.
+
+### 3.18 The pilot finds no arm effect, and says so (2026-08-16)
+
+Final map completeness (lower is better), with pre-treatment severity and the
+number of manoeuvres actually fired:
+
+    arm          seed  duty_pre  team_final    gain  fired
+    hybrid          1     0.867      0.5030  0.0563      5
+    hybrid          2     0.783      0.5365  0.0137      3
+    off             1     0.574      0.5179  0.0088      0
+    off             2     0.773      0.5097  0.0377      0
+    pursuit         1     0.426      0.5163  0.0447      2
+    pursuit         2     0.743      0.5487  0.0009      0
+    rendezvous      1     0.784      0.5257  0.0137      1
+    rendezvous      2     0.642      0.5266  0.0306      3
+
+    arm mean:  off 0.5138 | hybrid 0.5198 | rendezvous 0.5261 | pursuit 0.5325
+
+**The control arm has the best mean final map.** Within-arm spread (hybrid
+0.0335, pursuit 0.0324) exceeds the spread of the arm means (0.0187), so nothing
+here is separable at n = 2. Regressing completeness on duty_pre across all eight
+cells gives a slope of +0.0028 over a 0.44 range of duty — flat. Severity does
+not explain the outcome either.
+
+The sharpest single number: `off` on seed 2 recovered 0.0377 of map after
+exhaustion **with zero manoeuvres**, more than hybrid (0.0137) or pursuit
+(0.0009) managed on the same seed *with* their policies firing. Opportunistic
+reconnection during a long run does much of what the manoeuvres are for.
+
+This is a negative result at pilot scale, not a refutation. It is consistent
+with a real effect hidden by §3.16 and §3.17, and equally consistent with no
+effect. What it does settle is that **the design as specified in §2.5 cannot
+answer the question**: a fixed-power, fixed-n, unadjusted comparison of arm
+means is measuring severity and trajectory luck. Phase 4 needs a design that
+spans severity deliberately and fits completeness against duty_pre per arm,
+conditions on whether the manoeuvre fired, and scores the phase in which the
+arms actually differ.
+
+One hypothesis worth pre-registering rather than discovering post hoc: a harsh
+link leaves each robot holding map the other lacks, so there is more to recover
+when contact is made, while an easy link has already shared everything
+continuously and leaves the manoeuvre nothing to do. If so the value of a
+reconnection policy *rises* with severity — a sharper claim than "policy beats
+no policy", and one this pilot is too small to test.
+
 ---
 
 ## 4. Calibration — one severity (offline, no Gazebo, cheap)
