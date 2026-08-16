@@ -1027,12 +1027,18 @@ Every campaign run so far scores the *run*. The manoeuvres are what the plan is
 about, so `sim/manoeuvre_events.py` re-reads the same runs with the **firing**
 as the unit. It changes the picture at every step.
 
-**There are 22 firings on disk, not the 14 §3.18 counted.** §3.18 read the CSV
-`state` column, which is sampled on a ~5–10 s timer, and manoeuvre episodes are
-routinely shorter than that: 6 of the 22 leave no manoeuvre row at all
-(durations 0.0, 0.7, 1.1, 1.8, 2.3, 4.4 s). A state-column census undercounts,
-and undercounts the *fast* reconnections preferentially — exactly the ones the
-modes claim as their advantage. Firings must be parsed from the planner log.
+Figures below are the snapshot at 24 firings (p3b complete, p4mild seed 1
+complete, p4mild seed 2 still running). Re-run the tool for current numbers;
+the structure of the finding does not depend on the count.
+
+**Firings are undercounted by the CSV, badly.** §3.18 read the CSV `state`
+column, which is sampled on a ~5–10 s timer, and manoeuvre episodes are
+routinely shorter than that: 7 of the 24 leave no manoeuvre row at all
+(durations 0.0, 0.0, 0.7, 1.1, 1.8, 2.3, 4.4 s). A state-column census
+undercounts, and undercounts the *fast* reconnections preferentially — exactly
+the ones the modes claim as their advantage. Firings must be parsed from the
+planner log; `analyze_runs.py` now reports both counts and flags the four runs
+where they disagree.
 
 Two parsing traps, both live in this data. `Rendezvous: exploration ended [...]
 with full team present -> DONE` (`explo_planner_node.cpp:2877`) is the manoeuvre
@@ -1043,45 +1049,45 @@ firings by log wording files pursuit's park-and-beacon under rendezvous. The arm
 comes from the manifest; the kind comes from the decision line. There are four
 kinds, not three: `chase`, `meeting_point`, `anchor_return`, `hold`.
 
-**8 of the 22 armed against a teammate that was in radio range.** Classifying
+**9 of the 24 armed against a teammate that was in radio range.** Classifying
 each firing by the link trace over the 10 s before it armed, and cross-checking
 the *peer's* own `Heartbeat resumed after X s suppressed` lines (§3.8 — a robot
-cannot observe its own silence):
+cannot observe its own silence, so this must be read from the other log):
 
-    genuine outage   link down >50% of the 10 s before arming     14
+    genuine outage   link down >50% of the 10 s before arming     15
     planner artifact link up AND peer heartbeat suppressed         4
-    unexplained      link up, no suppression found                 4
+    unexplained      link up, no suppression found                 5
 
-The four artifacts armed with the channel *busy*: 5.7, 12.5, 9.2 and 5.8
-messages/s being delivered at the moment the robot declared its teammate lost.
-These "reconnect" in 1–31 s and flatter every speed statistic. The four
-unexplained sit at 0.50–0.68 connected with 1.3–2.0 drops/s — a flapping link,
-not a clean outage. §3.8 warned this confound existed; here it is, at 18–36 % of
-all firings.
+The artifacts armed with the channel *busy* — 5.7, 12.5, 9.2 and 5.8 messages/s
+being delivered at the moment the robot declared its teammate lost. The sharpest
+single case is in `p4mild_hybrid_seed1`: atlas armed a chase against a teammate
+**7.1 m away**, link up across the whole window, 5.9 messages/s flowing, and the
+manoeuvre ended 0.0 s later. §3.8 warned this confound existed; measured, it is
+17–38 % of all firings.
 
-**7 more are degenerate — they arm and dissolve before the robot moves.** Seven
-firings ended within 5 s having travelled under 1 m, one logging `Reconnect
-manoeuvre ended after 0.0 s sim`. The test that ARMS the manoeuvre (peer missing)
-and the test that ENDS it (team present) disagree within a single cycle, so the
-manoeuvre fires and is cancelled on the next tick. No trail is followed, no
-waypoint reached, no path planned. This is a defect in its own right — an
-arm/disarm race — and it is also what makes the chase look instant.
+**8 more are degenerate — they arm and dissolve before the robot moves.** Eight
+firings ended within 5 s having travelled under 1 m, two of them logging
+`Reconnect manoeuvre ended after 0.0 s sim`. The test that ARMS the manoeuvre
+(peer missing) and the test that ENDS it (team present) disagree within a single
+cycle, so the manoeuvre fires and is cancelled on the next tick. No trail is
+followed, no waypoint reached, no path planned. This is a defect in its own
+right — an arm/disarm race — and it is also what makes the chase look instant.
 
 What survives:
 
-     22  firings parsed from the logs
-     14  armed during a genuine outage
-      9  of those not degenerate
-      7  of those actually drove a route (holds park in place by design)
-         — across 5 runs, 6 robot-runs; 3–79 m driven, 16–181 s to outcome
+     24  firings parsed from the logs
+     15  armed during a genuine outage
+     10  of those not degenerate
+      8  of those actually drove a route (holds park in place by design)
+         — across 5 runs, 6 robot-runs; up to 79 m driven, 6–180 s to outcome
 
-**Seven events, clustered in six robot-runs, is the entire evidence base for the
+**Eight events, clustered in six robot-runs, is the entire evidence base for the
 reconnection path planning.** No re-analysis of these runs will make it more.
-Restricted to genuine outages the raw pattern is: chases reconnect fast (n=6,
-median 10 s), anchor returns slower (n=2, median 51 s), meeting points did not
-reconnect at all (n=2: one arrived-and-waited, one unreachable within budget),
-and both pure-pursuit holds ran to the horizon without reconnecting. That is a
-hypothesis to test, not a result — the n are 2 and 6, and they cluster.
+Restricted to genuine outages the raw pattern is: chases reconnect fast (n=7,
+median 6 s), anchor returns slower (n=2 at tx −14, median 51 s), meeting points
+did not reconnect at all (n=2: one arrived-and-waited, one unreachable within
+budget), and both pure-pursuit holds ran to the horizon without reconnecting.
+That is a hypothesis to test, not a result — the n are 2 and 7, and they cluster.
 
 Two structural findings fall out that are not about sample size:
 
@@ -1093,9 +1099,17 @@ Two structural findings fall out that are not about sample size:
 - **The arm/disarm race must be fixed before any manoeuvre experiment.** A
   manoeuvre that ends 0.0 s after it arms is not a policy being exercised.
 
-This is descriptive mechanism evidence. Events cluster hard — five of the 22
-come from one robot-run — so the effective sample is the run count, and nothing
-here compares arms.
+This is descriptive mechanism evidence. Events cluster hard — five come from one
+robot-run — so the effective sample is the run count, and nothing here compares
+arms.
+
+*Method note.* The planner log stamps are system clock (rcutils does not follow
+`use_sim_time`) while every CSV is absolute sim time. They are reconciled per
+run by least squares over the `Step N logged:` lines, each of which has a
+matching `LOG_STEP` row carrying that step's sim time: 88–149 anchors per run,
+spread across the whole run, max residual 0.70 s. The anchors do not depend on
+any manoeuvre having happened, which matters — a run whose only firings were too
+short to be sampled still gets a time base.
 
 ---
 
