@@ -924,6 +924,28 @@ because no planner version can make two identical maps disagree. The check
 confirms it: ideal-comms divergence lands at 0.0–0.1× the logger's own noise
 floor, i.e. below one sampling step.
 
+**The link causes it, and the response is lagged.** A between-condition gap on
+its own proves only that these runs differ somehow, so the causal claim was
+tested inside single runs, pooled over the 8 p3b cells. Interval-by-interval it
+looks dead: `spearman(connected fraction, change in divergence) = −0.043` over
+577 adjacent 20 s intervals. That is not absence of an effect but its timescale —
+a delta queued during an outage is delivered on reconnect and only moves
+`unknown_fraction` once the robot actually covers ground, which a 20 s window
+cannot resolve. Widened to sustained transitions (link holds its new state 60 s)
+and a ±120 s comparison window:
+
+    sustained outage onset    n=22   mean Δdiv +0.01282   16/22 rose   sign p≈0.026
+    sustained reconnect       n= 7   mean Δdiv −0.00887    5/7 fell    sign p≈0.23
+
+Outages drive the maps apart, reconnects pull them back, and the two means
+straddle zero with opposite signs as the mechanism requires. The outage
+direction is significant on a sign test; the reconnect direction is the right
+sign but n=7 — sustained reconnects are rare when duty runs 0.43–0.87 — so it is
+suggestive only, not established.
+
+The practical consequence: divergence is an integrator, not a live link monitor.
+Do not read it as an instantaneous connectivity signal; it lags by minutes.
+
 Two limits that the table hides.
 
 **Aggregate over the run; never classify an instant.** Under realistic comms
