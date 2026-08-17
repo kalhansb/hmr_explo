@@ -1663,6 +1663,76 @@ policy that mostly does not execute, and `fire` counts belong in every table.
 
 ---
 
+### 3.31 Pure pursuit cannot reconnect in this world, and the reason is exact (2026-08-17)
+
+§3.29 and §3.30 say the *timing* comparison is underpowered and mostly
+untreatable. This section answers "which reconnection method works best" from
+the mechanism instead, where the evidence is strong — because it is per-event
+outcome data, not a difference of noisy medians.
+
+**Every `hold` event ever recorded failed.** Four events, two independent runs,
+two different worlds:
+
+    run                    robot   stale  sep_m  trees   outcome           dist
+    p4mild_pursuit_seed1   atlas    652   71.6     5     open_at_horizon    0 m
+    p4mild_pursuit_seed1   bestla   204   47.2     1     open_at_horizon    0 m
+    p7modes_pursuit_seed1  atlas    266   50.3     5     open_at_horizon    0 m
+    p7modes_pursuit_seed1  bestla   194   55.1     5     open_at_horizon    0 m
+
+Zero reconnections, zero metres driven, 4/4 still disconnected at the horizon.
+
+**The causal chain, each link verified.**
+
+1. The dense stand produces outages up to 861 s (§3.25).
+2. So by the time a robot finishes exploring, the missing peer's contact record
+   is **194–652 s** stale — every one of the four above.
+3. `pursuit_staleness_max_sec` defaults to **180 s**
+   (`explo_planner_node.cpp:479`, `:1293`). All four exceed it, so `startPursuit`
+   declines: the trail head is too old to mean anything.
+4. Pure pursuit's fallback is `holdForTeam` — park and beacon. This is
+   deliberate, and the code says so: *"Pure pursuit has no agreed fallback point
+   by design (that is the A/B against hybrid): a chase that never started waits
+   right here."*
+5. Both robots reach the same state, so **both park and neither moves**. The
+   separation is frozen at 47–72 m, which is beyond the ~50 m link budget at this
+   density. Nothing in the system can then change the geometry, and the link
+   cannot reopen. It is a mutual-hold deadlock.
+
+**The gate is 4.8× too short for the world it runs in.** 180 s against outages of
+861 s. Pursuit is not underperforming here; it is inoperative by construction.
+
+**The moving fallbacks do work**, which is exactly the A/B the design intended:
+
+    fallback                      events  reconnected  arrived_waiting  moves?
+    pursuit      hold                  4       0              0         no (0 m)
+    hybrid       meeting_point         3       1              1         yes (48-79 m)
+    rendezvous   anchor_return         7       5              2         yes (0-39 m)
+
+Rendezvous' return-to-anchor is the most reliable: both robots converge on a
+point they already agreed on, so it does not depend on a fresh peer estimate at
+all — note its `stale` column is `--`, i.e. the staleness gate does not apply.
+Hybrid's meeting point also moves both robots and reconnects, but it *does* need
+a contact record to midpoint from, so it inherits part of pursuit's fragility.
+
+**Read this as mechanism, not as an effect estimate.** Events cluster hard within
+runs, so the effective sample is the run count, not the event count, and these
+rates are not independent samples. But the pursuit claim does not rest on a rate:
+it rests on a deadlock that is visible in the code, predicted from the parameter,
+and confirmed by 4 of 4 events driving 0 metres.
+
+**Actionable, in order of confidence.**
+
+1. `pursuit_staleness_max_sec` must exceed the world's outage distribution, or
+   the chase never arms. 180 s is a sparse-world number.
+2. Pure pursuit needs a fallback that moves *someone*. A mutual hold cannot
+   recover by construction, whatever the timeout.
+3. On present evidence rendezvous is the method to prefer in this regime,
+   because its agreed anchor is immune to peer-estimate staleness. That is a
+   mechanism argument; the timing comparison in §3.29–3.30 cannot support a
+   ranking and must not be cited as if it did.
+
+---
+
 ## 4. Calibration — one severity (offline, no Gazebo, cheap)
 
 Emulator fading is a function of `(seed, tick)`, independent of traffic
