@@ -1760,6 +1760,64 @@ control showing the alternative fallback recovering under the same failure.
 
 ---
 
+### 3.32 The deadlock costs a mission, not just a reconnection (2026-08-17)
+
+§3.31 showed pursuit's hold never reconnects. `p7modes_pursuit_seed2` shows what
+that costs, and the chain is verified end to end.
+
+**It is the only censored run in Phase 7.** `run_end_reason=censored_at_T`,
+t_sim 5812 against the 5800 s horizon — where the other seed-2 cells finished in
+1256–2378 s. On the primary endpoint this is the worst outcome any arm can
+produce, and pursuit produced it.
+
+**The chain, each link measured.**
+
+1. atlas finishes its coverage criterion at t≈985 and calls the manoeuvre. The
+   chase declines: staleness 186 s against the 180 s gate (§3.31).
+2. Pure pursuit's fallback is `hold`. Separation 73.4 m through 8 trees — beyond
+   the ~50 m link budget at this density.
+3. atlas parks. Its odometry is frozen at 322 m for the remaining **4870 s**, and
+   the event outcome is `open_at_horizon`: the link never reopens.
+4. So atlas's map backlog is never delivered. The two merged-map copies freeze:
+
+       t_sim    atlas_vox   bestla_vox    gap     atlas_unk  bestla_unk
+        1000     1754890      1604773    8.55 %     0.539      0.572
+        3000     1755024      1606508    8.46 %     0.539      0.572
+        5800     1755035      1607184    8.42 %     0.539      0.572
+
+   Peak 18.80 % at t=700, and then flat for 4800 s. Compare the same-seed-1
+   hybrid cell, whose meeting point reconnected: peak 19.24 % → **end 0.43 %,
+   drained**.
+5. The consequence is the run's outcome. atlas's copy sits at unk 0.539, *below*
+   the 0.55 threshold. bestla's copy sits at 0.572, *above* it. The world needed
+   to finish is already mapped — it is simply in the wrong robot's copy.
+6. bestla explores alone for 4870 s and 2077 m, against atlas's 322 m, and still
+   cannot cross. The run hits the horizon.
+
+**This is the signature `map_agreement.py` was kept for.** §3.28 defanged the
+0.5 % gate because a gap that opens on an outage and drains on reconnect is the
+treatment working. It also said what a genuine defect would look like: *a gap
+that opens and never closes*. That is exactly this — not a defect in the map
+layer, but the map layer faithfully reporting a link that never came back. The
+`peak` and `end` columns together distinguish the two cases, which is why both
+are printed.
+
+**What it establishes.** A reconnection policy is not merely a convenience for
+map freshness: when it deadlocks, the team can fail to complete a mission it had
+already collectively explored. The information existed; no policy moved it.
+Pursuit's mutual hold is the only mode here that can produce that state, because
+it is the only fallback in which *neither* robot moves.
+
+**Caveat, stated plainly.** This is one run. The 3.03× noise band of §3.29 means
+a single censored cell is not an effect estimate, and pursuit's seed-1 cell
+completed normally at 2295 s. What is *not* noise is the mechanism: the frozen
+8.4 % gap, the 4870 s of parked odometry, and `open_at_horizon` are direct
+observations, and they are the predicted consequence of a deadlock identified
+independently from the code. Treat the censoring as a demonstrated failure mode
+with a known cause, not as a measured rate.
+
+---
+
 ## 4. Calibration — one severity (offline, no Gazebo, cheap)
 
 Emulator fading is a function of `(seed, tick)`, independent of traffic
