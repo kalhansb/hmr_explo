@@ -1714,11 +1714,38 @@ all — note its `stale` column is `--`, i.e. the staleness gate does not apply.
 Hybrid's meeting point also moves both robots and reconnects, but it *does* need
 a contact record to midpoint from, so it inherits part of pursuit's fragility.
 
-**Read this as mechanism, not as an effect estimate.** Events cluster hard within
-runs, so the effective sample is the run count, not the event count, and these
-rates are not independent samples. But the pursuit claim does not rest on a rate:
-it rests on a deadlock that is visible in the code, predicted from the parameter,
-and confirmed by 4 of 4 events driving 0 metres.
+**The paired A/B, same world and same seed — the cleanest result here.** Phase 7
+put pursuit and hybrid through *identical* conditions at seed 1, and both hit the
+same staleness failure. Only the fallback differed:
+
+    cell                    chase              fallback        drove   outcome
+    p7modes_pursuit_seed1   declined (266 s)   hold             0 m    open_at_horizon
+    p7modes_pursuit_seed1   declined (194 s)   hold             0 m    open_at_horizon
+    p7modes_hybrid_seed1    declined (237 s)   meeting_point   46 m    RECONNECTED
+
+Same scenario, same seed, same radio realisation, same staleness regime, both
+chases declined for the same reason. Hybrid's meeting point then **recovered a
+90.2 m separation through 6 trees in 106 s**, while pursuit's hold sat still and
+never recovered at 50–55 m. This is the A/B the design was built to run, and it
+is decided by the fallback alone — not by a difference of medians, and not by
+anything that needs n=5.
+
+**But note the cost, because it cuts the other way on the headline metric.**
+Hybrid was the SLOWEST arm at seed 1 (t_sim 3391 vs off 3090), and rendezvous —
+which fired nothing at all — was the fastest (1891). A successful reconnection
+costs driving time, and because the trigger is terminal (§3.30) the map it
+delivers arrives after exploration is essentially over. So "the manoeuvre worked"
+and "the team finished sooner" are not the same claim here, and on present
+evidence they point in opposite directions. That is a real trade, not a
+measurement artifact, and it is the strongest argument in this document for
+reporting `lag` and `fire` beside any completion time.
+
+**Read the rates as mechanism, not as an effect estimate.** Events cluster hard
+within runs, so the effective sample is the run count, not the event count, and
+these rates are not independent samples. But the pursuit claim does not rest on a
+rate: it rests on a deadlock that is visible in the code, predicted from the
+parameter, and confirmed by 4 of 4 events driving 0 metres — with a same-seed
+control showing the alternative fallback recovering under the same failure.
 
 **Actionable, in order of confidence.**
 
