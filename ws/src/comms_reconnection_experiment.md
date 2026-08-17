@@ -1753,10 +1753,35 @@ control showing the alternative fallback recovering under the same failure.
    the chase never arms. 180 s is a sparse-world number.
 2. Pure pursuit needs a fallback that moves *someone*. A mutual hold cannot
    recover by construction, whatever the timeout.
-3. On present evidence rendezvous is the method to prefer in this regime,
-   because its agreed anchor is immune to peer-estimate staleness. That is a
+3. Between hybrid and rendezvous the evidence is genuinely split, and the two
+   worlds disagree — see the correction immediately below. Both work. Pursuit
+   does not. That is the only ranking claim this campaign supports, and it is a
    mechanism argument; the timing comparison in §3.29–3.30 cannot support a
    ranking and must not be cited as if it did.
+
+**CORRECTION (later the same day).** An earlier draft of point 3 read "on present
+evidence rendezvous is the method to prefer", drawn from the p3b and p4mild
+worlds where its anchor return reconnected 5 times in 7 events against hybrid's
+1 in 3. The Phase 7 dense world reverses that:
+
+    arm          fallback         events   outcome
+    hybrid       meeting_point       2     2 reconnected
+    rendezvous   anchor_return       2     2 arrived_waiting
+    pursuit      hold                3     3 open_at_horizon
+
+Two points of nuance before reading that as "hybrid wins". First, `arrived_waiting`
+describes the *barrier*, not the radio: rendezvous' seed-3 cell drained its map
+gap from a 26.63 % peak to 0.70 % and completed normally at 2200 s, so the link
+plainly reopened and the backlog moved even though the barrier never counted the
+peer. Functionally that cell succeeded. Second, these are 2 and 2 events, from 1
+and 1 runs, clustered — nowhere near enough to separate two working policies.
+
+So the honest position is: **hybrid and rendezvous both work, and which is better
+is unresolved; pursuit fails in every world tested.** The pursuit conclusion is
+robust because it rests on a deadlock in the code confirmed by 7 of 7 hold events
+across three worlds driving 0 metres, plus a mission failure (§3.32). The
+hybrid-vs-rendezvous question needs a campaign designed for it, with far more
+firings than a terminal trigger produces.
 
 ---
 
