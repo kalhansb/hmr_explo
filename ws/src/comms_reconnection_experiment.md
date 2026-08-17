@@ -1670,8 +1670,14 @@ untreatable. This section answers "which reconnection method works best" from
 the mechanism instead, where the evidence is strong — because it is per-event
 outcome data, not a difference of noisy medians.
 
-**Every `hold` event ever recorded failed.** Four events, two independent runs,
-two different worlds:
+> **COUNT CORRECTED (see the end of this section).** An earlier draft said
+> "every hold event ever recorded failed" and later "7 of 7". The final tally is
+> **6 hold events, 5 failed, 1 recovered — and the one recovery was the peer's
+> doing, not the hold's.** The mechanism conclusion is unchanged and the reason
+> is sharper; the arithmetic was wrong and is fixed below.
+
+**Five of the six `hold` events failed outright.** Four of them here, from two
+independent runs in two different worlds:
 
     run                    robot   stale  sep_m  trees   outcome           dist
     p4mild_pursuit_seed1   atlas    652   71.6     5     open_at_horizon    0 m
@@ -1740,11 +1746,46 @@ evidence they point in opposite directions. That is a real trade, not a
 measurement artifact, and it is the strongest argument in this document for
 reporting `lag` and `fire` beside any completion time.
 
+**The one recovery, and why it strengthens the argument.** Phase 7's seed-3 cell
+produced the only `hold` that ever reconnected — and it did so without the
+holding robot doing anything:
+
+    p7modes_pursuit_seed3  atlas  hold  stale 688 s  sep 75.5 m  RECONNECTED after 169 s
+
+    during that 169 s window:   atlas (holding)      moved   1 m
+                                bestla (exploring)   moved  83 m
+
+atlas parked, as the policy specifies. bestla was still exploring, drove 83 m,
+and wandered back inside the link budget. The link reopened because of the
+**peer's** independent motion, not because of anything the hold did. Same policy,
+same failure to move, opposite outcome — decided entirely by whether the other
+robot happened to still be exploring.
+
+That is the precise statement, and it is stronger than "hold never works":
+
+    a hold contributes no motion (0-1 m in all six events), so it cannot itself
+    restore a link. Whether it recovers is decided by the peer. When the peer is
+    also holding, nothing moves and recovery is impossible by construction —
+    seed 1, both robots held, both open_at_horizon; seed 2, held, and the mission
+    was censored (§3.32).
+
+**Final tally, corrected.** Six hold events across three worlds:
+
+    p4mild_pursuit_seed1   atlas    open_at_horizon
+    p4mild_pursuit_seed1   bestla   open_at_horizon
+    p7modes_pursuit_seed1  atlas    open_at_horizon     both held -> deadlock
+    p7modes_pursuit_seed1  bestla   open_at_horizon
+    p7modes_pursuit_seed2  atlas    open_at_horizon     -> mission censored
+    p7modes_pursuit_seed3  atlas    reconnected         peer drove 83 m; holder 1 m
+
+Five failures, one peer-driven recovery, zero recoveries attributable to the
+policy itself.
+
 **Read the rates as mechanism, not as an effect estimate.** Events cluster hard
 within runs, so the effective sample is the run count, not the event count, and
 these rates are not independent samples. But the pursuit claim does not rest on a
 rate: it rests on a deadlock that is visible in the code, predicted from the
-parameter, and confirmed by 4 of 4 events driving 0 metres — with a same-seed
+parameter, and confirmed by all six hold events contributing 0-1 m — with a same-seed
 control showing the alternative fallback recovering under the same failure.
 
 **Actionable, in order of confidence.**
@@ -1778,8 +1819,9 @@ and 1 runs, clustered — nowhere near enough to separate two working policies.
 
 So the honest position is: **hybrid and rendezvous both work, and which is better
 is unresolved; pursuit fails in every world tested.** The pursuit conclusion is
-robust because it rests on a deadlock in the code confirmed by 7 of 7 hold events
-across three worlds driving 0 metres, plus a mission failure (§3.32). The
+robust because it rests on a deadlock in the code confirmed by all six hold
+events across three worlds contributing 0-1 m of motion, plus a mission failure
+(§3.32). Its single recovery was driven by the peer moving 83 m, not by the hold. The
 hybrid-vs-rendezvous question needs a campaign designed for it, with far more
 firings than a terminal trigger produces.
 
