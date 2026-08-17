@@ -1606,6 +1606,63 @@ nothing.
 
 ---
 
+### 3.30 The manoeuvre is terminal, so ~90 % of the endpoint is untreatable (2026-08-17)
+
+§3.29 said the design is underpowered. This is *why*, and it is mechanical rather
+than statistical.
+
+**The trigger.** `finishOrRendezvous()` is the sole entry point to all three
+modes — `startPursuit` is called from inside it
+(`explo_planner_node.cpp:2917`) — and it has exactly three call sites:
+
+    :2191   finishOrRendezvous("step-budget")
+    :2244   finishOrRendezvous("coverage-saturated")
+    :3987   finishOrRendezvous("step-budget")        (exploit path, off here)
+
+Every one means **this robot has finished exploring**. There is no
+mid-exploration trigger anywhere in the node. The reconnection "policy" is a
+terminal barrier, not something that operates while the team explores.
+
+**Consequence.** No arm can alter the leader's own exploration, so `t_lead` is
+identical in expectation across arms *by construction*. The manoeuvre can act
+only in the window between the leader finishing and the laggard finishing, by
+carrying a map backlog to the laggard. Decompose the endpoint:
+
+    t_team  =  t_lead  +  lag
+               ~89 %       ~11 %        (median 130 s of a median t_team 1191 s)
+
+Measuring `t_team` therefore reads the treated signal through nine parts of
+untreatable variance — and `t_lead` is the *noisiest* part, since it carries the
+3.03× replicate band of §3.29. Every null result this campaign has produced is
+consistent with a working manoeuvre whose effect was diluted below the noise by
+the choice of endpoint.
+
+**So `lag` is the mechanism-aligned endpoint.** `t_team` stays the headline
+because it is the completion time the team actually pays in wall clock and it is
+what was asked for — but any claim *about a mode* belongs on `lag`, and
+`modes_compare.py` now prints the mechanism window above the comparison table so
+this cannot be read past.
+
+**It also explains the relabelled-control problem.** Because the trigger is
+terminal, an arm declines whenever the team happens to be together at the finish,
+and by then both robots have usually converged on the last frontiers.
+`p7modes_rendezvous_seed1` is the live example: peer invisible for **56 %** of the
+run — the comms treatment plainly bit — yet **zero firings**, the log declining
+twice with `full team present -> DONE`. Its completion time (1891 s, against
+3090 s for `off` at the same seed) is *not* evidence about rendezvous. It is two
+draws from the same distribution, and the 1.63× gap between them is a second
+measurement of the noise floor. Declining is the DEFAULT here, not an edge case.
+
+**What this implies for the design, stated plainly.** To measure a reconnection
+policy on exploration completion time you need either (a) a mid-exploration
+trigger, so the policy can act during the 89 % of the run it currently cannot
+touch, or (b) a scenario where robots are still separated when the first one
+finishes, so the terminal trigger actually fires. Neither is a re-analysis; both
+are changes to what is run. Until one of them exists, the campaign measures a
+policy that mostly does not execute, and `fire` counts belong in every table.
+
+---
+
 ## 4. Calibration — one severity (offline, no Gazebo, cheap)
 
 Emulator fading is a function of `(seed, tick)`, independent of traffic
