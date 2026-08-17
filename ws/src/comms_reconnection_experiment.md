@@ -1883,6 +1883,196 @@ observations, and they are the predicted consequence of a deadlock identified
 independently from the code. Treat the censoring as a demonstrated failure mode
 with a known cause, not as a measured rate.
 
+### 3.33 The redesign: a mid-run trigger and the fixes §3.30–3.32 demanded (2026-08-17)
+
+With the p7modes matrix complete, the user authorised planner-behaviour changes
+("check timing issue"). The design went through three adversarial reviews
+before any edit; what shipped is the amended version, and the amendments were
+not cosmetic — the reviews caught one planner-crashing bug and one
+run-never-terminates loop in the original proposal, and refuted the proposal's
+own endpoint change with the campaign's data. Full trail:
+`explo_planner/sim/reconnect_redesign_2026-08-17.md`; the review verdicts are
+summarised in its REVIEW OUTCOMES block.
+
+**What changed in the planner** (all default-off / default-legacy; the sim
+harness opts in per campaign, and every knob is echoed into `run_manifest.txt`
+— the p7modes lesson that an unrecorded param is a confound):
+
+1. **Mid-exploration trigger** (`reconnect_midrun_silence_sec`, default 0).
+   §3.30 proved the manoeuvre was terminal-only, leaving ~89 % of t_team
+   untreatable. Now a robot whose team has been continuously incomplete for
+   the threshold interrupts exploration, runs its arm's manoeuvre via the
+   extracted `dispatchReconnect()`, and — decisive design point — a failed
+   mid-run attempt RESUMES EXPLORING (never DONE), on a short mid-run barrier
+   cap (`reconnect_midrun_max_wait_sec`, 240 s). The re-dispatch cooldown is
+   stamped at manoeuvre END, not dispatch (review: a dispatch-stamped cooldown
+   expires during the manoeuvre — `missing_for` stays satisfied for the whole
+   outage — and the "resume" becomes a one-tick interlude in an infinite
+   loop). Attempt cap per run (6), live-count re-check at the trigger, and the
+   threshold must clear the measured heartbeat-suppression tail (180 s;
+   campaign uses 240 s) so a silently-planning healthy teammate cannot trip
+   it.
+2. **The chase can actually arm, and stale chases target the right thing**
+   (`pursuit_staleness_max_sec` raised per-world via the harness;
+   `pursuit_goal_stale_sec`, default 180). §3.31's gate autopsy stands: at the
+   old 180 s gate no dense-world chase ever armed. But the review killed the
+   naive fix (raise to 900 and chase as before): the budget formula's ceiling
+   saturates, making it "always chase the stale goal for 240 s" — up to
+   ~190 m in the wrong direction. Instead, past `pursuit_goal_stale_sec` the
+   trail drops the peer's GOAL (dead hypothesis — the peer re-planned long
+   ago) and drives to its CONTACT POSE alone, on a distance-true budget, and
+   only when the budget covers the whole trail. Two chasers that both complete
+   contact-pose trails end at the swapped contact pair — mutually within
+   former link range, the same geometric argument the anchor return rests on,
+   and one that does not decay with staleness. An uncoverable trail declines
+   to the mode's fallback instead of dying mid-trail at an arbitrary
+   disconnected point.
+3. **The mutual-hold deadlock is broken** (`hold_escalate`, default false).
+   §3.31–3.32: five of six holds never reconnected, one cost a mission. A
+   TERMINAL barrier that expires now escalates ONCE to the last-connected
+   anchor (sticky per-manoeuvre flag — the review showed a positional
+   "if not already there" guard loops forever on an unreachable anchor) and
+   waits a shorter `hold_escalate_wait_sec` (300 s) before giving up for
+   real. Both robots converging on their own last-contact poses restores the
+   pair geometry the link last worked at. Review caveat kept honest: the two
+   anchors are same-window, not same-instant (one-way packet losses can
+   displace one side's record), and a link that existed on a +2σ fade
+   excursion can stay dark at the restored geometry — escalation improves the
+   odds and bounds the cost; it is not a guarantee.
+4. **Manoeuvre legs are exempt from `nav_max_timeout_sec`** — the 180 s
+   ceiling was sized for exploration hops and covers only ~60 m of real
+   driving; chases and returns were dying tens of metres short by
+   construction (review attack 3/4). Distance-true budgets; the no-progress
+   window remains the watchdog.
+5. **Release flicker guard** (`reconnect_release_confirm_sec`, default 0).
+   One live claim inside the 5 s TTL used to release a manoeuvre and reset
+   the silence clock — crediting a "reconnection" on a range-edge flicker
+   that drained no map deltas. Mid-run, that corrupts the primary metric; the
+   campaign requires the release condition to hold 3 s.
+
+**What the reviews refuted in the original proposal, kept on the record:**
+moving the finish line to unknown ≤ 0.62 (my own §3.29 noise ladder was
+computed on PERFECT-comms replicates; on realistic-comms replicates 0.62 buys
+nothing over 0.55, 0.60 is the worst threshold of all at 4.45×, and only 0.65
+is low-noise — where the mechanism window vanishes). So p8trigger keeps
+termination at 0.55 and reads t@0.65 as the low-noise secondary via the
+existing ladder. Also refuted: silence 300 s (fires ~0.4×/run — at an early
+finish, ~0.09×/run), a 20-cell four-arm night (17.4 h at observed rates), and
+the uninitialised `rclcpp::Time` in my trigger sketch, which would have thrown
+on first firing (default-constructed Time is SYSTEM clock; subtracting it from
+a sim-time now() is a runtime error — the reviewer found the codebase already
+guards this idiom twice).
+
+**p8trigger design:** arms off / rendezvous / hybrid × seeds 1–5 (pursuit arm
+dropped: its verdict is established and §3.31-patched, its chase mechanism
+still runs inside hybrid; 15 cells ≈ 13 h at observed cell rates, exact
+permutation floor 2/252 ≈ 0.008), DONE_UNKNOWN 0.55, duration 5800 s,
+MIDRUN_SILENCE 240, MIDRUN_MAX_WAIT 240, RECONNECT_RELEASE_CONFIRM 3,
+PURSUIT_STALENESS 900, PURSUIT_BUDGET_MAX 900, HOLD_ESCALATE 1, one build
+pinned before the first cell and no repo commits while it runs (the p7modes
+matrix recorded four planner hashes for one binary — true but post-hoc
+unprovable). The hypothesis the trigger makes testable at last: a mid-run
+reconnection delivers the peer's queued deltas while they can still prune this
+robot's remaining frontiers, so a mode that reconnects faster should now
+finish sooner — t_team becomes treatable, and the off arm prices what
+deliberate reconnection is worth over opportunistic contact.
+
+**Defaults flipped to ON (2026-08-17, user decision).** The changes above
+shipped default-off so that every pre-existing path stayed bit-identical.
+That is the right default for a patch and the wrong one for a fix: the
+terminal-only trigger it replaces *cannot* reconnect a team before the
+exploration it was meant to shorten is already over, and a 180 s staleness
+gate declined every chase ever asked of it in a world whose outages run to
+861 s. Defaults are now `reconnect_midrun_silence_sec` 240 (was 0),
+`pursuit_staleness_max_sec` 900 (was 180), `reconnect_release_confirm_sec` 3
+(was 0), `hold_escalate` true (was false); `pursuit_budget_max_sec` stays 240
+and `pursuit_goal_stale_sec` stays 180. Set `reconnect_midrun_silence_sec:=0`
+to recover the old behaviour exactly.
+
+Two couplings this exposes, both recorded rather than silently resolved:
+
+1. **Chase budget must not outlast the barrier waiting for it.** A waiting
+   teammate treats `pursuit_budget_max_sec` as the worst case it may assume
+   about its pursuer. The harness sets `RDV_MAX_WAIT=600`, so the planned
+   `PURSUIT_BUDGET_MAX=900` would have let a chase outlive the wait that
+   justified it. **p8trigger uses 600** — still 2.5× the old ceiling, so the
+   budget-saturation problem of §3.31 is relieved, and the invariant
+   *chase budget ≤ waiter patience* holds by construction. The code default
+   stays 240: a conservative worst case is the right thing for a number other
+   robots reason about.
+2. **Hold escalation is on but latent in the field.** It fires on terminal
+   barrier expiry, and the field default `rendezvous_max_wait_sec=0` means
+   wait forever, so no terminal barrier expires and no escalation happens.
+   It acts only where a finite escape hatch is already configured (the sim
+   harness, and any hardware yaml that sets one) — there it converts a
+   give-up into one more attempt. Making the deadlock break unconditional in
+   the field would mean revisiting wait-forever, which is a separate,
+   deliberately-chosen policy and not this change's to make.
+
+### 3.34 p7modes readout, n=3 — the pilot that measured its own instrument
+
+12/12 cells, 0 failures, 11 `all_done` + 1 `censored_at_T` (pursuit/seed2,
+§3.32). Build fairness **settled rather than assumed**: the matrix records four
+planner commits, but all six pairwise `git diff` over `*.cpp *.hpp config/` are
+empty, and all 12 cells record a clean (non-`dirty`) `git_explo_planner`. If
+the tracked compiled sources are byte-identical across every recorded commit
+and no cell ran with uncommitted changes, no commit difference can reach the
+binary.
+
+*Corrected:* I first corroborated this with "the installed binary predates cell
+1 by ten days". That was wrong — this is a symlink-install workspace, `stat`
+does not dereference by default, and the date read was the symlink's, not the
+binary's. The real binary lives in `build/` and its pre-rebuild mtime is now
+unrecoverable. The conclusion is unaffected (it rests on the diffs, not the
+timestamp), but the manifest now records `sha256(explo_planner_node)` so binary
+identity across a matrix is a recorded fact rather than a reconstruction.
+
+**No arm is ranked on t_team, and none can be.** Pooled within-arm CV is 0.28 at
+n=3, the exact permutation floor is 0.200 (nothing can reach p<0.05), and
+replicates of one *identical* config span 3.03× at this threshold. `comms_metrics`
+returns "NO metric separates off from hybrid at this n".
+
+What the matrix does establish is *why* — decomposing t_team into the leader's
+crossing and the laggard's lag, where only the second is reachable by a terminal
+manoeuvre (§3.30):
+
+| arm | Δt_team vs off | Δt_lead (unreachable) | Δlag (the only treatable part) |
+|---|---|---|---|
+| hybrid | +1830 s | +1885 s | **−55 s** |
+| rendezvous | +310 s | +555 s | **−168 s (−55 %)** |
+| pursuit | +415 s | +325 s | **−83 s** (1 censored; a lower bound) |
+
+Every arm looks *slower* than the control on the primary metric and every arm is
+*faster* in the only window it can act in. For hybrid the identity is exact:
+1885 + (−55) = 1830. The headline number is, to within rounding, entirely the
+leader-crossing draw — a quantity the arm provably cannot influence, because the
+trigger cannot fire until a robot has already finished. This is §3.30 measured
+rather than argued, and it is the justification for the mid-run trigger.
+
+**Mechanism (manoeuvre_events, all 9 firings):**
+- **Every chase declined — 6 for 6.** Staleness at arm 186–688 s against a 180 s
+  gate. Pure pursuit's defining behaviour never executed once in the world it
+  was built for (§3.31), and the `mid` column is 0 everywhere, as it must be for
+  a pre-redesign binary.
+- **Pursuit's fallback is a car park.** 3 of 4 holds gave up after ~600 s having
+  travelled 0–1 m. Its map divergence is +595 % vs control — the split-map
+  signature of §3.32.
+- **Hybrid's meeting point is the one manoeuvre that works: 3/3 reconnected**, in
+  79–108 s over 32–46 m. Rendezvous' anchor return went 0/2 in seed3 (644 s,
+  742 s) and never armed at all in seeds 1–2.
+
+**Caveat, stated because it cuts toward the arms:** realized comms are not
+matched across arms — rendezvous ran at 0.303 peer-visible fraction vs the
+control's 0.419, the one *cleanly separated* metric in the whole readout. Fading
+is a function of (seed, tick) **and poses** (§4), so once behaviour diverges the
+comms each arm experiences diverge too. Rendezvous cut lag 55 % while seeing
+markedly worse comms; this is not a confound to explain away, but it does mean
+arm-vs-arm severity is not controlled and n=5 will not fix that.
+
+**Status: pilot.** It sized the noise, priced the mechanism window at 12.3 % of
+the endpoint, killed one arm on mission-safety grounds, and refuted the
+threshold change I proposed to fix it (§3.33). It ranks nothing.
+
 ---
 
 ## 4. Calibration — one severity (offline, no Gazebo, cheap)
