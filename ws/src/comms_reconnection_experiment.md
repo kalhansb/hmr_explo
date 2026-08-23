@@ -6150,3 +6150,113 @@ modelled and these numbers are pessimistic. The slowdown is also swept rather
 than trusted, because 2.26× rests on a single fd2s cell — the table exists so
 the finished smoke can be read against a pre-computed threshold instead of one
 derived after the answer is visible.
+
+### 29.17 In dense2 the criterion is crossed by a merge, not by driving
+
+The smoke was launched to answer gate2's question — is 0.60 reachable in this
+world — and it is answering a second one that was not asked. Cell 1's descent
+to the criterion is not a descent. It is a staircase.
+
+```
+  criterion   t_cross (atlas)   note
+    0.70            628s
+    0.65           1312s
+    0.62           1838s
+    0.60           1838s        SAME STEP as 0.62 — one jump spans both
+    0.58           1853s
+    0.55           1853s        SAME STEP as 0.58
+    0.52             --         NOT REACHED (floor 0.5430 at 2703s)
+```
+
+Between 1351 s and 1802 s the map moved −0.0051 while the robot drove 82 m. In
+the next window it moved −0.0868. In the window after that, −0.0002 across
+101 m. Long flats, then a cliff.
+
+**What produces the cliffs.** `coverage_source` cannot say — it is constant
+`scovox` for all 605 steps, naming the pipeline rather than the provenance of a
+voxel, so add it to the list of columns that look diagnostic and are not.
+`total_observed_voxels` says it plainly:
+
+| step | Δ observed voxels | Δ distance |
+| --- | --- | --- |
+| typical | **+7 to +17** | ~2 m |
+| atlas 1833.76 → 1837.50 s | **+140,348** | **0 m** |
+| bestla 1805.02 → 1810.01 s | **+113,542** | 2 m |
+| bestla 1810.01 → 1815.04 s | **+153,185** | 2 m |
+
+Four orders of magnitude above a normal step, with the robot stationary. A
+LiDAR sweep that has been adding ten voxels a step does not add a hundred and
+forty thousand because the robot stood still. And the two robots' totals
+converge across the event — atlas 1.28 M → 1.62 M, bestla 1.26 M → 1.63 M —
+which is what a mutual full-map exchange looks like and what nothing else does.
+
+Aggregated over the cell, the jump steps deliver map at **0.3 m per 0.01 of
+unknown_fraction on atlas and 0.9 m on bestla, against 20.2 m and 29.8 m in
+every other step**. Twenty to sixty times cheaper per point. Twenty per cent
+(atlas) and thirty-three per cent (bestla) of the entire descent arrives in
+about one per cent of the steps.
+
+**The link association is the weakest evidence here, and it is reported as
+such.** All nine jumps had the radio up within 60 s. That looks damning until
+the base rate is computed: 51–52 % of *all* steps had the radio up within 60 s,
+because the link is up 25.4 % of the time and a 60 s window is generous. Worse,
+the jumps are not nine independent events — they cluster into roughly three
+time windows (~230–335 s, ~1045 s, ~1810–1853 s) and the two robots share one
+radio, so the honest count is about three. At a 51 % base rate that is
+p ≈ 0.13. **The link column does not carry this finding.** The voxel counts do.
+
+**Why this matters more than the gate it interrupted.** pb4d's premise has been
+that a denser world gives the reconnection treatment more to work with. This is
+the first direct evidence for a *mechanism*: in dense2, progress toward the
+criterion is merge-gated, and the step that crosses 0.60 is itself a merge. A
+method that engineers reconnections is then acting on the rate-limiting step
+rather than on a second-order cost. pb3g2 returned 1.026× and a p of 0.3953;
+this is the first concrete account of what was different there that could make
+dense2 different.
+
+**And it undermines the power analysis written two hours ago.** §29.16 priced
+pb4d by resampling pb3g2's thirty `off` completion times and multiplying by a
+slowdown — a model that says dense2 is pb3g2 played slowly: same shape, longer
+clock. Under it, censoring at the measured 2.26× is 0.0 % and the §29.10 abort
+never fires. But if crossing the criterion waits on a chance encounter, t_cross
+inherits the encounter's timing, and encounter-gated waits have a long right
+tail that a scaled pb3g2 does not have. A fatter right tail against a fixed cap
+means more censoring than predicted, and §29.10 aborts an arm at 50 % censored.
+That is 2.3 days spent to be told the endpoint was unreadable.
+
+§29.16's conclusion is not withdrawn — its sweep runs to 4.5× precisely because
+the slowdown was uncertain — but its *shape* assumption now has a named reason
+to be wrong, which it did not have when it was written.
+
+**Pre-registered response, armed while two of the three cells do not yet
+exist.** `shape_tripwire.py`, threshold fixed from pb3g2 alone:
+
+```
+  statistic   max(t_cross)/min(t_cross) over the 3 fd2s cells.
+              Scale-free, so the unknown slowdown cancels exactly — which is
+              the point, since 2.26× rests on one cell.
+  reference   the same statistic for 3 draws from pb3g2's 30 off cells
+              (200 000 resamples):  p50 1.53×  p75 1.88×  p90 2.36×  p95 2.56×
+  THRESHOLD   2.36×  — trips if fd2s exceeds it; re-price before launching.
+```
+
+The threshold is deliberately loose. At n=3 a tight one fires on noise, and a
+tripwire that cries wolf gets ignored, which is worse than not having one.
+
+**What a non-trip will and will not mean.** Three cells cannot estimate a tail.
+Nothing with n=3 can. So this instrument can only detect a spread so wide that
+a scaled pb3g2 would rarely produce it; it cannot certify that the shape is
+fine. Recording that now, before the result, because "the tripwire did not
+fire" reads as clearance in a way the code cannot prevent and this paragraph
+can. If it does not trip, the censoring risk stays on the books as a known
+unknown and pb4d's own censoring rate gets watched as it accrues — the campaign
+is resumable, so noticing at cell 20 costs one cell, not the campaign.
+
+One further consequence for pricing, independent of the tail. Because the
+criterion sits on a cliff, `t_cross` is a step function of the criterion:
+atlas crossed 0.65 at 1312 s and 0.60 at 1838 s, a 40 % swing in cost for a
+0.05 change in a threshold. 0.60 is safely *inside* a cliff rather than on its
+edge, which is the good case. But it also means cell-to-cell variation in
+t_cross will be driven by *which* cliff crosses the line, not by smooth
+variation in exploration speed — so the three smoke cells are not three
+measurements of one number, and the spread between them is the thing to read.
