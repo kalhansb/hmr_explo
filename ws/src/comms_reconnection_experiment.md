@@ -8693,3 +8693,123 @@ sits on flatforest_dense's marginal-cost plateau, three bands wide, so the
 world offers no evidence about *where* on that plateau an endpoint belongs —
 and the lever that was registered for use when a gate fails turns out to be the
 one lever that cannot be justified.
+
+### 29.48 The one verdict that is a pair, and the cell nobody defined
+
+§29.44 built `dropout_null_k.py` to execute §29.28's registered 3/3 rule, and
+§29.45 built `gate_reweight.py` as the contingency its third branch calls for.
+Each is correct on its own. What neither owns is the square where both speak:
+
+    dropout_null_k  exit 1  RE-DERIVE   -- the worlds place their outages
+                                           differently; re-derive §29.27's
+                                           declines from dense2's own geometry
+                                           BEFORE pb4d launches
+    gate_reweight   exit 2  DEFERRED    -- ???
+
+`dropout_null_k`'s own hand-off names one status: "run it now; its **exit 1**
+blocks the launch on its own terms." But `gate_reweight` has three registered
+DEFERRED guards, and every one of them is reachable from a RE-DERIVE. In that
+square §29.28's third branch has been executed and has returned nothing, and
+§29.28's affordability argument — "it is an analysis re-run against data that
+will already exist, not another campaign" — is false in a specific way: the
+data exists and is not enough.
+
+`fd2s_readouts.sh` would have printed `VERDICT dropout_null_k` and
+`DEFERRED gate_reweight`, two accurate lines, with the launch-blocking fact
+being their *conjunction* and nothing computing it. That is §29.41's shape one
+level up — a rule with no evaluator — so `assumption_gap.py` is the evaluator,
+written now, while the answer is still unknown.
+
+**The three guards are not one outcome.** Reading them as one was the tempting
+mistake, and it is wrong in both directions:
+
+| guard | what it actually says |
+| --- | --- |
+| `unrep` > 20 % | dense2 spends over a fifth of its outage-seconds in map-fraction quintiles where dense **never lost the link**. No dense dispatch can stand in for that mass. This is not a precision failure — it is the proposition under test, answered in the affirmative, in a form with no number attached |
+| `ESS` < 10 | fewer than ten effective dispatches behind the weighted median. A genuine no-answer, carrying no direction |
+| no declines | the gate never declines in dense2 at all, so hybrid receives **more** dispatches, not fewer |
+
+And `unrep` is the second independent statement of its own finding: the square
+is only reachable through a TVD above every same-world score.
+
+**Waiting cannot repair it, and the reason differs per guard.** For `unrep`,
+the missing data is *dense*'s, and dense is complete at 30 cells — no further
+`fd2s` cell can manufacture a dense dispatch in a quintile dense never dropped
+out in. For `ESS`, more cells *would* move the weights, but this square is
+reached only via a TVD saying dense2's geometry really is concentrated, so more
+cells confirm a concentration rather than dissolve one; and extending the smoke
+*after seeing the shortfall* and then re-testing is optional stopping on the
+assumption test — §29.47's forking path, one world over.
+
+**There is also nothing to re-derive *to*.** §29.27 rejected rescaling
+`RECONNECT_MIN_SHARE_VOX` 550000 → ~207000 on grounds independent of this
+assumption: `MIDRUN_MAX_SILENCE` must stay ≤ `MIDRUN_SILENCE`, so the clamp
+cannot widen. Blocking a campaign to re-derive a parameter is right when a
+candidate value exists. **This rule is contingent on there being none**, and
+that contingency is what keeps it from being merely the convenient answer — if
+§29.27's rejection is ever overturned on its own terms, the rule lapses and the
+launch blocks instead.
+
+#### The registered resolution: reduced-claim launch
+
+1. **pb4d's primary result stands.** `off` disables reconnect entirely, so the
+   gate runs only in the treated arm: it is part of the treatment, and
+   off-vs-hybrid *within* dense2 is a comparison of "no reconnect" against
+   "reconnect as it actually behaves in a denser forest". Internally valid
+   whatever the gate does.
+2. **The cross-world mechanism claim is withdrawn, now, before the data.**
+   pb4d may not be reported as "the dense mechanism in a harder world". Gate
+   behaviour is *downstream* of density — a mediator, not a nuisance — so it is
+   part of the effect, and the dose-response may not be described as if it were
+   absent. Equalising it by moving the parameter would be removing part of the
+   causal effect of the exposure, which is §29's post-treatment trap in yet
+   another costume.
+3. **§29.27's 0.55–0.67 tripwire is promoted** from monitor to mandatory
+   reported quantity, measured on pb4d's own hybrid arm and reported whatever
+   it says. It is the only measurement of this assumption made *in* the world
+   it is about, on the arm it is about, rather than projected into it. Outside
+   the band confirms (2). Inside the band is reported and does **not** reinstate
+   the claim — a projection that could not be computed is not retroactively
+   validated by a different measurement agreeing with it.
+4. **The asymmetry stands.** A degenerating gate pushes hybrid toward looking
+   *better*, so it works against §27.8's registered prediction. If hybrid loses
+   in pb4d, this confound is not the explanation. If hybrid **wins**, this
+   section is resolved before that win is reported.
+
+Item 2 is the cost, and it is a real one: part of pb4d's interest was "same
+mechanism, harder world", and this gives that up in advance. It is a decision
+to run a campaign that answers less than it was designed to, which is worth
+more than a campaign that answers more than it is entitled to.
+
+Two guards are deliberately **not** covered. The early "fewer than 3 dense2
+cells past the criterion" refusal and the "no outage seconds in one of the
+worlds" refusal both say the smoke is not what gate2 assumed — and gate2, whose
+C1 requires every cell to cross the criterion, is the authority on that. The
+script returns 2 and names gate2 rather than resolving them here.
+
+#### Two smaller repairs the exercise forced
+
+**The driver was throwing away its own verdicts.** Every `.out` file holds what
+a script *printed*; the exit status — which §29.40 makes the verdict, and which
+the driver is built around — went only to a terminal. `assumption_gap.py`'s
+entire input is a pair of statuses, and recovering them from prose is the
+inference §29.38 already got wrong once. `fd2s_readouts.sh` now writes
+`SUMMARY.txt` with each script's `rc`, and calls `assumption_gap.py` against
+its own output directory — reading files rather than re-running two expensive
+readouts, so it costs nothing and reports on exactly the bytes that reach the
+doc.
+
+**The classifier is calibrated against the source it classifies.**
+`assumption_gap.py` identifies which guard deferred by matching strings
+`gate_reweight.py` prints. A reworded guard would silently become
+"unrecognised" — exit 2, on the one combination that is launch-affecting, which
+is §29.46's failure exactly. `--calibrate` greps `gate_reweight.py`'s source
+for every keyed string and fails loudly if one has moved. 21/21 self-test,
+calibration passed, and `rule_audit.py --files` confirms all three of §29.40's
+answers are reachable.
+
+None of this is likely to fire either: fd2s seed 1 crossed the criterion at
+34 % of the cap, and the TVD rule needs a score above every one of dense's 30
+same-world values. But the square existed, it was launch-affecting, and the
+alternative was to notice it in a minutes-long window with three cells' numbers
+already on screen.
