@@ -10047,3 +10047,110 @@ expectation as FAIL, so the five PASSes above are worth what they say.
 The unfiltered suite remains a launch-window step: a `TGL_ONLY` run exits 2 by
 design and cannot stand in for it, and the 25 cases it skipped have not been run
 since step 0b was inserted ahead of them.
+
+### 29.62 pb4d's own independent variable named a blocking gate, and nothing ran it
+
+While cell 3 burned out its cap there was nothing to do but audit the thing about
+to launch. Three findings, in ascending order of how badly they would have hurt.
+
+**The IV is clean.** `diff -u flatforest_dense_2robot_lidar.yaml
+flatforest_dense2_2robot_lidar.yaml` is exactly one hunk: a comment block, and
+`world: flatforest_dense` → `world: flatforest_dense2`. Same robots, same
+sensors, same spawn poses. At the flag level, `launch_pb4d.sh`'s
+`run_campaign.sh` invocation matches pb3g2's recorded manifest on every argument
+except `--scenario`. One variable, checked at both levels rather than asserted.
+
+**Inside that same IV file is a blocking gate nothing in the launch path ran.**
+Its comment block says, in its own words:
+
+> BEFORE RUNNING ANYTHING THAT TERMINATES ON COVERAGE, re-measure the
+> unknown-fraction floor. This is a blocking gate, not a courtesy… Run smoke
+> cells under a throwaway prefix and check with `scratchpad/floor2.py` first.
+
+The smoke cells exist. `floor2.py` exists. Nothing connected them:
+`gate_and_launch.sh` never calls it and `fd2s_readouts.sh` never listed it. The
+substance is *mostly* covered elsewhere — gate2's C1 demands every cell actually
+cross the criterion, which is strictly stronger than "a floor exists below it",
+since crossing implies both the floor and a run that got there. But "enforced by
+a different script under a different name" is not enforcement, and the *margin*
+— how much open water is left between criterion and floor — is a number only
+this script prints. C1 cannot distinguish 0.60 clearing the floor by 0.10 from
+0.60 clearing it by 0.003. Now registered in `fd2s_readouts.sh`, which is where
+it should have been since the world was densified.
+
+**Registering it is what exposed the real defect: it announced failures and
+exited 0.** §29.40's convention is that every readout ends in `sys.exit(main())`
+and encodes three values in its status — 0 clean, 1 a pre-registered rule fired,
+2 not enough data — and `rc_classify.sh` reads exactly that into `SUMMARY.txt`,
+which exists *because* the statuses are not recoverable afterwards. `floor2.py`
+had no `main()` and no status at all:
+
+| printed verdict | was | read as | should be |
+| --- | --- | --- | --- |
+| FLOOR IS ABOVE THE CRITERION | 0 | CLEAN | 1 |
+| MARGIN IS THIN | 0 | CLEAN | 1 |
+| THE TWO SOURCES DISAGREE | 0 | CLEAN | 1 |
+| no finished cells with traces | 1 | VERDICT | 2 |
+| bad arguments | 1 | VERDICT | 2 |
+
+Three of the five wrong in the flattering direction. The gate pb4d's IV calls
+blocking would have printed *"FLOOR IS ABOVE THE CRITERION. No run can terminate
+on coverage"* and been filed, in the artifact that gets read, as CLEAN — the
+seventh entry in the tally §29.23 keeps of guards that print PASSes they do not
+mean, and structurally §29.44 again: a rule that could only return some of its
+answers.
+
+It is also the first of the seven found by *promoting* a script rather than by
+testing one. Nothing about `floor2.py` regressed; it never had a status to lose.
+It was correct for as long as a human read its output, and became defective at
+the instant a driver started reading its exit code instead. **A check acquires
+new failure modes when it is automated, so the audit belongs after registration,
+not before it** — the order I happened to get right here only because
+`rule_audit.py` refuses to stay quiet about a script it cannot parse.
+
+Found by `rule_audit.py`, which printed `floor2.py ? ? ? no main()` and refused
+to classify rather than guessing. The refusal is the feature; a checker that had
+assumed the convention held would have said nothing.
+
+**The fix is keyed to the branch that prints, not recomputed.** Each adverse
+branch appends its name to a list, and the status is `1 if adverse else 0`, so
+the printed sentence and the recorded status cannot drift apart. Checked by
+moving the *criterion* against pb3g2's fixed known floor rather than by
+fabricating data:
+
+| criterion | rc | rules fired |
+| --- | --- | --- |
+| 0.60 | 0 | — (byte-identical output to pre-edit) |
+| 0.55 | 1 | `sources-disagree` |
+| 0.52 | 1 | `sources-disagree, thin-margin` |
+| 0.50 | 1 | `floor-above-criterion` |
+
+0.55 is the case that earns the accumulator: the two sources disagree while the
+main verdict still prints OK, so a status keyed to `best` alone would have
+returned 0 while the script was saying the gate is being decided by sampling
+density. `rule_audit.py` now resolves it `yes yes yes` — all three statuses
+statically reachable, no unresolved labels — and its own calibration still
+passes. A usage error returns 2, not 1: "the caller did not say what to decide"
+is a shortage of information, and filing it as a fired rule would let a typo be
+recorded as an adverse finding about the world.
+
+**A second, smaller bug in the same script: it did not exclude live cells.** The
+floor is a MINIMUM, so an unfinished run contributes a value ≥ its own true
+floor — the conservative direction, which is exactly why this survived: it can
+only make the margin look tighter, never wider. But the VERDICT line counts end
+reasons, and there a live cell is not "failed to terminate", it is "has not got
+there yet". Different sentences, and the script printed the first. Now excluded
+and the exclusion announced. `floor2.py pb3g2 0.60` is byte-identical across
+both edits (the arm is finished, so the guard is inert where it should be) and
+`floor2.py fd2s 0.60` correctly names `fd2s_off_seed3`.
+
+**And a correction to my own reasoning.** Confronted with the scenario file's
+floor of 0.5301 against gate2's 0.5011, I argued the gap was impossible in that
+direction — the scenario's number pools over robots, so it is a min where
+gate2's is a max, and a min cannot exceed a max. Wrong, because both numbers are
+correct and the difference is not the *reduction* but the *source*: events
+0.5301 (margin +0.0699) versus csv 0.5011 (margin +0.0989), the +0.0290 of
+§29.57. The scenario quotes the conservative one. I had assumed a shared source
+and reasoned confidently from the assumption; `floor2.py` prints both floors on
+every run precisely so this is checkable, and it took one run to check. The
+number was never wrong — only my account of why it could not be.
