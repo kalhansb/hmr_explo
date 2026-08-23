@@ -8813,3 +8813,81 @@ None of this is likely to fire either: fd2s seed 1 crossed the criterion at
 same-world values. But the square existed, it was launch-affecting, and the
 alternative was to notice it in a minutes-long window with three cells' numbers
 already on screen.
+
+### 29.49 The evaluator nothing consulted
+
+§29.44 built `dropout_null_k.py`, §29.45 built `gate_reweight.py`, §29.48 built
+`assumption_gap.py` to evaluate their conjunction. Three sections of work whose
+entire output is a verdict on whether pb4d may launch. And
+`gate_and_launch.sh` — the script whose one job is to launch pb4d or refuse to
+— did not read any of them. It ran gate 2, the partition licence and the shape
+tripwire, and launched.
+
+The ordering that connects them existed. It was a line in a checklist: run the
+readouts, read the VERDICT lines, *then* run the launcher. Written down, and
+correct, and load-bearing on a human executing four steps in order in a
+minutes-long window after a three-cell smoke ends — which is the same
+circumstance §29.47 refused to leave a criterion choice in. §29.41's shape a
+third time: a rule with no evaluator becomes an evaluator with no caller.
+
+So step 0 now runs ahead of all three gates and reads
+`readouts_n3/SUMMARY.txt`. **Exit 9**, five refusals:
+
+| condition | why it is a refusal and not a warning |
+| --- | --- |
+| no `SUMMARY.txt` | the launch window's order is readouts *then* launcher, so an absent directory means the sequence was not followed. That must not resemble "came back clean" |
+| a missing status line | a driver that died mid-list leaves exactly this, and "no line" would otherwise read as "nothing to report" |
+| verdict `ERROR` on either | §29.40 makes exit 1 "a rule fired", but an uncaught exception exits 1 too. A crash and an adverse verdict arrive **identical**, and only one of the two readings is flattering |
+| `gate_reweight` rc=1 | HOLD FAILS. Launch-blocking on §29.45's own terms, no conjunction required |
+| rc=1 **and** rc≠0 without the doc marker | §29.48's square, unrecorded |
+
+and two releases: the square once the doc carries a `29.48 FIRED:` line naming
+the guard, and a RE-DERIVE closed by HOLD SURVIVES.
+
+**The marker is the mechanism, not a formality.** §29.48's item 2 withdraws the
+cross-world mechanism claim, and a withdrawal that exists only in a terminal
+scrollback is not a withdrawal — six months from now the campaign is a
+directory of numbers and the doc is the only thing that remembers what they may
+not be used to say. This is the one condition a human can clear by typing a
+line, deliberately: typing it *is* the act the rule requires.
+
+**Testing it needed the same override the IV guard needed.** Step 0 sits in
+front of every existing case's condition, so without `HMR_READOUTS` all twenty
+would have exited 9 before reaching the branch they exist to test — the failure
+`build_sim_repo`'s comment already documents one guard earlier, arriving again
+unprompted. `HMR_READOUTS` and `HMR_DOC` are overridable for that reason, and
+the fixtures are written in the driver's own `printf` format rather than
+something convenient, because what is under test is a pair of `sed`
+expressions reading *that* format. A fixture in a format the driver never emits
+would test the parser against itself.
+
+Eight cases: five that block, three that release. The release cases are there
+per `iv_clears` — a guard that never clears passes every blocking case and
+blocks the campaign forever. **8/8 pass.**
+
+**And a filter, for §29.43's reason.** The fd2s smoke is still running, and
+§29.43 measured analysis load leaking into the wall/sim ratio that smoke exists
+to produce. `TGL_ONLY=<regex>` runs a subset; the five blocking cases exit at
+step 0 without touching the gates and cost almost nothing. The rules that keep
+it from becoming a way to report green:
+
+* skips are **counted and printed**, one line each;
+* the footer states the run was partial and names the filter;
+* the suite exits **2** on any skip — distinct from 1, so "partial" and
+  "failed" cannot be confused by a caller;
+* the negative control runs **regardless of the filter**. A filtered run is
+  still a run whose PASS lines get believed, and a subset with the control
+  filtered out is a subset with nothing establishing that its PASSes mean
+  anything.
+
+The mutated fixture is never reused under a filter either: `fx_incomplete` is
+edited in place across its two cases, and a second `run_end_reason=` appended
+to an already-mutated manifest is a fixture that no longer means what the case
+asserts.
+
+**What is not yet done, stated plainly.** The twenty pre-existing cases have
+not been re-run since step 0 was added. They are expected to pass — the
+negative control ran unfiltered in both subset runs and reached
+`ALL THREE GATES PASS` through the new guard — but expected is not measured,
+and an unfiltered `./test_gate_launch.sh` is now step 0 of the launch window,
+ahead of the IV commit. Exit 2 makes a filtered run unable to stand in for it.
