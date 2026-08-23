@@ -9899,3 +9899,83 @@ spread, it widens it. Whatever cap comes out of this, it is being fitted to a
 distribution whose shape three cells cannot describe — and that is a limitation
 to carry into pb4d's reading, not a reason to add smoke cells until the number
 stops moving, which is choosing a sample size by watching the estimate.
+
+### 29.60 The size of the remedy stopped being open before cell 3 landed
+
+§29.59 left the response resting on one sentence: *"Where it crosses inside that
+window sets `s`, and `s` is the only input `cap_raise.py` takes from the smoke."*
+Both halves are true and together they say less than they appear to.
+
+`s` is a **median of three**. Two crossings are in, at 1838 s and 3165 s. A
+three-element median is the middle value, so a third crossing anywhere **above**
+3165 s leaves the median at 3165 s — 3200 s and 5400 s give the same `s`, the
+same cap and the same price. `fd2s_off_seed3` passed 3165 s still at
+`unknown_fraction` 0.621. From that moment the cap was pinned, and the 1920 s of
+sim still to run could not move it by one second. `cap_forecast.py` was written
+and run while both outcomes were still live, so the number below is a forecast
+and not a reading:
+
+| | n=2 | n=3, any crossing above 3165 s |
+| --- | --- | --- |
+| median fd2s crossing | 2501 s | **3165 s** |
+| `s` vs pb3g2 off (median 679 s) | 3.686 | **4.664** (+27 %) |
+| projected max over pb3g2's 30 cells | 5744 s | **6903 s** |
+| `cap_raise.py`'s cap = max/0.60, round 600 | 9600 s | **12000 s** |
+| wall-clock, 60 cells serial, 1.855 wall/sim | — | **105.6 h (4.40 d)** |
+| against the current 5400 s cap | — | 102.7 h (4.28 d), **+2.9 h, +3 %** |
+
+**The raise is nearly free, and the reason it is nearly free is worth stating.**
+A 2.22× cap costs 3 % because at `s` = 4.664 only **2 of 30** projected cells
+exceed 5400 s at all. The cap is not what the campaign spends its time on; it is
+insurance on a thin tail. So affordability is *not* the constraint here, and the
+"is this too expensive, should we change environment instead" branch of the
+standing delegation closes on a measurement rather than on a guess: at +2.9 h it
+would be a bad trade to redesign the world to avoid it.
+
+**Which leaves exactly one open question, worth one bit.** Not *how big* a raise
+— that is settled — but *whether one is admissible at all*, i.e. whether cell 3
+crosses before its own 5400 s cap. `cap_raise.py` refuses if it does not.
+
+**And that refusal is right for the wrong reason.** It says: *"s is estimated
+from the survivors only and is biased LOW."* `refusal_audit.py` checks this
+against the configuration it will actually fire in. If cell 3 is right-censored
+at 5400 s without crossing, its crossing time is unknown but **not
+unconstrained** — it exceeds 5400 s, hence exceeds 3165 s, so the sorted sample
+is (1838, 3165, >5400) and the median of three is 3165 s **exactly, with no bias
+in either direction**. The refusal's own arithmetic describes what happens if you
+*drop* the censored cell — median(1838, 3165) = 2501 s, 21 % low — which is a
+consequence of the handling, not a property of the data. A censoring time above
+the sample median pins that median for free.
+
+**The correction unblocks nothing, and that is how it was checked.** gate2's C1
+is *"every cell crosses the criterion"*, read off the cell's own series. The cap
+enters gate2 only through C3's `0.60 × cap`. So raising the cap relaxes C3 and
+leaves C1 exactly where it was:
+
+| cap | C1 | C3 | gate2 |
+| --- | --- | --- | --- |
+| 5400 s | 2/3 | 2/2 | **FAIL** |
+| 12000 s | 2/3 | 2/2 | **FAIL** |
+
+Under branch B the launch is blocked at any cap, by C1, on a **missing
+observation** — the one failure the licensed lever cannot buy off, because the
+lever buys waiting time and C1 is not short of waiting time, it is short of an
+event.
+
+I am aware of the shape of this: a registered refusal fires, and I produce an
+argument that it is too strict, at the moment it fires. §29.47 is what that
+pattern usually is, and this document has now refused that move three times.
+The difference here is that it is *testable* — if the correction were motivated,
+correcting it would let the launch proceed. `refusal_audit.py` exits **1** if the
+correction ever flips a verdict, and it exits 0: the verdict is identical before
+and after, and only the sentence explaining it changes. That is the whole claim.
+
+Two things to carry: (1) `cap_raise.py`'s second refusal should read *"a cell
+that never crossed fails C1, and no cap repairs C1"* — the bias story is false
+whenever the censoring time exceeds the sample median, which is the ordinary case
+for a right-censored middle-sized sample, and a refusal that misstates its own
+hazard will fire wrongly in some other configuration. (2) `s` has now moved
++36 % on the second cell and +27 % on the third. Three cells are not describing a
+distribution; they are being shoved by each new one. Whatever launches carries
+that as a stated limitation — not as a reason to keep adding smoke cells until
+the estimate stops moving, which is choosing `n` by watching it.
