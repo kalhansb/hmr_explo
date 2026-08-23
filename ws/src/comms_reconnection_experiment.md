@@ -11021,6 +11021,24 @@ and oversubscription would let plan ticks coalesce — coarsening the very grid 
 endpoint is read from, which is the one path by which contention *could* move
 `t_sim`.
 
+**Measured in flight, after launch, and recorded here as such.** The argument
+above is about a lattice, so the lattice was measured rather than left as an
+argument. Plan-tick spacing in *simulated* seconds, `tr1` under three-way
+concurrency against `pb3g2` running strictly sequentially:
+
+| | planners | median tick | p90 |
+|---|---|---|---|
+| `pb3g2` (sequential) | 60 | 4.990 s | 5.030 s |
+| `tr1` (3 concurrent) | 5 | 5.000 s | 5.010 s |
+
+A ratio of **1.002×** — the 5 s planning timer holds exactly, at a load average
+of 23 on 20 cores. The endpoint lattice is untouched and the argument above
+stands as written. Wall-clock per cell did degrade, as expected and without
+bearing on validity: 1.416 wall seconds per simulated second against `pb3g2`'s
+sequential 1.289, a 1.10× per-cell slowdown for **2.73× aggregate throughput**.
+Nothing here is a result about the treatment; it is a check that the harness
+change did not buy throughput with the endpoint.
+
 Two guards had to be scoped first, both of which matched processes machine-wide:
 `stack_procs()`, which feeds `teardown()`'s `kill -KILL` and would have had one
 cell SIGKILL another's gazebo mid-run; and the planner-count guard, which aborts
