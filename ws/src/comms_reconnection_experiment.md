@@ -9070,3 +9070,197 @@ corner is not shadowed by the wall it is facing. And none of this measures an
 outage. Cell 1's crossing at 1838 s remains the only *measured* evidence that
 dense2 is harder in practice; cell 2 finished censored at the cap at 10:00 and
 cell 3 lands ~12:47, at which point `fd2s_readouts.sh` measures all three.
+
+### 29.52 §27.9's four conditions, and the two with no caller
+
+§27.9 declares four outcomes that would make pb4d uninterpretable, "declared now
+so they cannot be renegotiated later". Renegotiation is not the only way a
+declaration stops binding. Condition 1 (the floor gate) is settled before launch
+by `gate_and_launch.sh`, and condition 4 (cap saturation) is
+`campaign_health.py`'s censored table. The other two had **no evaluator running
+on pb4d at all**, which is §29.41's shape for the fourth time and §29.49's for
+the second in two days.
+
+**Condition 2 — delivery.** `manip_check.py` exists, and it is a good script: it
+reads the planner CSVs rather than `peer_lost` events, it carries a known-answer
+anchor (the off arm must read 0 %), and it already prints the ITT dilution
+arithmetic. It was also `ROOT = "/tmp/hmr_campaign"` and `PREFIX = "pb3g2_"` as
+literals, and it appeared in **no shell script anywhere**. Adding it to
+`pb4d_watch.sh` unchanged would have been worse than leaving it out: the watcher
+exports `HMR_CAMPAIGN_ROOT` per script and this one ignored it, so it would have
+read pb3g2's cells out of a hardcoded path and printed them under a pb4d
+heading — and after `move_campaign_root.sh` runs, that path *is* pb4d's root, so
+`pb3g2_` would match nothing there and the check would report on an empty set.
+
+Now `HMR_CAMPAIGN_ROOT` is honoured and the tag comes from `argv`, so a caller
+has to state which campaign it means instead of inheriting one.
+
+**The empty case was the wrong word.** It exited 1 — which `rc_classify` maps to
+VERDICT, *"a pre-registered rule FIRED — read it, and record it in the doc
+BEFORE the campaign ends"*. Running before any cell has finished is this
+script's normal early state. It exits **2** now (DEFERRED). "No data yet" and "a
+rule fired" must not be the same word, in either direction.
+
+**And the band is registered, here, before the data.** §27.9 says "well below
+pb3g2's 91 %" and stops. Unquantified is how a rule gets satisfied by default,
+so the threshold is derived from the dilution arithmetic the script already
+prints rather than from any preference about the outcome — an ITT contrast over
+delivered share *f* estimates *f* × the per-firing effect, so required n scales
+as 1/*f*²:
+
+| delivered share | n inflation | consequence |
+| --- | --- | --- |
+| *f* ≥ 0.85 | ≤ 1.38× | comparable to pb3g2; report the ITT with the delivery rate stated |
+| 0.70 ≤ *f* < 0.85 | 1.38–2.04× | report ITT **with** delivery; claim no per-firing effect |
+| *f* < 0.70 | > 2.04× | **condition 2 fires** — ITT alone is uninterpretable |
+
+0.70 is where effective n drops below half what the power calculation assumed,
+and §"metric power and fairness" already puts 30 cells/arm *at* the floor for
+completion time. Half of a floor is under it. pb3g2's 0.91 lands in the top row,
+so the historical invocation is unchanged — the known-answer property survives
+the edit.
+
+**The fixture suite found a crash in the case that matters most.** Ten cases,
+including a negative control that asserts a string must be *absent*. One failed:
+`ZeroDivisionError` at the `1/share²` line when the delivered share is **zero**
+— total delivery failure, the single outcome this script exists to distinguish
+from a genuine null. It exited 1 with a traceback, which `rc_classify` reads as
+ERROR, so "the treatment never fired once" would have surfaced as a crashed
+script rather than as the finding. That branch now says so in words and quotes
+no dilution factor, because there isn't one. **10/10.**
+
+**Condition 3 — re-rolls.** §27.9 prescribes three reads and names the naive
+grep that must not be used. Nothing ran them on pb4d, and `campaign_health.py`
+*excludes* `.attempts` directories from its cell listing rather than counting
+them — so the one read §27.9 names explicitly was the one being filtered out.
+
+`rerun_audit.py` runs them. Against pb3g2 they return **0 / 0 / 0**, exactly as
+registered. Then a fourth read, which the registration does not prescribe:
+compare START lines against OK lines.
+
+    START 121   vs   OK 120
+
+    [22:00:13] START pb3g2_hybrid_seed13
+    [22:15:10] pb3g2: 120 cells -> /tmp/hmr_campaign      <- driver relaunch
+    [06:18:50] clearing partial pb3g2_hybrid_seed13
+    [06:18:50] START pb3g2_hybrid_seed13
+    [06:45:27] OK pb3g2_hybrid_seed13 rc=0 all_done t_sim=1291 wall=1597s
+
+**pb3g2 re-ran a cell, and all three registered reads missed it.** A driver
+killed by an operator writes no FAIL line, no SKIP line and no `.attempts`
+directory; it writes `clearing partial`, and nothing was looking for that.
+
+The re-run itself is benign and the reason matters: the relaunch at 22:15:10 is
+§26.1's extension from two arms to four, it landed 15 minutes into a run that
+took 27 minutes to complete, and it had no connection to what the cell was
+showing. That is **exogenous**, so it does not induce the selection bias
+condition 3 is about — re-rolls that preferentially discard mild-outage
+realisations. What needs correcting is the *provability* claim, not the
+conclusion. "Zero on three reads" was being read as "zero re-runs". It is not
+the same statement, and the honest version is: zero content-triggered re-rolls,
+one exogenous re-run, found by a read nobody had specified.
+
+`rerun_audit.py` therefore reports all four, exits 1 on any re-run (the count
+and the seeds must be reported either way), prints the driver-launch timestamps
+next to the re-run so the exogenous/endogenous call can be made, and states
+plainly that nothing in the log makes that call for you. A missing driver log
+exits **2**, not 0: a campaign whose log is absent or differently named has not
+been audited, it has failed to be read, and those must not look alike.
+`--calibrate` reproduces pb3g2's eight measured counts exactly and fails loudly
+if it cannot — the anchor §"checks that stopped checking" requires.
+
+**Then the audit's own fixtures found two ways it would have failed on pb4d,
+neither of which `--calibrate` can see.** pb3g2's log is complete and is named
+`pb3g2_driver.log`; pb4d's will be neither, so the anchor is blind to exactly
+the two states pb4d will be in.
+
+*The filename.* `run_campaign.sh` never names a log file — it writes to stdout
+and the **caller** redirects, so the name belongs to whoever launched the
+campaign. `gate_and_launch.sh:388` sends pb4d's to `pb4d_launch.out`, and the
+fd2s smoke's went to `fd2s_launch.out`. The audit looked for
+`{TAG}_driver.log` and nothing else, so `rerun_audit.py pb4d` would have found
+no log, exited 2 for the entire campaign, and left condition 3 unevaluated —
+now with a caller in `pb4d_watch.sh` making it look evaluated. §29.49's shape
+one level down: not a check with no caller, but a caller aimed at a filename
+that never appears. It now discovers the log by pattern, requires a `[campaign]`
+line rather than trusting the name, excludes the per-cell `*.console.log` files
+(the simulation's output, which contains FAIL routinely and would manufacture
+findings), concatenates multiple files in mtime order so a re-run that spans a
+relaunch boundary is still one stream, and prints what it read.
+
+*The running cell.* The newest START has no OK while its cell is still running,
+and the audit counted every start-without-OK as a re-run — so it would have
+fired condition 3 on **every** mid-campaign invocation, for 60 cells, always.
+A start-without-OK is evidence only when the driver went on to start something
+else afterwards; the last one is in flight and is reported as context. A rule
+that never fires and a rule that always fires fail the same way.
+
+`--calibrate` still reproduces pb3g2's eight counts exactly, and run against
+the live fd2s smoke the audit now finds `fd2s_launch.out`, reads 3 STARTs
+against 2 OKs, and returns CLEAN with `fd2s_off_seed3` named as in flight.
+**15/15.**
+
+**Wired.** `pb4d_watch.sh` goes from 3 checks to 5. `test_pb4d_watch.sh` pinned
+the count at 3, which is why the count is pinned at all — `SCRIPTS` is exactly
+where a check gets dropped silently. It now pins 5 *and* asserts both new
+entries by name, because a count alone survives swapping one check for another.
+**14/14.**
+
+**Not done, stated plainly.** `manip_check.py` has not been re-run against
+pb3g2's real cells since the edit, so "it still prints 91 %" is expected, not
+measured. That run parses ~120 cells of planner CSV and §29.43 measured analysis
+load leaking into the wall/sim ratio the fd2s smoke is currently producing, so
+it waits for the smoke to end. The fixtures test the branch that decides; they
+do not test that the number it decides on is still the historical one.
+
+### 29.53 A liveness probe that reported an answer without running
+
+Checking on the smoke, one command was issued to print the doc's line count,
+the campaign's cell count, the driver log's tail, and whether the driver was
+alive. It printed:
+
+    --- smoke ---
+    3
+    pid 3989881 GONE
+
+The driver was not gone. It had been running for 21460 s and was, at that
+moment, supervising cell 3.
+
+The command was a single `&&` chain ending in
+`kill -0 3989881 && echo ALIVE || echo GONE`, and one link before the end was
+`tail -5 /tmp/hmr_campaign/fd2s_driver.log`. **There is no file by that name**
+— the smoke's driver output went to `fd2s_launch.out` (§29.52, same root
+cause, found ten minutes later and independently). `tail` exited 1, the `&&`
+chain short-circuited, and `||` — which binds to the whole chain, not to the
+`kill` — printed `GONE`. The probe never executed. So the reported liveness of
+the campaign was a report on the existence of a log file.
+
+**The output said so and it was nearly missed.** The chain also contained
+`echo "--- driver alive? ---"`, and that header is absent from the printed
+output. A label that does not appear is proof that everything after it was
+skipped. This is the third member of a family already in this log — `grep -q`
+under `pipefail` returning 141 on a successful match, and
+`sed -n 's/…//p' || echo fallback` where the fallback can never fire. All three
+are the same mistake: **a shell exit status standing in for a measurement that
+was never taken.**
+
+What makes this one worse than the other two is the action it invites. "The
+driver is dead" on a 20-hour campaign has an obvious next step, and that step
+is to relaunch it. A second driver started against a live root is precisely
+§26.1 — the relaunch that killed `pb3g2_hybrid_seed13` fifteen minutes into a
+twenty-seven-minute run, which is the incident §29.52 was being written about
+when this happened. The near-miss and its subject are the same failure.
+
+Standing rule, on top of the existing never-`pkill -f` one:
+
+- A liveness check gets its **own command**, never a link in a chain. `if`, or
+  a separate invocation.
+- `ps` over `kill -0`. `kill -0` answers one question — does a pid exist —
+  which after PID wraparound is not the same question as "is my driver still
+  running". `ps -o args= -p PID` shows what the pid *is*, and a pid that has
+  been recycled fails that test visibly rather than silently passing.
+- Confirm with something the process **produced**: cell 3's console log had
+  been written to one minute earlier, and the process tree showed
+  `run_explo_sim_rviz.sh` at 1401 s under `run_campaign.sh`. Two independent
+  reads, neither of them an exit code.
+- Nothing gets relaunched on the strength of a single negative probe.
