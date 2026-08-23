@@ -11177,3 +11177,60 @@ floor, which is the same reason the gate is pinned there.
 and §30.9's non-claim 2 stands unchanged: a faster trigger can fire on links
 that were about to recover and spend distance for nothing. The primary endpoint
 is read at n = 30/arm, once, as registered.
+
+### 30.11 Why every treatment arm is slower: 41 % of the chases bought nothing
+
+§30.1 explained the `pb3g2` null as the treatment never getting to act. That is
+true of *outages* — only 4.4 % outlasted the gate — but it is not the whole
+story, because the treatment did act: 68 mid-run fires across 24 of 30 hybrid
+cells. The completion-time table is unambiguous about what those fires cost:
+
+| arm | n | p10 | median | p90 | vs off |
+|---|---|---|---|---|---|
+| off | 30 | 560 | **756 s** | 1163 | — |
+| hybrid | 30 | 621 | **777 s** | 1104 | 1.028× |
+| pursuit | 30 | 653 | **810 s** | 1399 | 1.071× |
+| rendezvous | 30 | 644 | **897 s** | 1105 | 1.187× |
+
+Zero censored cells, so no cell's time is a lower bound. **No treatment beat
+doing nothing**, and the ordering tracks how much exploration each arm
+interrupts to go find its partner. That ordering wants a mechanism.
+
+**Two clocks, and the planner fires on the wrong one.** `peer_record_age_sec` is
+the age of the last record *received* from the peer. It ages whenever the peer
+is not sending — link up or down. Link-down time is a property of the radio and
+lives in `link_states.csv`. On `pb3g2` the peer-record clock runs a median of
+**+49.1 s** ahead of actual link-down time, so the trigger routinely believes a
+peer is unreachable when the radio says otherwise.
+
+Splitting `pb3g2`'s 68 hybrid fires on the radio rather than the belief:
+
+| | fires | share |
+|---|---|---|
+| fired while the link was **UP** | 11 | 16 % |
+| fired during a real outage | 57 | 84 % |
+| …of those, link back within the 14.6 s needed to start moving | 17 | 30 % |
+| **bought nothing, either way** | **28** | **41 %** |
+
+For the fires that did land on a real outage the median silence *remaining* when
+the chase began was only 22.9 s — against a realised planning latency of
+14.6–19.3 s. Even the useful fires were mostly over before the robot arrived.
+
+**This is a defect in the trigger, not in the idea of sharing.** A chase is real
+distance debited from exploration, and 41 % of them were spent on partners who
+were either never unreachable or about to reappear unaided. That is a sufficient
+mechanism for a 1.028× penalty without needing to argue that map sharing has no
+value.
+
+**It also sharpens §30.9's non-claim 2 into a prediction with a number.**
+A faster trigger fires on shorter silences, so the wasted fraction should *rise*
+in `tr1` unless the peer-record drift is what dominates. The diagnostic
+(`wasted_fire.py`) is written and calibrated — its episode segmentation
+reproduces `atten_sweep.outages()` exactly, 547 episodes over 30 cells — and it
+will be read on `tr1`'s hybrid arm at n = 30 with the rest, not before.
+
+**The fix this implies is not in scope for `tr1` and must not be applied to it.**
+Gating the trigger on link state rather than record age is a planner change; it
+would invalidate the running campaign and it has not been tested. It is recorded
+here as the highest-value trigger work identified so far, for a campaign after
+`tr1` reads out.
