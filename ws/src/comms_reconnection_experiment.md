@@ -7693,3 +7693,57 @@ rather than a private re-implementation that could agree while the advice is
 wrong. And because a diff of two empty outputs passes beautifully, the
 negative control deletes a manifest from a restored cell and requires the
 comparison to notice.
+
+### 29.35 Eight guards on the decision, none on the act
+
+`gate_and_launch.sh` now refuses on seven distinct conditions before it will
+start pb4d. All seven guard the *decision to start*. The starting itself was
+three lines and checked nothing:
+
+```bash
+setsid nohup "$HERE/launch_pb4d.sh" > "$ROOT/pb4d_launch.out" 2>&1 &
+sleep 2
+say "launched: pid $!   log $ROOT/pb4d_launch.out"
+```
+
+That prints a pid and returns 0 no matter what happened. A launcher dying on
+its first line — a mistyped flag, a `cd` that fails, a scenario the harness
+cannot resolve — produces a success banner, a plausible pid, and no campaign.
+
+What makes it bad rather than merely untidy is how it would be *found*. The
+next thing anyone does is count cells, and the answer would be zero, which is
+also what a campaign that started four minutes ago looks like. The two states
+are indistinguishable until enough hours pass that the silence stops being
+explicable — and this launch happens unattended, so those hours are the
+budget. §29.33 priced pb4d at 2.4 days; a launch that failed silently at 08:00
+costs a day before anyone can be sure it wasn't just slow.
+
+Now `kill -0` on the pid, and a fatal-string check on the log, because alive
+and healthy are different questions: `run_campaign.sh` exits 2 on an unknown
+flag, but a launcher can equally sit alive having already printed the fatal.
+Either one exits **8** and prints the log tail, so the failure states its own
+cause instead of being inferred from an absence.
+
+`$!` is the right pid here and it is worth saying why, since it looks like the
+classic bug: `sleep` is a *foreground* command and does not touch `$!`, and in
+a non-interactive shell there is no job control, so the background child is not
+a process-group leader and `setsid` execs without forking.
+
+**Testing it required not doing it.** `HMR_LAUNCH_CMD` is the third override of
+its kind after `HMR_CAMPAIGN_ROOT` and `HMR_SIM_REPO`, for the same reason each
+time: the branch worth testing is the expensive one, and exercising it must not
+cost what it costs. Three stand-ins — one that keeps running, one that exits 1
+immediately, one that prints `unknown arg:` and stays up — give exit 0, 8, 8.
+
+The fourth case is about the override itself. A test hook that reaches the
+launch line is also, structurally, a way to reach the launch line, so the suite
+asserts that `--dry-run` still launches nothing *with the stand-in wired up*. A
+hatch that quietly disabled the safety flag would be a worse defect than the
+one it was added to test, and it would have been introduced by the fix.
+
+The suite also kills whatever it starts. A stand-in outliving the run would
+hold a process against a fixture root the next case deletes — a test harness
+leaving live processes behind is the shape of the `pkill -f` incident, from the
+other end.
+
+`test_gate_launch.sh` is **17/17**, negative control still failing as designed.
