@@ -10249,3 +10249,250 @@ rather than a hope. What the table buys is that a null in pb4d is now
 **reportable as a bounded claim** — "no effect of 1.5× or larger" — instead of a
 shrug. Extending to n = 81 remains available and is the user's call on cost, not
 a decision to be taken after seeing a p-value.
+
+### 29.64 The launch window: three gates passed, one refused, and the refusal was measuring run length
+
+pb4d was ready to launch. It did not launch. This section is the whole window —
+what was checked, what the checks found, and the one that stopped it.
+
+#### The four steps before the gate
+
+**Step 0, the test suite.** `./test_gate_launch.sh` unfiltered: **31 passed, 0
+failed, 0 skipped**, negative control fired correctly. This is the suite that
+exists because the path which actually *launches* a 2.4-day campaign had never
+once executed.
+
+**Step 1, the independent variable.** The IV comment was applied to
+`flatforest_dense2_2robot_lidar.yaml` and all three `hmr_sim` files committed as
+**`9ad4573`**. While writing it I found the **third** copy of the stale coverage
+floor: `_world_registry.py` still carried `+0.0699 / 0.5301`, the *events*-source
+number, where the registered source is the planner CSV and the margin is
+`+0.0989 / 0.5011`. The yaml had just been corrected; the registry is its twin
+and would have shipped uncorrected in the same commit. Both are now right, and
+both now name what enforces the gate rather than restating a number.
+
+**Step 2, the root.** `./move_campaign_root.sh` — 123 cells to
+`/home/kalhan/hmr_campaign`, symlink at `/tmp/hmr_campaign`, same device so it
+was a rename, loader verified through the link. 79 G free.
+
+**Step 3, the readouts at n = 3.** Twenty-one scripts. Four verdicts matter:
+
+* `merge_crossing.py` **fired its pre-fixed rule.** dense2 cells cross at 17.0 /
+  22.1 / 22.3 % merge-fraction, median 22.1 %, against dense's *maximum* of
+  16.3 %. The registered response is a stated caveat and it is now stated: **the
+  pb3g2 → pb4d comparison is not one endpoint measured at two densities.** The
+  endpoint is nominally identical and the informational state at which it is
+  reached is not. Its well-powered tautology check is null (hybrid 1.2 % vs off
+  3.3 %, −2.1 pp over 30 vs 30), so the caveat is about interpretation, not a
+  defect in the endpoint.
+* `rate_compare.py` **demanded a choice, and it is made below.**
+* `c2_recalib.py`: under the registered MAX reduction, C2's false-failure rate
+  on pb3g2's own 3-subsets is **0.69 %** (exact over all 4060), against 0.00 %
+  under MIN, and two known-good cells now exceed 0.50 alone. Its own closing
+  line: *"This does NOT license moving 0.50."* Recorded and obeyed.
+* `dropout_position.py` **deferred with a proper null**: TVD 0.517 sits inside
+  the 0.144–0.787 range that single dense cells score against their own world,
+  and 10 of 30 score at least as high. There is no signal there to act on.
+
+**Step 4, the cap.** Raised **5400 → 12000 s** in `gate_and_launch.sh` and
+`launch_pb4d.sh` together. At 12000 `gate2.py` passes all three conditions —
+C1 3/3, C2 tail fraction 0.373 against a 0.50 ceiling, C3 every crossing inside
+0.60 × cap = 7200 s — and it passes under both estimator variants
+(last-robot 0.373, first-robot 0.383). The shape tripwire is **CLEAR**: observed
+max/min 1.94× against a 2.36× threshold.
+
+Two things the raise exposed, both of the same kind — *an unlinked copy of a
+constant*:
+
+* **The guard that reads the flag was reading the prose.** Step 0b exists to
+  refuse a half-edit where `gate_and_launch.sh`'s `CAP` and `launch_pb4d.sh`'s
+  `--duration` disagree. It grepped `--duration <n>` out of the launcher — and
+  `launch_pb4d.sh` documents every flag in a header block, so the string appears
+  **twice**, comment first. The guard read `5400` from a comment while the
+  campaign would have run at 12000. Wrong in both directions: a documentation-only
+  edit would have been waved through as "agrees". Fixed by stripping comment
+  lines before matching, with a `cap_comment_decoy` regression case.
+* **The suite that exists to catch unlinked constants was holding three of its
+  own.** `cap_short`, `cap_long` and `cap_agrees` had 5400 and 7200 written in;
+  `fx_cap`'s time factor 2.50 put its crossing at 4595 s, past 0.60 × 5400 but
+  *inside* 0.60 × 12000, so C3 stopped failing and the tripwire fired instead —
+  a gate-2 test that had quietly become a gate-3 test. All four now derive from
+  `CAP`. Before the fix, a correct edit reported as three FAILs.
+
+The lesson generalises past this file: **a constant's copies are only visible
+when it moves.** Four layers held one number — a yaml comment, a registry
+comment, a guard's parser, a test's literals — and moving it found all four in a
+single sitting.
+
+#### The gate that refused
+
+`./gate_and_launch.sh --dry-run` returned **rc = 5: partition NOT LICENSED.**
+
+```
+partition.py pb3g2 fd2s 60
+  pb3g2   median 30.0 %   range 0.0-73.6 %   p90 56.5 %
+  fd2s    56.9 % (pct 90) / 43.1 % (pct 77) / 32.2 % (pct 53)   median 43.1 %
+  RULE    median >= 1.5x 30.0 % = 45.0 %          ->  NOT LICENSED
+```
+
+§29.13 pre-registered that rule before the cells existed and pre-registered its
+own response to failure. **pb4d does not launch.** Nothing below moves
+`LICENSE_MULT`, moves 45.0 %, or overrides it. §29.47 settled that a criterion
+cannot be principledly raised after seeing the data it judges, and `c2_recalib`
+had refused exactly that move for C2 four hours earlier.
+
+#### But the gate is measuring run length, which §29.13 said it must not
+
+§29.13 recorded fd2s cell 1 at **68.9 %** (its docstring says 71 %) when that
+cell had ~1361 s on disk. `partition.py` now reads **56.9 %** for the same cell.
+The world did not change. The run got longer:
+
+```
+partition_share = (seconds inside outages >= 60 s) / run
+run             = rs[-1].t_sim - rs[0].t_sim          <- partition.py:97
+```
+
+`run` is the full span of `link_states.csv`. pb3g2 cells stop at the criterion —
+**median span 802 s**. fd2s cells were deliberately configured at
+`done_unknown_fraction = 0.30`, which is unreachable, so they burn to the cap —
+**median span 5437 s**. A 6.8× difference in the denominator, in a statistic
+whose whole content is a ratio to that denominator.
+
+§29.13's own registered text says this in as many words:
+
+> matching is not optional: pb3g2 cells stop at the criterion around 558 s while
+> the smoke runs to the cap, and robots separate as exploration proceeds, so an
+> unmatched comparison measures run length.
+
+**The licence was written with the requirement in it and implemented without
+it.** `partition_window.py` measures how much that costs, cutting both cells at
+the point a pb4d cell would actually end — the last robot to reach unknown ≤
+0.60, which is `dropout_position.stop_time`, written for a different question
+before this one arose.
+
+```
+                         cand: full span     cand: cut at 0.60
+base: full span         43.1 vs 45.0  NO      74.2 vs 45.0  OK
+base: cut at 0.60       43.1 vs 42.4  OK      74.2 vs 42.4  OK
+
+per cell, full ->  cut     fd2s   56.9 -> 75.1   43.1 -> 74.2   32.2 -> 21.8
+                           pb3g2  median 30.0 -> 28.2   (median trim 129 s of 802)
+```
+
+Three things about that table, in the order they matter.
+
+**One: the direction was not predictable, and the registered reasoning predicted
+the opposite.** §29.13's stated grounds for matching are that "robots separate as
+exploration proceeds" — which predicts the long tail is *more* partitioned and
+that truncation would *hurt* fd2s. It helped, by 31 points. The tail turns out to
+be a plateau with frequent short flickers, which dilutes a long-outage share
+rather than concentrating it. A correction made in the expectation that it would
+sink the candidate is a different object from one made to rescue it, and this one
+was written before its number was known.
+
+**Two: truncation here is not an approximation.** `done_unknown_fraction_` is
+read once at `explo_planner_node.cpp:1500`, logged at 2101, and used at
+**exactly one behavioural site**, the DONE transition at 3008–3042. It does not
+enter EIG, frontier selection, the reconnect gate, or anything else — checked,
+not assumed. So an fd2s cell cut at its 0.60 crossing is not an estimate of a
+0.60-configured run; up to the three-consecutive-tick streak the stop test
+requires, it *is* one. The 5400 s span is a superset that contains the pb4d
+experiment and 3599 s of something pb4d will never do.
+
+**Three: none of that is worth much at n = 3.** The matched fd2s cells read
+75.1, 74.2 and **21.8** %. A median of three draws with a 53-point spread is one
+cell wearing a statistic's clothes, and the same is true of the unmatched
+reading. The straddling-outage rule (test the clipped duration or the full one)
+moves nothing — both sides within 1 pp — so the judgement calls are not what is
+weak here. The **n** is.
+
+#### The decision, and it is mine under the standing delegation
+
+I am not overriding a fired pre-registered gate on a correction I found after it
+fired. Even when the correction is right, and I believe this one is, the record
+cannot distinguish that from motivated reasoning, and a licence obtained that way
+would follow pb4d into every table it produces.
+
+Nor is "blocked" the answer, because the refusal is standing on a denominator
+that the registration itself declared invalid.
+
+**So the argument gets removed instead of won.** The candidate cells were
+mis-configured for the question — that is a fact about the smoke, not about the
+world, and it is fixable by running the smoke the campaign's way. **`fd2t`,
+pre-registered below, runs `flatforest_dense2` at `done_unknown = 0.60`, so its
+cells stop where pb4d cells stop and the window is matched by construction.** No
+truncation exists to argue about. No threshold moves. The baseline, the
+statistic, and the 1.5× multiplier are the ones §29.13 already registered.
+
+It costs about 10 hours against pb4d's 2.4 days, and it buys the one thing the
+3-cell smoke cannot supply either way.
+
+#### PRE-REGISTRATION: fd2t, and the licence it decides
+
+Written before the first `fd2t` cell exists.
+
+```
+prefix     fd2t                      arms  off only
+seeds      31,32,33,34,35,36  (n=6)  world flatforest_dense2 (400 stems/ha)
+duration   12000 s (the cap)         done-unknown 0.60
+tx 30.0    record 0                  env EXPLOIT=0 RECONNECT_MIN_SHARE_VOX=550000
+                                         PURSUIT_BUDGET_MAX=2400
+```
+
+Identical to the pb4d `off` arm in every flag. Seeds 31–36 so they can never be
+confused with pb4d's 1–30, and disjoint from fd2s's 1–3 so this is an
+independent sample rather than a re-reading of the same three runs. `off` only:
+outage position in a treated arm is an outcome of the treatment, which is the
+§29 post-treatment trap.
+
+**THE RULE.** `partition.py pb3g2 fd2t 60`, unmodified. The median
+`partition_share` over the six `fd2t` off cells must be **≥ 1.5 × pb3g2's
+full-span median of 30.0 % = 45.0 %.** Both sides use the full
+`link_states.csv` span, and for the first time both sides mean the same thing by
+it, because both stop on the same criterion. **No truncation is applied to
+either side.** No parameter in `partition.py` is touched.
+
+**Evaluated at exactly n = 6.** Not at 5, not when it looks decided. If fewer
+than six cells complete, the answer is *insufficient data*, not a smaller
+median.
+
+**If cells do not reach 0.60 inside 12000 s** that is a different finding — the
+cap forecast was wrong — and it is reported as one rather than folded into the
+share.
+
+**If the licence fails**, §29.13's registered response stands and the finding is
+that `flatforest_dense2` partitions like `flatforest_dense`. The lever is then
+world **size**, not tree density: spawn separation is off the table by standing
+instruction, and transmit power was already measured and rejected — a calibrated
+NextBandwidth replay buys only +35 % triggerable outages for a 20 dB cut.
+
+**If the licence passes**, pb4d launches on a gate whose windows were matched by
+construction, with the 43.1 % unmatched reading reported alongside it and this
+section explaining why the two differ.
+
+#### The choice `rate_compare` demanded, made now rather than after an outcome
+
+The mid-run reconnect gate waits `t = 550000 / (self_rate + peer_rate)` seconds,
+clamped to [60, 240]. In dense2 the exploration rate falls, so the quotient
+rises: dense2 pins to a clamp end in **4 of 10** map-fraction bins against
+dense's **1 of 10**, and at the ceiling the gated arm fires at exactly
+MIDRUN_SILENCE — the legacy *ungated* clock. `rate_compare`'s own summary is that
+there is no option that changes nothing, and that this is the finding.
+
+**HOLD 550000.** Same parameter, different mechanism, and it is the only option
+that keeps pb4d a one-variable experiment. Scaling the constant by the rate would
+put a second deliberate difference between pb3g2 and pb4d in a design whose
+entire purpose is a density dose–response. Widening the clamp is worse: it lets
+the treated arm fire *later* than its own control, which inverts the direction of
+the treatment. Changing it would also change the planner binary that all 122
+existing cells share (`b05e162ca74df23b`) and break the one-variable property
+§29.62 verified.
+
+**The cost is a stated limitation, not a hidden one.** In the denser world the
+hybrid arm's dispatch clock is partly the legacy ungated timer rather than the
+information gate, in roughly 40 % of the map-fraction range. `rate_compare`'s
+calibration is honest about its own precision — predicted-vs-observed pb3g2
+`gate_sec` median error 31 % — so this is a caveat on the mechanism story, not a
+correction to the endpoint. Completion time is unaffected either way; what is
+weakened is the claim that any pb4d effect is attributable to *information*
+gating specifically.
