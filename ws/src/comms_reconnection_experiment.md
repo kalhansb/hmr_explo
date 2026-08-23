@@ -9654,9 +9654,8 @@ so every crossing time this gate reads gets **later**. C1 ("every cell crosses")
 and C3 ("by 3240 s") both get **harder**. The change makes the launch I am trying
 to reach harder to license, not easier. It was registered while cell 3 was still
 running, and `gate2.main()` now evaluates and prints **both** verdicts side by
-side with a tripwire if max ever turns a fail into a pass — the one direction it
-should be arithmetically incapable of moving. A reader does not have to take the
-direction argument on trust; the output shows it.
+side with a tripwire if max ever turns a fail into a pass. A reader does not have
+to take the direction argument on trust; the output shows it.
 
 On the smoke's two landed cells the crossings move 1815 s → 1838 s and 3158 s →
 3165 s, and now match `crossing_calib` exactly. Small here. The 890 s gap in
@@ -9722,3 +9721,41 @@ persuasive possible moment to be given bad advice. It now points at
 11 checks in `test_gate2.py`, all passing; `rule_audit --calibrate` still passes.
 `gate2.py fd2s` currently exits **2**, naming `fd2s_off_seed3`, which is the
 correct answer to a question asked too early.
+
+**Addendum, an hour later: the direction argument covers two of the three
+conditions, not three.** The paragraph above originally ended by calling a
+fail→pass flip "the one direction it should be arithmetically incapable of
+moving," and the tripwire in `gate2.py` said the same thing. That is true of C1
+and C3, which read a crossing **time**, and max is never earlier than min. It is
+**false of C2**, which reads
+
+    tail_frac = (t[0.60] - t[0.65]) / t[0.60]
+
+a *ratio* of two times that both move. Consider one robot that reaches 0.65
+quickly and then crawls to 0.60, and one that arrives late but descends cleanly
+through both. The min reduction takes the first robot's early `t[0.65]` and the
+crawl's late `t[0.60]` — a wide tail. The max reduction takes the second robot's
+tight pair — a narrow one. Same run, opposite C2 verdicts, with C1 and C3
+untouched. `test_gate2.py` TEST 9 constructs exactly that: **tail 0.753 under
+min, 0.200 under max**, so the gate flips FAIL → PASS purely through C2.
+
+On the anchor world this is not hypothetical either, only small: pb3g2's 30 `off`
+cells give median `tail_frac` **0.191 under min and 0.137 under max**. Both are
+far from the 0.50 threshold, so nothing changes there — but the switch does move
+C2 in the *lenient* direction on real data, and the movement is a fifth of the
+distance to the threshold.
+
+So the tripwire is not a redundant assertion of an impossibility. It now names
+the route: through C1 or C3 it would mean something is broken, and through C2 it
+means the two reductions disagree about the **shape** of the same run, which is
+possible, not automatically benign, and has to be explained in this document
+before a launch. It also prints both `tail_frac` values on every run rather than
+only when it fires, because the value that can move is the one worth watching.
+
+The general point is the one I keep relearning: an argument that a change is safe
+in the direction that matters has to be checked **per condition**, not per gate.
+Two of gate2's three conditions inherit the monotonicity; the third is a ratio,
+and ratios do not inherit anything. The claim was written into a committed
+document and into the running code's own warning text before the branch had ever
+been made to fire, which is the sequence §29.53's inert-checks sweep exists to
+catch. 14 checks in `test_gate2.py` now, all passing.
