@@ -11234,3 +11234,65 @@ Gating the trigger on link state rather than record age is a planner change; it
 would invalidate the running campaign and it has not been tested. It is recorded
 here as the highest-value trigger work identified so far, for a campaign after
 `tr1` reads out.
+
+### 30.12 Three sensor ranges, and the planner believes the smallest one
+
+Asked whether a longer lidar would speed exploration up, and the answer turned
+out to be that "the lidar range" is three different numbers that nothing in the
+stack reconciles:
+
+| layer | value | set at | what it governs |
+|---|---|---|---|
+| physical lidar | **100 m** | `COSTAR_HUSKY_SENSOR_CONFIG_LIDAR/model.sdf` | 1800 samples over 360°, 16 rings over ±15° |
+| map integration | **20 m** | `simple_nav_3d.launch.py:287,467` | returns beyond this are discarded; this is what fills the map |
+| planner gain model | **10 m** | `explo_planner_node.cpp:1649`, the `fov_max_range` default | the 60°×45° cone the planner *predicts* it will observe at a candidate |
+
+**The sensor is not the constraint and never was.** It is already five times
+longer than anything downstream retains. The finding worth recording is the
+second gap: `fov_max_range` appears in neither `shared_params.yaml` nor the
+harness — `run_explo_sim_rviz.sh` plumbs `FOV_HFOV`, `FOV_VFOV`, `FOV_H_RAYS`
+and `FOV_V_RAYS` and stops there — so it holds the node's 10.0 default while
+`dscovox` integrates to 20. **Every candidate goal is scored against a quarter
+of the volume the robot will actually observe when it arrives.**
+
+**Raising the map range is the one move that would genuinely fill the map faster
+per metre driven, and it is the documented way to break a run silently.**
+`simple_nav_3d.launch.py:68` records the measurement: `carve_band -1` carves
+free space along the *whole* ray, ~200 voxels per beam at 0.10 m, the fused map
+reached 12.7 M voxels by t = 550 s and was still growing linearly with explored
+area; past a few million voxels the planner's map subscription stops keeping up,
+and the failure has no error and no counter — one robot drove for three minutes
+on a frozen map, still logging steps, its coverage curve flat while its
+teammate's climbed. Doubling `max_range` doubles the voxels written per beam.
+This knob stays where it is.
+
+**`fov_max_range` is the cheap direction, but it is not an isolated knob.**
+`coord_claim_radius_m` is set nowhere in config or the harness, so it arrives at
+its 0.0 sentinel and `node.cpp:1985` resolves it to `fcfg.max_range` — the
+multi-robot coordination claim disc is *defined* as the sensor horizon
+(`node.cpp:1696` cites Burgard et al. 2005 for tying the discount kernel to
+sensor range). Raising the horizon to 20 m therefore also doubles the disc each
+robot vetoes against its partner, and the two spawn 3 m apart. `node.cpp:1415`
+scales the minimum-goal-distance floor to the same value. One edit, three
+behaviour changes.
+
+**Pre-registration, for a campaign after `tr1`.** Test `fov_max_range = 20`
+with `coord_claim_radius_m` **pinned explicitly at 10.0**, so the gain model
+gets the range the map actually builds while the coordination geometry is held
+at today's value. That isolates the single effect worth measuring. Both are ROS
+parameters reachable through `-p` with no rebuild, so the change is an arm
+difference recorded in `run_manifest.txt`, not a new binary generation — one
+line of harness plumbing for `FOV_MAX_RANGE`, mirroring the four `FOV_*`
+variables already there.
+
+**Non-claims.** (1) This is *not* offered as the reason exploration is slow.
+Nothing here shows the runs are gain-limited rather than travel-limited, and
+that is exactly what decides whether the change pays: if the robots spend their
+time driving rather than choosing, a better gain model buys little. That
+question is answerable from the planner CSVs and is deliberately left unanswered
+while `tr1` occupies the machine. (2) The 10 m / 20 m gap is a mismatch, not
+self-evidently an error — a conservative gain model that under-credits distant
+frontiers is a defensible choice, and no measurement here says which value
+explores faster. (3) **Out of scope for `tr1`**, on the same grounds as §30.11:
+changing how candidates are scored changes the planner's behaviour, and `tr1`
+is in flight.
