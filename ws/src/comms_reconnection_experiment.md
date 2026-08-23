@@ -10496,3 +10496,138 @@ calibration is honest about its own precision — predicted-vs-observed pb3g2
 correction to the endpoint. Completion time is unaffected either way; what is
 weakened is the claim that any pb4d effect is attributable to *information*
 gating specifically.
+
+### 29.65 Rewiring the gate while the answer did not exist
+
+This section is written and committed **while `fd2t` is still running**, at cell
+1 of 6, with no share computed for any of its cells. That timing is the point,
+and git is the only thing that can attest to it. §29.64 moved the partition
+licence onto a smoke that did not yet exist; everything below specifies *how the
+gate reads it*, and every one of those choices could be tuned to a known answer
+if it were made a day later. The licence outcome itself is deliberately absent
+here — it belongs in §29.66, after `partition.py pb3g2 fd2t 60` runs unmodified
+at exactly n = 6.
+
+#### One smoke was doing two jobs
+
+`gate_and_launch.sh` had a single `SMOKE=fd2s` feeding both gates. That was never
+right, and §29.64 is what made it visible: the two gates ask questions that need
+*different runs*.
+
+| gate | question | what it needs from the smoke |
+|---|---|---|
+| `gate2.py` (§29.12) | is the 0.60 criterion measurable in this world? | cells that run **past** 0.60, so the crossing can be observed and the tail measured |
+| `partition.py` (§29.13) | is this world partitioned harder than pb3g2's? | cells whose **run length is the campaign's**, because the statistic is a share *of the run* |
+
+`fd2s` was configured at `done_unknown=0.30` precisely so it would burn its cap
+and satisfy the first. That is exactly what disqualifies it from the second. One
+variable cannot hold both values, so it is now two:
+
+```
+FLOOR_SMOKE=fd2s     EXPECT_FLOOR=3     gate 1
+PART_SMOKE=fd2t      EXPECT_PART=6      gate 2
+```
+
+#### The n = 6 rule is enforced by the shell, and it has to be
+
+`partition.py` **does not enforce n**. Below three cells it prints `PROVISIONAL`
+and then computes a median anyway and exits 0 or 1 on it. Worse, `shares()`
+silently `continue`s past any cell with fewer than 20 usable link rows — so a
+cell that broke does not raise, it just shrinks the denominator of the median.
+
+A `fd2t` that died after four cells would therefore hand back a licence verdict,
+in the ordinary format, with no non-zero status anywhere for the caller to catch.
+§29.64 registered the smoke at *exactly* six ("not at 5, not when it looks
+decided"), and the only thing standing between that registration and a four-cell
+median is a count in step 0. It now exists, and refuses with exit 3.
+
+#### fd2s is still printed, and it still gates nothing
+
+The launch log runs the same rule on `fd2s` immediately after the real gate, into
+`.partition_record.out`, with **its exit status deliberately discarded**. So a
+launch log carries the number that refused first (43.1 %) and the number that
+decided, on the same page. Nobody reading it later has to take on trust that the
+swap was declared rather than performed quietly. Its status cannot be allowed to
+gate: it has already failed once, and if it could gate, §29.64's registered "if
+the licence passes, pb4d launches" would be unreachable by construction.
+
+#### The suite that tests the gate needed the same split
+
+`build_fixture.py` emitted only `pb3g2` symlinks and `fd2s_off_seed1..3`. With
+gate 2 pointed at `$PART_SMOKE`, *every* fixture would have made `partition.py`
+bail with `need cells for both` — the suite would have reported a correct edit as
+a broken gate. That is the identical failure §29.64 recorded when the cap moved
+from 5400 to 12000 and three of the suite's own literals went stale.
+
+It now emits six `fd2t` cells, takes `--part-cells N` to build a short smoke, and
+aims `--all-connected` at **both** prefixes so the NOT-LICENSED case still fires
+where the gate now reads. One case was added — `part_short`, four cells, exit 3 —
+and it is the case with the least obvious failure mode in the file, because the
+wrong behaviour looks like success. Suite: **33 passed, 0 failed, 0 skipped.**
+
+Two limits are written into the fixture builder rather than left to be
+discovered. All six `fd2t` cells are copies of one real cell, and `scale_links`
+multiplies `t_sim` uniformly — which scales an outage and the run it is a share
+*of* by the same factor, leaving the share invariant. So the suite exercises the
+*plumbing* of the n = 6 median and not the *arithmetic*: a `partition.py` that
+returned the mean, or the first element, would pass every case in the file.
+
+#### `partition.py` is not importable, and finding that out cost a broken guard
+
+Written up because the trap is general. `fd2t_parse_check.py` was built to
+confirm the gate could read the new prefix — a cheap check, since a missing or
+malformed `link_states.csv` costs ten hours if found at n = 6 and twelve minutes
+if found at cell 1. Its docstring stated that it "deliberately CANNOT print a
+share," because the licence is registered for n = 6 and a number seen early
+cannot be un-seen.
+
+It printed a share on its first run. `partition.py` has no functions and no
+`__main__` guard: it is straight-line code ending in `sys.exit(0 if ok else 1)`
+at module level, so `import partition` **runs the entire gate and exits the
+interpreter** before the importing script's first statement. None of the checking
+code ran. Compounding it, the functions it claimed to call (`links()`,
+`intervals()`) are in `partition_window.py`, not `partition.py` — the API of one
+file, the import of the other.
+
+The dangerous part is the interaction with `partition.py`'s argv defaults
+(lines 74–75: `pb3g2`, `fd2s`). An importer supplies no argv, so the import ran
+the *default* comparison and printed the fd2s 43.1 % already recorded in §29.64.
+Nothing unseen leaked. **That is luck, not design** — had the default been
+`fd2t`, a script whose stated purpose was to avoid printing the licence answer
+would have printed it, ten hours early. The check now depends on `partition.py`
+for nothing and transcribes its row-acceptance rule (lines 88–96) as an
+acknowledged unlinked copy, which is the safe direction here: drift can cause a
+false alarm about readability, never a wrong licence, because the gate always
+re-reads the files itself.
+
+`fd2t_off_seed31` parses: 2303 rows, columns
+`t_sim,i,j,distance_m,trees_on_link,path_loss_db,snr_db,ber,bandwidth_mbps,connected`.
+No share computed.
+
+#### The toolchain was living in one place, and it was `/tmp`
+
+`backup_campaign.sh` has always mirrored the *data* off `/tmp`. The scripts that
+decide what the data **means** were not covered, and they sit in a session
+scratchpad under the same `D /tmp` tmpfiles entry that empties at boot. Much of
+what is in them is not code: `launch_fd2t.sh`'s header *is* §29.64's registered
+rule, and `build_fixture.py` now records which branches a passing suite does not
+cover. Code can be rewritten after a wipe. A pre-registration reconstructed once
+the answer is known is not a pre-registration.
+
+`backup_analysis.sh` now covers them, additively rather than with `--delete`. Its
+first draft justified that with a measured claim that was **wrong** — it said the
+destination held ~200 orphaned files from earlier sessions, a number that came
+from comparing all 610 destination entries against 405 source entries filtered to
+three extensions. Measured properly the orphan count was zero. The correction is
+left in the file's header rather than swapped out, and the orphan report was
+rewritten to use a set difference instead of subtracting two totals, since
+subtracting cannot detect ten added and ten stranded at once.
+
+#### Configuration verified against the registration
+
+`fd2t_off_seed31`'s manifest, checked at 13 minutes rather than at 10 hours:
+`done_unknown_fraction=0.60`, `duration_s=12000`, `tx_power_dbm=30.0`,
+`scenario=flatforest_dense2_2robot_lidar.yaml`, `exploitation_enabled=false`,
+`reconnect_min_share_voxels=550000.0`, `pursuit_budget_max_sec=2400.0`,
+`seed=31`, and `sha256_explo_planner_node=b05e162ca74df23b` — **the same binary
+as all 122 prior cells**. The registration and the run agree on every field.
