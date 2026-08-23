@@ -6456,3 +6456,99 @@ were observed*. It was caught by asking for a matched window, and then the
 matched window was itself caught by asking whether the answer depended on which
 window. The second check is the one that mattered, and it is the one that is
 easy to skip after the first check has already "fixed" the problem.
+
+---
+
+## §29.20 Breaking the circularity: overlap is ~88 %, and the 27 % was the measurement, not the world
+
+§29.19 failed to explain why `overlap_campaign.py` validated only 8 of 30 pb3g2
+`off` cells. This does, by fixing a defect in the tool that §29.19 could not
+have found because it was looking at the wrong column entirely.
+
+### The defect
+
+`overlap.py` **detects** merges by looking for voxel jumps, then **accepts**
+them by checking a voxel identity. Detector and acceptance test read the same
+column, so a cell can only fail in ways the detector was already blind to. A
+73 % failure rate under those conditions is uninterpretable: it cannot be
+attributed to the world, because the tool never gave the world a chance to
+disagree with it.
+
+`overlap_link.py` triggers on the **rising edge of `link_states.csv`** instead —
+link down ≥20 s, then up ≥5 s, debounced at both ends. The link says *when* to
+look; the planner CSV then has to close the identity on its own. Failure now
+means something.
+
+### Known-answer calibration first
+
+Per §"checks that stopped checking", a new detector is validated against a case
+with a known answer before it is pointed at an open question. On fd2s cell 1 the
+link trigger independently landed on **t = 1805 s** — the same event the voxel
+trigger found — and returned **72.2 %** against `overlap.py`'s 74.9 %/74.5 %.
+Two unrelated triggers, ~3 points apart. The residual is expected and has the
+right sign: the 60 s settle window includes 15–24 m of genuine driving, which
+enlarges the union and lowers the ratio.
+
+### The answer
+
+| | pb3g2 / off | fd2s / off |
+|---|---|---|
+| cells validated | **13/30 (43 %)** | 1/1 |
+| reconnections examined | 58 | 2 |
+| **overlap, share of partner's map** | **median 88.0 %** (74.4–97.7) | 72.2 % |
+| Jaccard | median ~79 % | 56.4 % |
+| gain explainable by own sensing | median 26 % | 1 % |
+
+Acceptance rose 27 % → 43 % purely from removing the circularity. More
+importantly, **not one cell failed as "maps already synced"**. The §29.19
+hypothesis — that pb3g2's link is up so much that transfers trickle and there is
+no discrete merge — is **false**. Transfers happen at pb3g2 reconnections. The
+17 failures are 11 *unidentifiable* (sensing mixed into the same window), 4
+*robots disagree*, 1 *no qualifying reconnection*.
+
+So the low acceptance is a **limit of the measurement, not a property of the
+world**: pb3g2's robots keep driving through reconnection, and a voxel count
+cannot separate "I sensed this" from "you sent me this" when both happen at
+once. 41 % of robot-windows exceed the 35 % refusal threshold. No detector
+tuning fixes that, and a tool reporting a confident number there would be
+inventing one.
+
+### The two confounds, tested rather than assumed
+
+**Sensing-subtraction bias.** `transfer = gain − explainable`, so over-subtracting
+shrinks the transfer and *inflates* overlap — and pb3g2 carries 26 % explainable
+sensing against fd2s's 1 %. Tested: split at the median sens%, overlap is 88.0 %
+vs 88.2 %; r(overlap, sens%) = **−0.271**; and the five least-contaminated cells
+(sens% ≤ 5 %) sit **highest** at 93.8 %. Every direction is wrong for the
+artifact. With n=13 this test could not detect a small bias, but a large one in
+the feared direction is excluded.
+
+**Event time.** pb3g2's validated events fall at 230–832 s; fd2s's is at 1805 s.
+This is precisely the trap of §29.19, so it was checked rather than waved at:
+r(overlap, event time) = **+0.583** (n=13, critical 0.553), with 80.5 % median
+early against 92.6 % late. Overlap **rises** with time — so comparing fd2s's late
+event against pb3g2's early ones is **conservative** for the claim that dense2
+has lower overlap. Unlike §29.19's survivorship, the bias here points *against*
+the finding, which is the one case where it can be leaned on.
+
+### What this is worth
+
+It answers the standing question *"can we check the redundant exploration by
+robots when reconnect methods are off"*: **yes — in pb3g2's untreated arm, in
+cells where the transfer is separable, ~88 % of the partner's map is volume the
+robot has already observed.** Still conditional on 43 %, still selected on
+separability, and still to be read as "in cells with a clean merge".
+
+And it is **MAP overlap, not redundant DRIVING**. Robots start close together by
+standing instruction and a LiDAR sees far, so a large shared volume is sensed
+from the first sweep without either re-covering the other's ground. This is an
+upper bound on wasted travel, consistent with — not a replacement for — the
+finding that redundancy is sequential rather than comms-driven.
+
+**A second, independent argument for dense2.** fd2s's 72.2 % against pb3g2's
+88.0 %, at a later time when pb3g2's trend says it should be *higher*, says
+denser occlusion leaves more genuinely-divergent map, so sharing has more to
+deliver. That is exactly pb4d's premise, arrived at from a different column than
+§29.17's voxel jumps — and unlike §29.19 it is not a link statistic, so it does
+not inherit that section's caveat. **fd2s is n=1**; re-run when the smoke lands.
+This changes no gate: `partition.py` tests its own pre-registered threshold.
