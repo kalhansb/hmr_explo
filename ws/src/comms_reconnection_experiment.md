@@ -6088,3 +6088,65 @@ have passed while the defect sat in the output.
 fixed before the data existed. They say nothing about whether pb4d's world is
 the right one — that is what the gates in §29.12 and §29.13 decide, and they are
 still the thing standing between here and a 2.3-day campaign.
+
+### 29.16 Censoring costs almost no power. The abort rule is what binds.
+
+§29.10 keeps capped cells rather than dropping them, which is correct but not
+free: imputing the cap **understates** a slow arm's true time, so it shrinks a
+real difference toward 1.0. pb4d runs ~2.3× slower against the *same* 5400 s
+cap pb3g2 used, and n=30 was already the floor — 58–84 % power on pb3g2, never
+a clean 80 %. If censoring pushed that down another twenty points, pb4d would
+most likely spend 2.3 days returning a second ambiguous null, and the right
+response would be a **longer cap**, not more cells. That has to be settled
+before launching, so `censor_power.py` settles it.
+
+The simulation resamples pb3g2's own 30 `off` times with replacement (not a
+fitted lognormal — the tail is what censors, and a parametric fit smooths away
+exactly the thing under test), scales the whole distribution by a slowdown `s`,
+applies a multiplicative effect `r`, caps at 5400 s, and runs the same
+mean-log-difference permutation statistic `permtest.py` uses.
+
+**The null was calibrated first, because `power_n.py` shipped without one and
+ran ~30 % low.** A power simulation that cannot reproduce α under H₀ is not
+measuring power, and it fails in the flattering direction. Two calibrations
+gate the output: the vectorised permutation p matches the *enumerated* exact p
+to 0.0018, and the null rejects at 3.8 % against a nominal 5 % **with censoring
+active** — a cap applied identically to both arms must not disturb
+exchangeability, and this checks that rather than asserting it.
+
+| slowdown | proj. median | % censored | r=1.00 | r=1.15 | r=1.25 | r=1.40 |
+|---|---|---|---|---|---|---|
+| 1.00× | 804 s | 0.0 % | 3 % | 46 % | 90 % | 100 % |
+| 2.30× | 1849 s | 0.0 % | 5 % | 47 % | 88 % | 100 % |
+| 3.25× | 2613 s | 3.4 % | 4 % | 50 % | 84 % | 100 % |
+| 3.75× | 3015 s | 9.1 % | 6 % | 51 % | 88 % | 100 % |
+| 4.50× | 3618 s | 18.7 % | 5 % | 53 % | 89 % | **100 % [abort 20 %]** |
+
+**Power is flat.** It does not degrade with censoring even at 18.7 % censored —
+because `min(T, cap)` compresses the effect and the spread *together*, so the
+test survives truncation far better than intuition suggests. Power here is set
+by the effect size and n, not by the cap.
+
+**What does not survive is the pre-registered rule.** Once an arm passes 50 %
+censored its median *is* the cap, §29.10 declares the campaign failed, and the
+significance of the statistic is beside the point because the result is not
+reported. That is the `[abort 20 %]` cell: at 4.5× slowdown with a large true
+effect, one campaign in five destroys itself by its own rule while the test is
+still rejecting. **The binding constraint on the 5400 s cap is the abort
+threshold, not statistical power** — which is the opposite of the intuition
+that motivated the check.
+
+**At the measured slowdown pb4d is clear.** fd2s cell 1 crossed at 1815 s
+against pb3g2's off median of 804 s, i.e. 2.26×, where censoring is 0.0 % and
+the abort never fires. The cap is not a threat at the density actually
+measured; the safe region extends to ~3.75× and only the 4.5× corner is
+dangerous. So pb4d's real limit is the one it always had: it can detect a 25 %
+effect reliably (~88 %) and a 15 % effect barely (~47 %).
+
+**Assumption, stated rather than buried.** The multiplicative-shift model says
+the treatment *scales* completion times rather than adding a constant. If
+reconnection instead costs a roughly fixed detour, the tail censors less than
+modelled and these numbers are pessimistic. The slowdown is also swept rather
+than trusted, because 2.26× rests on a single fd2s cell — the table exists so
+the finished smoke can be read against a pre-computed threshold instead of one
+derived after the answer is visible.
