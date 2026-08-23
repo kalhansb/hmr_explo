@@ -7606,3 +7606,65 @@ so ~2.4 d rather than 2.3 d. Small — but it is the second optimistic projectio
 in a row, after 1423 s predicted against 1815 s measured for the crossing, 28 %
 low. Both errors ran the same direction, which is the direction an estimate
 drifts when it is taken while the thing being measured is still running.
+
+### 29.34 The whole dataset was in `/tmp`
+
+§29.33 asked whether the campaign could record what it varied. This asks
+whether the campaign will still exist. Every cell ever run — including pb3g2,
+120 cells and the confirmatory null §28 rests on — lives at
+`/tmp/hmr_campaign` and nowhere else.
+
+```
+/usr/lib/tmpfiles.d/tmp.conf:   D /tmp 1777 root root -
+systemd-tmpfiles-setup.service: ExecStart=systemd-tmpfiles --create --remove --boot
+```
+
+A `D` entry under `--remove --boot` **empties `/tmp` at boot**. One reboot
+takes pb3g2 and whatever pb4d has managed to write. Uptime is 16 days, which
+is why this has never come up and is not a reason it won't.
+
+**The daily timer is not the risk, and checking that mattered.**
+`systemd-tmpfiles-clean.timer` is active and fires 18:06 daily, which looks
+alarming until you read the age field on that line: `-`, so nothing ages out.
+Confirmed empirically rather than from the man page — pb3g2 was written
+2026-08-21 14:50 and has already survived the 08-21 and 08-22 cleans. Two
+passes, no losses. The hazard is boot, and only boot.
+
+Backed up to `~/hmr_campaign_live_backup`: 120 pb3g2 + 2 fd2s cells, 305 MB,
+manifest byte-identical on spot-check. **Deliberately not
+`~/hmr_campaign_archive`** — that directory means *these numbers are void*
+(every pre-2026-08-20-binary campaign). Valid data placed in it would destroy
+the only thing the directory does, which is label its contents.
+
+**The guard is the script.** `backup_campaign.sh` refuses when the source has
+zero cells, because the single scenario it exists for — `/tmp` wiped by a
+reboot — is also the scenario in which `rsync -a --delete` from an empty
+source **deletes the backup**. Run once after the disaster, an unguarded
+mirror converts a recoverable loss into a total one. A second guard refuses a
+source that merely *shrank*, overridable by `HMR_BACKUP_FORCE=1`, because a
+guard with no override gets bypassed with a raw rsync and then there is no
+guard at all. Cells still being written are copied mid-write and are named as
+`PARTIAL` in the output, so a half-copied cell is never mistaken for a
+finished one.
+
+`test_backup_campaign.sh` is **10/10**, negative control failing as designed.
+The case worth having is not either refusal but the assertion *after* it: the
+three fixture cells are still present once the guard has fired. A guard that
+refuses and takes the data anyway would pass an exit-code test.
+
+**Durable storage, at the boundary and not before.** `/tmp` and `$HOME` are
+the same device (2049), so `mv` is a rename, not a copy — instant. Nothing
+resolves the path: `cells.ROOT` is a plain string, and neither the loaders nor
+`run_campaign.sh` call `realpath`. So moving the root to `~/hmr_campaign` and
+leaving a symlink at `/tmp/hmr_campaign` keeps `--done-unknown`'s neighbour
+`--root /tmp/hmr_campaign` resolving exactly as audited, while a boot-time
+clean takes only the symlink and leaves the data. Test 5 in the suite is that
+move pre-registered: a symlinked root mirrors correctly, and if it had failed
+the move would not happen.
+
+Not done now. A live cell of a 3-cell smoke that three gates read is the worst
+thing to be holding when a directory is renamed underneath it — open
+descriptors would survive, freshly-constructed paths would resolve through the
+symlink, and *probably fine* is not the standard for the data the launch
+decision depends on. The safe window is after the smoke and before pb4d, when
+nothing is writing. That is the same window the IV commit already occupies.
