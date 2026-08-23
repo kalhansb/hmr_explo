@@ -10817,3 +10817,274 @@ in the same `overrides` dict, and echoed to `run_manifest.txt` beside
 `tx_power_dbm`. Verified by reading the parameter back from a live node: 28.0
 applied, `tx_power_dbm` and `tree_radius_m` untouched at their yaml values.
 Harness only — the planner binary is not rebuilt and the hash does not move.
+
+### 30.8 What the `sw0` smoke decided, including against its own plan
+
+`sw0` was pre-registered in §30.6 to choose a world size for `sw1`. It answered
+that question and then invalidated it: the smoke's own data shows that shrinking
+the world is the wrong axis, and that the plan of §30.4 should not launch.
+
+**`sw0a` (`ROI_HALF=25`, 50 × 50 m) is rejected**, on three reproducible cells.
+
+| | `pb3g2` (100 × 100) | `sw0a` (50 × 50) |
+|---|---|---|
+| median run, sim / wall | 756 s / 972 s | 254 s / 539 s |
+| median separation | 52.8 m | **16.5 m** |
+| median outage | 8.9 s | 5.7 s |
+| median longest outage per cell | 126.0 s | **20.2 s** |
+| longest outage anywhere | 522.6 s | 51.4 s |
+| operating point | 50 s | **10 s** |
+| actionable outages per cell (median) | 3.00 | **0.00** |
+| `done_unknown` floor / margin | 0.5993 / +0.0007 | 0.5703 / +0.0297 |
+
+The decisive column is *longest outage per cell*. The outage tail is not shifted
+in a small world, it is **amputated**: the longest outage in an entire `sw0a`
+cell is shorter than `pb3g2`'s median longest. Since the trigger cannot fire
+sooner than `MIDRUN_MIN_SILENCE`'s 20 s floor, and the measured planning latency
+adds ~15 s, an outage must last ~35 s to be actionable at all. `sw0a`'s operating
+point is 10 s. **No setting of the trigger rescues a 50 × 50 world**; the defect
+is in the supply of opportunities, not in the treatment's speed.
+
+**The proxy that predicted this was wrong, and the prediction was right anyway.**
+§30.3 rejected 50 × 50 using a separation law fitted to big-world runs,
+`sep ≈ 0.5214 · L`, which predicts 26.1 m at L=50. The measured value is 16.5 m —
+the law is accurate at L=100 (predicts 52.1, measured 52.8) and fails badly at
+L=50, because robots share a spawn point and a 254 s run never lets them
+decorrelate. The conclusion stands on the direct measurement; the method that
+reached it does not, and must not be reused to extrapolate to any other size.
+
+**`sw0b` (`ROI_HALF=35`) was stopped after one partial cell**, before its gates
+could be read. This is a deliberate departure from §30.6 and is recorded as such.
+Its purpose was to pick between candidate world sizes for `sw1`; §30.9 does not
+shrink the world at all, so the gate no longer discriminates between the designs
+actually on the table. It was also occupying the harness file that the
+parallelism work had to edit. Nothing is claimed about `ROI_HALF=35`: it is
+untested, not rejected.
+
+**A correction to §30.1.** That section reported 0.73 actionable outages per
+`pb3g2` cell. That figure is a **mean**; the **median** at the realised 127 s
+threshold is **0.00**. The mean is carried by a few long-outage cells. Since G2
+is specified on the median, the median is the figure that governs, and it makes
+§30.1's diagnosis stronger rather than weaker: in the typical `pb3g2` cell the
+treatment had *no* opportunity to act at all, not merely few.
+
+**Instrument calibration, run before any of the above was trusted.** Against
+`pb3g2`, whose true shipped attenuation is 11.98 dB/trunk, the link regression
+recovers 12.28 dB — so it can verify the radio independently of the manifest
+field, which is what let `TREE_ATTEN` be confirmed as actually acting rather than
+merely being recorded. The stop-curve estimator was likewise calibrated against
+recorded `run_end_t_sim` and was found **26 % optimistic** on first writing,
+because it pooled both robots and took the first crossing; `all_done` requires
+*both* robots, and taking the later crossing brought the error to −10 %. Every
+number in §30.9 that comes from that estimator carries this −10 % bias, and is
+stated with the correction applied.
+
+**Wall-clock did not fall the way the pivot assumed.** Fitted across `pb3g2`'s 30
+cells, `wall = 47 s + 1.23 · t_sim`: the fixed per-cell cost is only ~5 % of a
+run, so there is no large constant overhead to amortise. But `sw0a`'s measured
+wall of 531 s is 50 % above the 354 s that fit predicts for a 251 s run, and the
+second and third cells reproduce it (549 s, 537 s), which rules out a cold start.
+A small world is genuinely *less* wall-efficient per simulated second. Shrinking
+the world therefore buys far less throughput than the 3× sim-time reduction
+suggests, while destroying the phenomenon outright — the worst of both.
+
+### 30.9 `tr1`: shorten the run, not the world — pre-registration
+
+§30.4's `sw1` is withdrawn. It changed the world, the radio and the trigger
+together, was by its own §30.5 not comparable to `pb3g2` on any metric, and rests
+on a separation law §30.8 has since shown to fail below L=100. `tr1` replaces it.
+
+**The insight.** Run length and world size are independent axes, and only one of
+them was ever tried. What the treatment needs is long outages; long outages come
+from separation; separation comes from room. Truncating a *big* world keeps the
+geometry and pays for it in run length instead. Every number below is measured on
+`pb3g2`'s existing 30 cells by re-cutting their link logs at a candidate stop
+time — no new world, no new radio, and the planner binary never moves.
+
+| stop at | span | median sep | median longest outage | ≥35 s | ≥50 s | wall/cell | cells/h | operating point |
+|---|---|---|---|---|---|---|---|---|
+| 300 s | 300 | 48.8 m | 48.1 s | 1.00 | 0.00 | 416 s | 8.65 | **none** |
+| 400 s | 400 | 49.4 m | 65.5 s | 1.50 | 1.00 | 539 s | 6.68 | 35 s |
+| **500 s** | 500 | 48.5 m | 86.6 s | **2.00** | **1.50** | 662 s | 5.44 | **50 s** |
+| 600 s | 600 | 50.8 m | 101.2 s | 3.00 | 2.00 | 785 s | 4.59 | 50 s |
+| full | 802 | 54.6 m | 126.0 s | 3.00 | 3.00 | 1034 s | 3.48 | 50 s |
+
+Separation barely moves — 48.5 m at a 500 s stop against 54.6 m at full length —
+because it is set by how much room the robots have, not by how long they run.
+That is the whole result: **truncation costs the tail slowly and world-shrinking
+costs it catastrophically.** At matched wall-clock the comparison is decisive:
+
+| design | wall/cell | operating point |
+|---|---|---|
+| 100 × 100 stopped at 400 s | **539 s** | **35 s — alive** |
+| 50 × 50 full length (`sw0a`) | 531 s | **10 s — dead** |
+
+**Implementing the stop.** Not with `--duration`: a duration cap censors runs,
+so completion time stops being a completion and §29.10 applies to the primary
+endpoint — a different experiment. `done_unknown_fraction` instead stops a run
+when the map reaches a stated level, so **every run still completes** and
+completion time remains a genuine completion. Raising it also moves the criterion
+*away* from the floor, so the G1 margin widens rather than narrows.
+
+**The criterion must be priced at its own cut, not at the median cell's.** The
+table above cuts every cell at the *same* T. `tr1` does not stop at a fixed T —
+each cell stops when its own map reaches the criterion, so the cut times vary,
+and outage supply grows with run length. A median taken at a fixed 500 s can
+therefore look healthy while the realised design starves its short cells. So
+each cell is re-cut at *its own* crossing (the later of the two robots', which
+is what `all_done` means) and the outages recounted there:
+
+| criterion | reach | cut p10 | median cut | cut p90 | median longest outage | ≥35 s | ≥50 s | wall/cell | operating point |
+|---|---|---|---|---|---|---|---|---|---|
+| 0.60 (`pb3g2`'s) | 30/30 | 453 s | 651 s | 1083 s | 122.9 s | 3.00 | 2.00 | 847 s | 50 s |
+| **0.64** | **30/30** | **364 s** | **535 s** | **809 s** | **109.1 s** | **2.00** | **2.00** | **705 s** | **50 s** |
+| 0.66 | 30/30 | 336 s | 494 s | 747 s | 104.1 s | 2.00 | 1.00 | 654 s | **35 s** |
+| 0.70 | 30/30 | 274 s | 357 s | 517 s | 62.8 s | 1.00 | 1.00 | 486 s | 30 s |
+
+**This changed the decision.** Priced at a fixed 500 s cut, 0.66 held a 50 s
+operating point. Priced at its own criterion cut it does not: the median cell
+offers 1.00 outage of ≥50 s, below the 1.5 G2 requires. 0.66 survives only at
+35 s — exactly the trigger floor, with no margin for a planning latency worse
+than the measured ~15 s. **`tr1` uses 0.64**, which restores the 50 s operating
+point and doubles the late-regime supply for 8 % more wall-clock per cell (705 s
+against 654 s, about 25 minutes across the whole campaign). This is the one
+substantive change the adversarial review forced, and the fixed-T table is
+retained above only to show what it would have concluded.
+
+`reach` is a direct check and replaces the floor-margin argument: all 30 cells
+actually cross 0.64, so none would be capped. A criterion only some cells can
+reach silently mixes completed runs with capped ones — a censoring problem
+wearing a completion's clothes — and 30/30 rules that out by measurement rather
+than by a margin. (Cut times are elapsed from each log's own first row, and
+carry §30.8's −10 % estimator bias, so they are if anything short and the outage
+counts conservative.)
+
+**Parameters.**
+
+| knob | `pb3g2` | `tr1` | why |
+|---|---|---|---|
+| `ROI_HALF` | 50.0 | **50.0** | unchanged — the world is not the problem |
+| `TREE_ATTEN` | 11.98 | **unset (11.98)** | unchanged — native radio, one less confound |
+| scenario | `flatforest_dense_2robot_lidar` | **same** | unchanged |
+| `done_unknown_fraction` | 0.60 | **0.64** | throughput; applied to **both** arms |
+| `RECONNECT_MIN_SHARE_VOX` | 550000 | **100000** | fire at 20–34 s, not 71–184 s |
+| `MIDRUN_MIN_SILENCE` | 60 | **20** | floor just above the ~15 s planning latency |
+| `MIDRUN_MAX_SILENCE` | 240 | **60** | ceiling; must stay ≤ `MIDRUN_SILENCE` |
+| `MIDRUN_SILENCE` | 240 | **60** | inert while the voxel gate is on; set consistently |
+
+At 100 k voxels and the measured pair gathering rates (7 734 vox/s early, 2 985
+late) the fire time is 12.9 s early — clamped up to the 20 s floor — and 33.5 s
+late. Adding the measured ~15 s planning latency, an outage is actionable at
+**35 s** in the early regime and **48.5 s** in the late one. Both bands are
+supplied at 0.64: the median cell offers 2.00 outages of ≥35 s and 2.00 of
+≥50 s, against `pb3g2`'s realised median of **zero** actionable outages at its
+own 127 s threshold. The trigger is the lever §30.1 identified; `tr1` is the
+first campaign in which it is set where it can act.
+
+The ≥50 s column is the one that matters most, because the late regime is where
+most of a run's seconds are; a design that only clears 35 s is only actionable
+early. That is precisely why 0.66 was dropped.
+
+**What changes and what does not.** Only the trigger differs *between the arms*.
+The stopping criterion changes relative to `pb3g2` but is identical across arms,
+so it cannot produce a between-arm effect. Unlike `sw1`, `tr1` is a
+single-treatment experiment.
+
+**Control reuse was considered and rejected.** The trigger acts only in the
+hybrid arm, so `pb3g2`'s 30 existing off cells looked reusable as a control,
+halving the campaign. Three of the five repositories have moved since (`hmr_explo`,
+`explo_planner`, `hmr_sim`), and although the planner binary is byte-identical,
+"the harness change is behaviourally a no-op" is an assertion, not a measurement.
+Both arms run fresh, concurrently.
+
+**Parallelism, and why it does not cost validity.** Three cells run concurrently.
+Contention changes wall-clock; the question is whether it changes the experiment.
+It does not, and this is established from the code rather than assumed:
+
+- **the primary endpoint is `explore_done_sim_sec`** — simulated seconds read
+  from the experiment log by `completion_readout.py`, in which the string
+  "wall" does not appear at all. Had the headline number been wall-clock,
+  concurrency would have invalidated the campaign outright rather than merely
+  slowing it; this was checked, not assumed. `wall_s` is recorded per cell and
+  used only for scheduling;
+- the planner runs `use_sim_time:=true` (`run_explo_sim_rviz.sh:1194`);
+- termination is evaluated on the **PLAN tick**, requiring N consecutive
+  *planning cycles* — a sim-time timer, not a wall-clock one;
+- the reconnect nav budget and the silence clamps read the ROS clock; the only
+  `steady_clock` in the planner bounds the metrics sampler's duty cycle, and is
+  deliberately wall-clock so that back-off does not scale with RTF;
+- the harness's `DURATION_S` is sim-time, and a failed `/clock` read logs a
+  warning and retries rather than corrupting the comparison.
+
+The cap is **three**, not more: one cell drove load average to ~5.4 on 20 cores,
+and oversubscription would let plan ticks coalesce — coarsening the very grid the
+endpoint is read from, which is the one path by which contention *could* move
+`t_sim`.
+
+Two guards had to be scoped first, both of which matched processes machine-wide:
+`stack_procs()`, which feeds `teardown()`'s `kill -KILL` and would have had one
+cell SIGKILL another's gazebo mid-run; and the planner-count guard, which aborts
+a cell unless it sees exactly two planner binaries and therefore fails when a
+second cell exists. The second was not predicted — it was found by running the
+isolation test, where one cell died `expected exactly 2, found 4` eight seconds
+after a healthy start while the other survived only by checking after the first
+had been torn down. Both now filter on `IGN_PARTITION` read from
+`/proc/<pid>/environ`, verified present on all 30 processes of a live cell, and
+both fall through to the original machine-wide behaviour when the partition is
+unset, so sequential runs are unchanged.
+
+The patched harness was then tested rather than trusted: two concurrent cells,
+distinct partitions and domains, the first given a short duration so its
+teardown fires while the second is mid-run — the cross-kill failure mode and
+nothing else. The second survived the first's teardown, both exited `rc=0` at
+their own configured durations (103 s and 311 s of sim time), each manifest
+recorded its own `ign_partition` and `ros_domain_id`, and no process was left
+behind. One caveat found in passing: `campaign_index.csv` is shared and its
+`cell` key is only `arm:seed`, so concurrent campaigns write colliding keys and
+are separable only by `outdir`. No row was malformed by concurrent appends, and
+the analysis scripts glob run directories rather than reading that index, so
+nothing downstream depends on the key — but anything that keys on `cell` across
+a shared index would silently merge two campaigns.
+
+**What termination actually reads.** The coverage source subscribes to
+`/<robot>/dscovox_node/scovox` (`explo_planner_node.cpp:2203-2213`) — the
+**team-fused** map, not the robot's own. So a reconnect that shares map lowers
+both robots' unknown fraction at once, and the hybrid arm can complete partly by
+*receiving* map rather than by driving to it. This is legitimate — completion is
+a statement about what the team knows, and sharing is the treatment — but it
+must be read correctly: **`tr1` measures time to team map knowledge, not ground
+covered**, and a hybrid win does not by itself establish that the manoeuvre made
+exploration more efficient. Distance travelled and redundancy are reported
+alongside so the two mechanisms can be told apart.
+
+**Pre-registered gates and analysis.** Primary metric, test and stopping rule are
+inherited unchanged from §25.3: completion time, ratio of medians, exact
+two-sided permutation test, α = 0.05, **n = 30 per arm, no early stopping**;
+§29.10 censoring; §29.40 exit conventions. G1 (floor) and G2 (opportunity supply,
+median ≥ 1.5 actionable outages per off-arm cell) are inherited from §30.6. Both
+are satisfied *by measurement on `pb3g2`'s own cells, each re-cut where the 0.64
+criterion would have stopped it*: G1 by 30/30 cells reaching the criterion, G2 by
+a median of 2.00 outages at both 35 s and 50 s. That is why `tr1` needs no fresh
+smoke. They will be re-read on `tr1`'s off arm as a check that the shortened
+campaign reproduces them, and a failure there is a finding about the estimate,
+not a licence to re-tune after the fact.
+
+**What `tr1` does not claim.**
+
+1. **It does not overturn the `pb3g2` null.** The treatment itself changed;
+   `hybrid` in `tr1` is a different method, and a positive result is a result
+   about the retuned method.
+2. **A faster trigger has a real failure mode.** The 113–127 s lag was an
+   information gate on purpose. With a 20 s floor the manoeuvre will sometimes
+   fire on links that were about to recover, spending distance for nothing. **If
+   `tr1`'s hybrid arm is slower than its off arm, this is the first hypothesis,
+   not an anomaly.**
+3. **Comparisons to `pb3g2` are restricted.** Same world, same radio, same
+   binary, so the arms are internally comparable and the *mechanism* figures
+   (outages, separation) transfer. Completion times do not: a 0.64 run and a 0.60
+   run stop at different maps.
+4. **G1 and G2 are estimates made on `pb3g2`'s cells, not measurements on
+   `tr1`'s.** They are re-read on `tr1`'s off arm as a check. The one time this
+   pre-registration priced a gate two ways — fixed-T and own-criterion — the two
+   disagreed and the design changed, so the estimates are not assumed to
+   transfer merely because they were computed carefully.
