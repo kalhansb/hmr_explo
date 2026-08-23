@@ -9597,3 +9597,13 @@ alone gives **1.39× and 1.64×**, and 1.5 sits inside that range. Two cells do
 not decide it. The script now prints that range next to the threshold and says
 the exit status means READ THIS, not A RULE FIRED. `fd2s_readouts.sh` goes
 15 → 16.
+
+Adding the script to `fd2s_readouts.sh` then made `rule_audit.py --calibrate`
+useful in a way it had not been before: it filed `approach_slope.py`
+**UNDETERMINED** — "a return this parser could not follow" — because the status
+was assigned in two branches and returned once at the end. §29.44's whole point
+is knowing which readouts can express an adverse finding *at all*, so the one
+readout that flags the power risk was the one whose status shape was unverified.
+Direct returns, no behaviour change, and it now audits as reaching all three of
+§29.40's answers. Calibration still passes; 44 fixtures still pass; the exit
+status is still 1.
