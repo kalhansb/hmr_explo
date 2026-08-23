@@ -11106,3 +11106,74 @@ not a licence to re-tune after the fact.
    pre-registration priced a gate two ways — fixed-T and own-criterion — the two
    disagreed and the design changed, so the estimates are not assumed to
    transfer merely because they were computed carefully.
+
+### 30.10 The trigger fires — measured on `tr1`'s first cells, not waited for
+
+`tr1`'s whole premise is §30.1's diagnosis: the treatment did not fail in
+`pb3g2`, it never got to act. That premise is checkable on the first few hybrid
+cells rather than at n=30, and it should be, because if the retune had *not*
+moved the fire point there would be no reason to spend four more hours
+collecting an endpoint measuring nothing.
+
+It moved. Three hybrid cells, all three dispatching:
+
+| | `pb3g2` (550 k target) | `tr1` (100 k target) |
+|---|---|---|
+| `gate_sec`, the threshold the planner computed | 82.8 s | **20.0 s** (p10 = p90 = 20.0) |
+| `peer_record_age_sec`, the silence it fired at | 102.1 s | **34.6 s** |
+| cells with ≥ 1 mid-run fire | 24/30 | 3/3 |
+| mid-run fires | 68 | 7 |
+| `est_unshared_vox` at fire | 511 k | 224 k |
+
+**What the planner records, and why nothing needed reconstructing.** The
+`reconnect_dispatch` event carries `gate_sec` — the fire threshold the node
+itself computed from `clamp(min_share_voxels / rate, min_silence, max_silence)`
+— and `peer_record_age_sec`, the silence at the moment it fired. The first
+instrument written here paired `peer_lost` with `reconnect_dispatch` to
+reconstruct the lag; it was strictly worse, because it can see the outcome but
+never the threshold. Reading the planner's own arithmetic answers "did the
+retune take" directly, and separates the two things that make up the lag.
+
+**The gate is now pinned at its floor, and that is a design fact.** Every `tr1`
+fire computed exactly 20.0 s. At a 100 k target and the observed gathering rate
+the formula wants ~12 s, so `MIDRUN_MIN_SILENCE = 20` is binding and the voxel
+target is not. §30.1 identified the voxel target as the real dial and it was:
+turning it from 550 k to 100 k cut the gate by 4.1×. But it has now been turned
+past the point where it does anything, and **any further speedup must come from
+the silence floor.** A future campaign that lowers `min_share_voxels` again and
+reports no change would be reporting the clamp, not the trigger.
+
+**§30.9's pre-registered 35 s threshold was right to within 0.4 s.** It was
+registered as gate 20 s + 15 s assumed planning latency. Measured: 34.6 s, a
+realised latency of 14.6 s. That is not a plan tick (5 s); it is the residual
+planning cost §30.1 bounded at 12–18 s, now measured.
+
+**Correction to §30.1's headline lag.** The "113–127 s `peer_lost` →
+`reconnect_dispatch` lag" does not reproduce as any clean statistic: pooled over
+all three treated arms the lag median is 101.5 s and the mean 135.7 s, and
+113–127 sits between them. Its definition cannot be recovered from the logs, so
+it should be read as indicative, not as a figure to calibrate against. The
+*gate* figures in the same entry do reproduce exactly — first-outage `gate_sec`
+66.4 s pooled, floor at 61–62 s — and those are what `fire_lag.py` calibrates on,
+together with two checks that survive any aggregation: both clamp endpoints are
+reached, and the gate rises 66.4 → 141.3 s with outage index as the world
+saturates.
+
+**The gathering rate, corrected.** Inverting `gate = voxels / rate` on `pb3g2`'s
+own logged gates gives **8,359 vox/s early and 3,991 late**, against the
+7,734 / 2,985 estimated from planner CSVs in §30.9. The empirical pair is the
+better predictor and is what `fire_lag.py` uses.
+
+**It is not applied to the gates, deliberately.** The correction would move
+`tr1`'s *late* actionable threshold from 48.5 s to 40.1 s. A lower threshold
+counts more outages as actionable, so it makes G2 strictly easier to pass, and
+relaxing a pre-registered gate after seeing data is the single thing
+pre-registration exists to prevent. **The registered 48.5 s stands.** The early
+threshold is unaffected at 35.0 s: both rate estimates clamp to the same 20 s
+floor, which is the same reason the gate is pinned there.
+
+**What this does not license.** The trigger firing is a necessary condition for
+`tr1` to test anything, not evidence that sharing helps. n = 3 cells, one arm,
+and §30.9's non-claim 2 stands unchanged: a faster trigger can fire on links
+that were about to recover and spend distance for nothing. The primary endpoint
+is read at n = 30/arm, once, as registered.
