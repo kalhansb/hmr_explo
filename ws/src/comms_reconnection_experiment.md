@@ -7392,3 +7392,77 @@ nothing should be changed now on the strength of one cell.
 Re-read at 3/3 by this rule: dense2 median ≤ 8.5 % (dense p90) → same endpoint,
 nothing to report; > 16.3 % (dense max) → carry a stated caveat that pb3g2→pb4d
 is not one endpoint at two densities.
+
+### 29.31 The launch script's last guard, checked last
+
+`test_gate_launch.sh` was 10/10 at `6f006fa`. Today it is 8/10, and
+`gate_and_launch.sh` has not been edited since. Two fixtures moved: `guard_off`
+and `guard_hybrid`, both of which plant a single `pb4d_*_seed1` directory and
+expect **exit 4**, "pb4d cells already exist". Both now return **exit 6**, the
+tripwire.
+
+The mechanism is not in the tripwire. `cells.py:91` — added **2026-08-23**,
+after the suite last passed — makes `load_cells()` refuse to guess once more
+than one registered campaign group has cells on disk. `GROUPS` holds exactly
+`pb3g2` and `pb4d`, so planting one pb4d cell is sufficient: every script that
+calls `load_cells()` without `HMR_GROUP` prints `AMBIGUOUS CAMPAIGN GROUP --
+refusing to guess` and exits 1. `shape_tripwire.py --check` is one of them.
+
+`gate_and_launch.sh` then ran its three gates first and checked for an existing
+pb4d campaign **last** — the tripwire at line 166, the pb4d guard at line 176.
+So it read an ambiguity refusal as gate 3 firing and printed §29.17's
+instructions:
+
+> TRIPWIRE FIRED (or deferred) … pb4d's COST MODEL rests on a shape the smoke
+> contradicted, so re-run `censor_power.py` against the observed spread
+
+for a condition with nothing to do with tail shape. The correct refusal, with
+the correct remedy, was sitting seventy lines further down, unreachable.
+
+**The failing test was right and the script was wrong.** That is worth stating
+because the cheap repair was available and would have been a mistake: change the
+two fixtures to expect 6, watch the suite go green, and encode the masking as
+intended behaviour. The fixtures were pre-registered against the *reason for
+refusing*, not against whatever the script happened to emit.
+
+This is the same class already fixed once here — §29.23, where the fixture built
+to trip gate 3 exited on gate 2 while the verdict line read `TRIPPED`. Both are
+a real condition detected by the wrong check and reported under the wrong name.
+The repair there was distinct exit codes per branch; the repair here is
+ordering. **A precondition that invalidates every gate belongs before the
+gates.** With two groups on disk the gates cannot produce a verdict about the
+world at all — only a refusal to guess — so running them first buys nothing and
+costs the right error message.
+
+The pb4d-exists check is now step 0. The original placement had a real argument
+behind it — a guard that only fires on the launch path is a guard nobody has
+tested — and step 0 still satisfies it, because the fixtures reach it on the
+`--dry-run` path. A second copy of the check is kept after the gates, for a cell
+appearing *while they run*. That one is untested by construction: it needs a
+race the fixtures cannot stage. It is retained because it is two lines and the
+failure it prevents is overwriting a live 2.3-day campaign, but it is not
+covered, and §29.23's argument does not extend to it.
+
+Suite back to **10/10**, negative control still failing as designed.
+
+**Does this already affect the real root?** Checked rather than assumed, since
+`pb3g2` and `fd2s` cells coexist there right now. It does not: `fd2s` is a smoke
+tag, not a registered group, so only `pb3g2` is populated and the guard stays
+quiet. Run against `/tmp/hmr_campaign` today, `gate2.py` and `partition.py`
+return 1 and `shape_tripwire.py` returns 2 — the ordinary 1-of-3-cells
+deferrals, no ambiguity refusal in any of them. The gates will read cleanly at
+3/3.
+
+**The consequence that outlives this fix**: from pb4d's first cell onward, every
+unparameterised script in this directory analyses nothing until it is told which
+group. `HMR_GROUP=pb4d python3 <script>` on all pb4d analysis; `HMR_GROUP=pb3g2`
+to re-read §28. Only `final_table.py` and `permtest.py` — the two carrying the
+primary endpoint — take `--group` and are already explicit. That is the guard
+working as designed, and it will look like a broken script the first time it
+fires.
+
+**A smaller finding, recorded because it is the reason this took as long as it
+did.** The scratchpad analysis scripts are not version-controlled, so a suite
+that passed at a known commit and fails now cannot be bisected. The date in
+`cells.py`'s own comment is what dated the regression. Comments are not a
+substitute for history, and the next such change may not carry one.
