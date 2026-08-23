@@ -7747,3 +7747,43 @@ leaving live processes behind is the shape of the `pkill -f` incident, from the
 other end.
 
 `test_gate_launch.sh` is **17/17**, negative control still failing as designed.
+
+
+### 29.36 Reporting pb4d before pb4d exists
+
+`final_table.py --group pb4d` and `permtest.py --group pb4d` were both written
+before pb4d had a single cell — `final_table`'s header says so in as many
+words. They would first execute for real on the morning a 2.4-day campaign
+finished. If the group argument mis-selected, or an arm came back empty, or the
+table rendered zero rows, that is when it would be found out.
+
+It can be tested now, and not with a synthetic fixture. Arm and group both come
+from the **directory name** — `prefix_of()` splits on `_seed` — and the
+manifest carries no tag field at all, only `seed=` and `scenario=`. pb3g2's
+`off` and `hybrid` arms are exactly 30 cells each. So renaming them to `pb4d_*`
+produces a structurally perfect 60-cell pb4d campaign built from real data.
+
+That yields an assertion much stronger than *a table appeared*. It is the same
+data, so the pb4d code path must reproduce pb3g2's published headline
+**exactly**: 1.026× on medians, p=0.3953. Selecting any other set of cells —
+one arm, the wrong group, a silent truncation — moves the number. A fixture I
+had written could only ever have demonstrated that something printed.
+
+The p is compared exactly rather than to a tolerance because `permtest.py`
+seeds a deterministic RNG, and that determinism traces straight back to the
+hand-rolled-LCG incident: the reason a fixed-seed Monte Carlo p is trustworthy
+enough to assert on is that the sampler was validated against a known exact
+answer after a previous one silently returned a p off by 7× its own stated
+error.
+
+Negative control: delete one arm and re-run. Thirty cells cannot produce a
+two-arm ratio, so the check must stop passing — otherwise every grep above was
+matching a string rather than reading a result. It stops passing. **7/7.**
+
+**What this does not establish.** That the reporting path is sound given
+well-formed cells, not that pb4d's cells will be well-formed. It runs on
+pb3g2's distributions, so it says nothing about pb4d's censoring rate — a
+denser world is expected to push completion times toward the 5400 s cap, and
+§29.10's rule (keep capped cells at min(T,5400), abort the arm above 50 %
+censored) is exercised by `test_censoring_path.py`, not here. The two tests
+cover different halves and neither covers the other.
