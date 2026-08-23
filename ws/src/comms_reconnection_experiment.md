@@ -6810,3 +6810,55 @@ and campaign was real and unrecorded, and it turned out to be worth about 2 % of
 a run. Recorded here because "we checked and it was small" and "we never thought
 to check" are indistinguishable from the outside, and this project has already
 been bitten by the second one wearing the clothes of the first.
+
+### 29.25 The pb4d loader path, and a check of mine that could not fail
+
+§27.7 named two things that must happen before pb4d is analysed: `cells.py` must
+gain an explicit campaign-group argument, and the smoke prefix must be in
+`EXCLUDED` with a reason. It gated the first on pb3g2's confirmatory test, which
+has now run (§28), so the gate is lifted. Both turn out to be **already done** —
+`GROUPS` registers `pb4d` with a comment noting it was registered before its
+first cell existed, and `fd2s` carries a written exclusion recorded before the
+smoke launched. Verified rather than assumed, which is the only reason it is
+worth a paragraph.
+
+What is *not* done is running any of it. `load_cells(group="pb4d")` has never
+executed, because no pb4d cell exists — and it will first execute at the end of
+a 2.3-day campaign, on data that cost 2.3 days to produce. §29.23's lesson,
+one file over.
+
+The partition also introduced a genuinely new failure mode. Before `GROUPS`,
+every prefix was either pooled or raised as UNCLASSIFIED. There is now a third
+outcome — *classified, other group, silently skipped* — and it can be wrong in
+two directions. Permissive: pb3g2 pools into a pb4d read-out and the dose–response
+compares dense2 against a mixture containing itself, **producing a number rather
+than an error**. Strict: analysing pb4d raises on its own sibling campaign.
+
+`test_pb4d_loader.py` covers the path with 15 assertions over a synthetic root:
+group selection, the sibling-skip branch, distance summing over robots against
+completion taking the max, the §29.10 censoring rule (kept at the cap and
+flagged, dropped without `cap_s`), signature enforcement *within* a group, an
+unclassified prefix still raising, and a typo'd group name. All 15 pass.
+
+**One of them was fake.** The assertion for the branch the whole exercise exists
+to test read `ok("pb3g2 cells did not raise as UNCLASSIFIED", True)` — a literal,
+in a suite written to stop checks that cannot fail. It would have printed PASS
+against any loader. It is now a direct `poolable()` call requiring the cell to
+land in `other_group` and not in `unknown`, which is the only way to tell
+"skipped" from "would have raised", since `load_cells` does not return the counts.
+
+Which raises the obvious question about the other fourteen. `mutate_check.py`
+breaks `cells.py` three ways on a copy and requires the suite to notice:
+
+| mutation | | caught |
+|---|---|---|
+| `permissive` | sibling campaign pools into the group | yes |
+| `strict` | sibling campaign raises as unclassified | yes |
+| `no_cap` | censored cell keeps 5380 s instead of the 5400 s cap | yes |
+
+3/3. And the way `permissive` is caught is worth recording: not by the group
+assertion, but by `check_signatures` refusing a pool whose `scenario` disagrees.
+§27.7 predicted exactly this ("adding pb4d to that set would therefore raise on
+a signature mismatch — correctly"). So the dangerous direction has **two
+independent guards, and the backstop does not depend on `GROUPS` being right** —
+which is the property worth having, since `GROUPS` is the part written today.
