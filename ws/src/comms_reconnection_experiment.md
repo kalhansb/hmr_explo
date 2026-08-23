@@ -7823,3 +7823,122 @@ denser world is expected to push completion times toward the 5400 s cap, and
 §29.10's rule (keep capped cells at min(T,5400), abort the arm above 50 %
 censored) is exercised by `test_censoring_path.py`, not here. The two tests
 cover different halves and neither covers the other.
+
+### 29.37 The field that says which arm ran, and the one that doesn't
+
+`dose_reanalysis.py` decided each cell's arm with
+
+```python
+arm = m.get("reconnect_mode_param", "?")
+```
+
+`reconnect_mode_param` is the planner's *resolved* parameter, and it keeps its
+`hybrid` default when reconnection is switched off. All thirty of pb3g2's `off`
+cells read `reconnect_mode_param=hybrid`. So does an `off` cell in the archive
+(`tx_probe_5dbm/tx1_off_seed41`), which rules out a one-generation quirk.
+
+The failure is not that the arm was unknown. It is that it was confidently
+wrong, in the one direction that destroys the analysis. `arm == "off"` selected
+**nothing**, so the control group was empty; every control then fell through
+`arm != "off"` with `mid == 0` into UNDOSED, pooled with genuine hybrid cells
+that happened never to fire. This script exists to separate cells that received
+the treatment from cells that did not — and it was putting the controls in the
+treatment column. The table it printed looked entirely normal.
+
+The right field is `reconnect_mode_requested`, which records what the campaign
+asked for and reads `off` on every off cell in both the live root and the
+archive. It is now read through `arm_of()`, with a second discriminator:
+`rendezvous_enabled`, set by a different part of the launch path. One field can
+be wrong quietly; two disagreeing cannot. I nearly wrote that cross-check as
+`rendezvous_enabled=false ⟺ off` without checking the manoeuvring arms — a
+false refusal on `pursuit` would have been worse than no check at all. Verified
+across all four arms first: false for `off`, true for hybrid, pursuit and
+rendezvous alike, so the equivalence is exact.
+
+**It refuses rather than reports.** Three conditions return before printing any
+comparison: a manifest with no `reconnect_mode_requested`, two fields that
+disagree, and zero control cells among however many were loaded. The last one
+matters most, because it is the exact symptom the old code produced in silence.
+An analysis with no controls in it is not a weaker version of this analysis, it
+is a different one, and it must not be printed under this one's headings.
+
+`test_dose_arm.sh` — **9/9**, on real cells, not fixtures. It pins the *defect*
+as well as the fix: it asserts that 0 of 3 off-cell manifests say `param=off`
+while 3 of 3 say `requested=off`, so if that ever changed the test would report
+it rather than quietly becoming a no-op. The headline case runs the whole live
+pb3g2 root and requires all 30 controls to be classified as controls. The three
+refusals are checked by breaking a manifest three ways; the negative control is
+that the *clean* run must not refuse, without which a script that refused
+unconditionally would pass all three. Deleting the controls entirely does
+double duty — it proves the zero-control refusal fires, and that hybrid cells
+do not trip the cross-check on the way there.
+
+`dose_reanalysis.py` also gained `HMR_CAMPAIGN_ROOT`, matching `cells.py`, for
+the reason the refusals needed it: they can only be exercised against
+deliberately broken manifests, and those must never be written into the live
+campaign root.
+
+### 29.38 A guard placed after the thing it guards against
+
+Running §29.37's new test against the live campaign OOM-killed the machine's
+memory, at 08:07 on 2026-08-23, while the fd2s smoke was running.
+
+```
+dscovox_mapping invoked oom-killer: ...
+Out of memory: Killed process 289082 (python3) total-vm:43852168kB
+```
+
+The cause is four lines of `dose_reanalysis.perm_test`:
+
+```python
+combos = list(itertools.combinations(range(len(pool)), n))
+if len(combos) > iters:
+    return obs, None, len(combos)
+```
+
+The check is correct and it is unreachable. It asks whether the split is too
+large to enumerate *after* enumerating it. At the n=8 this script was written
+for, `combos` is 70 tuples. Run against pb3g2 it is a 30-vs-30 split: C(60,30)
+= 1.18 × 10¹⁷. The process reached 43 GB of anonymous RSS and the kernel killed
+it. This is §23.3's checks-that-stopped-checking in its purest form — a check
+that still reads as a check, placed where it cannot fire.
+
+**The correct version was already in the repository.** `permtest.py`, the
+confirmatory script, computes `math.comb(n, k) <= ENUM_LIMIT` first and
+iterates the generator rather than a list. The fix was to make three scripts
+match the one that was right. Two others had the identical defect —
+`finish_verify.py:25` and `cg55_report.py:153`, both `combos = list(...)`
+followed by `if len(combos) > iters`. `finish_verify.py` reads the live
+campaign and is precisely the sort of thing that gets run the morning pb4d
+finishes, at n=30 per arm.
+
+A sweep of every `combinations()` call in the analysis directory separates two
+hazards. Three materialised a data-dependent list — memory-unbounded, machine-
+threatening, now all fixed. Six others iterate the generator lazily with no
+size guard: those hang instead of crashing, they are all pre-2026-08-20 archive
+scripts, and a script that never returns announces itself. Left alone.
+
+**What the incident says about the harness, not the script.** Two things were
+wrong beyond the arithmetic.
+
+First, the blast radius. The oom-killer was invoked *by* `dscovox_mapping` — a
+node of the running simulation — because my analysis had taken the memory it
+wanted. The kernel picked the right victim and the smoke survived intact (every
+node still 55 minutes old afterwards, every output file still growing), but
+that was the kernel's judgement, not a safeguard of mine. The standing rule was
+to run analysis at `nice -n 19` while a sim is live; niceness is CPU priority
+and buys nothing against an allocator. Analysis runs against the live root now
+carry `ulimit -v 4194304`.
+
+Second, and worse: **the test passed.** The grep matched `OFF (control) n=30`
+because that line had been flushed before the SIGKILL arrived, so a process the
+kernel destroyed was reported as a passing check, in a suite whose entire
+purpose is not to be fooled by strings that happen to be present. Every run in
+`test_dose_arm.sh` now checks its exit status, and the suite gained a case
+asserting that the 30-vs-30 split is *declined* by `math.comb` rather than
+attempted — the regression test for this bug rather than for the one I set out
+to write. **9/9.**
+
+I found this defect by running a test against real data instead of a fixture. A
+fixture would have had six cells, the enumeration would have been 924 tuples,
+and it would have passed forever.
