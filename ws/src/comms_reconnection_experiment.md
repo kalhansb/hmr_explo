@@ -5024,6 +5024,42 @@ working as designed — it refuses to silently drop a batch it has not been told
 about — so it should be satisfied by classifying the prefix, never by relaxing
 the check.
 
+#### Addendum, 2026-08-23 — still before pb4d has a cell
+
+Appended rather than edited in. Rewriting a pre-registration in place is the
+thing a pre-registration exists to prevent, and the fact that pb4d has no data
+yet is what makes an addendum legitimate rather than a revision. **It adds no
+analysis choice.** Both items below point at decisions already fixed elsewhere.
+
+**The censoring rule was missing from this list, and pb4d is where it bites.**
+§27.7 defines completion time as the max `run_end` `t_sim_sec` and says nothing
+about what happens when a run never completes. §29.10 settled that separately:
+a capped cell is **kept** at `min(T, 5400)` and flagged `censored`, never
+dropped, and an arm that is **≥ 50 % censored** aborts rather than reporting a
+median that is really just the cap. Dropping capped cells instead would delete
+exactly the slowest runs, and since §27.8 predicts hybrid is the *slower* arm,
+that deletion would bias toward the prediction. The rule belongs in the
+confirmatory list and is hereby part of it.
+
+This is not hypothetical for pb4d. pb3g2 censored **0 of 120** cells, so nothing
+in the headline campaign exercised the branch; a world at 400 stems/ha is
+expected to push completion times toward the same 5400 s cap. The rule is
+implemented in `final_table.py`, `cells.py` and `permtest.py`, and
+`test_censoring_path.py` checks the boundary in all three directions — 60 %
+fires, 40 % does not, exactly 50 % fires.
+
+**The loader order recorded above has been carried out.** This section said
+`cells.py` was deliberately *not* being changed yet, with the order: run
+`permtest.py` on pb3g2 → extend `cells.py` with an explicit baseline-group
+argument → then analyse pb4d. That is what happened, in that order. pb3g2's
+confirmatory test ran and is reported in §28; `cells.py` then gained the
+`GROUPS` partition with `pb3g2` and `pb4d` as disjoint members and a refusal to
+guess between them; `final_table.py` and `permtest.py` take `--group`. So the
+sentence "is **not** being changed yet" is now a record of a decision honoured,
+not a description of the code — worth saying plainly, because a stale plan read
+as a current constraint is how someone re-does work that was already done
+correctly.
+
 ### 27.8 Directional prediction, and it is not the flattering one
 
 §26.3 declined to predict a direction. Here there is a mechanism specific enough
