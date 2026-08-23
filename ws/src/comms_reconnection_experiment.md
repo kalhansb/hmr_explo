@@ -9759,3 +9759,86 @@ and ratios do not inherit anything. The claim was written into a committed
 document and into the running code's own warning text before the branch had ever
 been made to fire, which is the sequence §29.53's inert-checks sweep exists to
 catch. 14 checks in `test_gate2.py` now, all passing.
+
+### 29.58 The census was wrong, and the switch moved a threshold I had called safe
+
+§29.57 opens: *"Four scripts against one, and the one is the gate that licenses
+the launch."* I then swept every script in the analysis directory for how it
+reduces `unknown_fraction` over the two robots, to check a sentence I had already
+committed. It is wrong.
+
+`cost_calib.py`, `tailfrac.py`, `dose_partition.py` and `price.py` each contain
+the **identical** stepwise-hold-then-`min(us)` block gate2 had, down to the
+variable names — a common ancestor, copied four times. `finish_and_gate.py` takes
+a min over robots too. gate2 was not the lone dissenter in a pipeline that had
+agreed on max; it was one of a **five-script family**, and the four scripts using
+max (`crossing_calib`, `cap_decision`, `approach_slope`, `fd2s_track`) are the
+ones that happen to be **registered** — in `fd2s_readouts.sh`'s `SCRIPTS` list or
+behind a gate. The honest census is: the live pipeline was 4-to-1 for max, and
+the directory as a whole was 5-to-4 for min. The first sentence is the one that
+matters for the launch; the second is the one that explains how the discrepancy
+arose, and it is the one I did not check before writing that it did not exist.
+
+**Then the census turned into a result.** `tailfrac.py` is in the min family. It
+is also the script that **designed C2** — §29.12's table of false-failure rates,
+the choice of median-of-3 over any-of-3, and the sentence *"across all 4060
+3-subsets the median-of-3 never exceeds 0.333, so the 0.50 threshold clears the
+entire known-good world by 0.167."* Every one of those numbers was computed under
+min. §29.57 switched the gate to max. So C2's threshold was calibrated against a
+quantity the gate no longer computes, and I shipped that without noticing,
+one section after writing that C2 is the condition the switch can move.
+
+`c2_recalib.py` reruns §29.12's calibration exactly — same exhaustive
+enumeration of all C(30,3) = 4060 subsets, no sampling — on both reductions:
+
+| reduction | median | min | max | cells > 0.50 | worst med-of-3 | FF @ 0.50 |
+| --- | --- | --- | --- | --- | --- | --- |
+| min (was, §29.12) | 0.191 | 0.042 | 0.452 | **0** | 0.333 | **0.00 %** |
+| max (in force, §29.57) | 0.137 | 0.027 | 0.638 | **2** | **0.563** | **0.69 %** |
+
+The median moves the *reassuring* way and the tail moves the other way, which is
+why a median was not enough to check it with. Two known-good pb3g2 cells
+(`seed13`, `seed23`) now sit above the 0.50 threshold on their own where none did
+before, and the worst 3-subset median is **0.563 — above the threshold**. So
+§29.12's "clears the entire known-good world by 0.167" is **false** under the
+reduction in force: gate2 can now fail pb3g2 itself, on 28 of its own 4060
+3-subsets.
+
+**0.69 % is small, and it is not zero, and the difference between those matters
+here** because the smoke is n=3 and n=3 is exactly the sample the rate is
+computed for. A C2 failure on fd2s can no longer be read as evidence about
+dense2 alone; it now carries a known-good false-alarm rate that has to be quoted
+alongside it.
+
+**What I am not doing about it.** Not moving 0.50. Not reverting C2 to min while
+leaving C1 and C3 on max. The second is the more tempting one and the worse: it
+would give each condition whichever reduction is more permissive for it, chosen
+with the false-failure table on screen, which is §29.47's retracted criterion
+raise wearing its third costume. 0.50 is a *definition* — over half the run spent
+on the final 0.05 is what sitting on an asymptote means — and max is the
+reduction the harness's own run end supports. Both stand. What changes is that
+C2's false-failure rate on the known-good world is now a number this document
+carries rather than a zero it assumed.
+
+There is a real reason max inflates the tail, and it is not an artefact: under
+min the band measured is the *leading* robot's traversal, under max the
+*laggard's*, and the laggard is by definition the one having a hard time. That is
+the same argument that made max right for the endpoint. It costs what it costs.
+
+**A second claim from §29.57, checked rather than left standing.** I wrote that
+gate2's crossings "now match `crossing_calib` exactly". Those two scripts still
+do not compute the same thing: gate2 takes the first instant at which *all*
+robots are simultaneously below the criterion, `crossing_calib` takes the last
+robot's *own first* crossing. Those coincide only if `unknown_fraction` is
+monotone per robot — and in exploration it need not be, since pushing into new
+territory can add unknown cells faster than it clears them. I had asserted
+structural agreement on the evidence of two cells. `series_monotone.py` checks
+all 32: **no robot-series rebounds anywhere, and the two estimators agree
+30/30 and 2/2.** The claim survives, and now has a reason instead of a
+coincidence — but the reason is a measured property of these worlds, not a
+property of the definitions, and a 400 stems/ha world is where it would break
+first. It is recorded as contingent.
+
+The general shape, for the third time in two days: the sweep that finds the
+defect and the sentence that asserts the defect is absent were written by the
+same person minutes apart, and only the sweep is evidence.
