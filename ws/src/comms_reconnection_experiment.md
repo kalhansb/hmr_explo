@@ -6349,3 +6349,110 @@ it as an upper bound on wasted travel, consistent with — not a replacement for
 The single-sided events at 300 s and 1020 s report 87 % and 89 % but have no
 partner event to check against and their union identity closes only to 2.7–4.5 %.
 They are printed with that flag and should not be quoted.
+
+---
+
+## §29.19 The link column cannot tell these two worlds apart — a retraction before publication
+
+§29.18 left an open question worth chasing: `overlap_campaign.py` validated only
+**8 of 30** pb3g2 `off` cells (27 %). The tempting read is that the detector is
+badly tuned. The alternative is that the low acceptance **is the finding** — if
+pb3g2's radio is up most of the time, the maps stay synchronised incrementally
+and there is no discrete merge to detect. That alternative makes a prediction
+about a quantity involving no detector, no threshold and no inference at all:
+the fraction of `link_states.csv` samples with `connected=1`.
+
+It did not survive. Recording the whole path because the intermediate results
+were persuasive and wrong, and two of them nearly reached this document.
+
+### The first answer, which was a duration artifact
+
+Computed over each cell's own logged span, `link_duty.py` gave:
+
+| world / arm | n | median duty | median longest gap |
+|---|---|---|---|
+| pb3g2 / off | 30 | 43.7 % | 126 s |
+| fd2s / off | 1 | 22.4 % | 596 s |
+
+Duty halved and the longest outage nearly quintupled — exactly the predicted
+shape, and a clean mechanistic story for pb3g2's 1.026× null.
+
+It is almost entirely an artifact of **span**. pb3g2's `off` cells have a median
+span of 802 s; the fd2s cell had run 3100 s. Both statistics are confounded by
+duration, in opposite directions. Longest-gap rewards duration outright — a
+longer run has strictly more chances to contain a long outage. Duty is
+confounded the other way: the robots start together by standing instruction, so
+early duty is high, and a cell observed only early looks better connected than
+one observed throughout.
+
+### The second answer, after matching the window
+
+| window | pb3g2 duty | fd2s duty | pb3g2 median gap | fd2s gap |
+|---|---|---|---|---|
+| 567 s | 48.1 % | 46.3 % | 101 s | 232 s |
+| 800 s | 45.4 % | 33.7 % | 126 s | 271 s |
+
+The duty difference **collapses** — 48 % against 46 % is the same number. The
+gap difference survives and widens. The claim I was one step from writing was
+that dense2 is not *less*-connected but *lumpier*-connected: comparable total
+connectivity delivered in longer individual outages, which is precisely what
+would make merges discrete in dense2 and continuous in pb3g2.
+
+### The third answer, which retracts the second
+
+With one fd2s cell, the only honest form is a percentile against pb3g2's 30
+untreated cells — descriptive, not a test, since n=1 admits none:
+
+| window | pb3g2 median gap | pb3g2 p90 | fd2s gap | **percentile** | pool |
+|---|---|---|---|---|---|
+| 400 s | 63 s | 146 s | 65 s | **53 %** | 30/30 |
+| 567 s | 101 s | 179 s | 232 s | **93 %** | 30/30 |
+| 800 s | 126 s | 282 s | 271 s | **82 %** | 17/30 |
+| 1200 s | 357 s | 487 s | 397 s | **50 %** | 4/30 |
+
+53 → 93 → 82 → 50. A statistic that reads "utterly ordinary" at 400 s,
+"striking" at 567 s and "ordinary" again at 1200 s is not measuring a property
+of the world — **the window is choosing the answer**. Both windows with the full
+30-cell pool are available and they disagree with each other.
+
+**Survivorship makes the long windows worse than merely underpowered.** Only
+pb3g2 cells that *ran* that long can be compared at 800 s and 1200 s, and those
+are the slow cells. If slow cells are also the badly-connected ones, the pool is
+selected toward long gaps exactly where fd2s stops looking unusual — so the two
+windows that soften the result are the two that cannot be trusted to soften it
+honestly. The bias points the convenient way, which is a reason to distrust it,
+not to lean on it.
+
+And the one striking window rests on one event: between 400 s and 567 s this
+single cell opened a single long outage. Three smoke cells will not repair a
+statistic whose value depends on where the window is cut.
+
+### What this means
+
+**The 27 % acceptance rate in §29.18 remains unexplained.** Tool defect and
+world property are both still live; this test was supposed to separate them and
+could not. The conditional framing there — "in cells with a clean merge", not
+"in this arm" — stands and should not be relaxed.
+
+**The link column has now failed to carry a claim three times**: §29.17's jumps
+looked decisive at 9/9 until the base rate came out at 51–52 % over ~3
+independent windows (p ≈ 0.13); the standing note that the link must be read
+from `link_states.csv` rather than from `peer_lost` events; and now this. The
+pattern is consistent enough to treat as a prior: *link-derived statistics in
+this project are low-information and easy to over-read.* The evidence that
+dense2 differs from pb3g2 is the **voxel-jump mechanism** of §29.17 — a merge
+adding +140,348 voxels in one step against a typical +7 to +17, with the robot
+stationary. That is not a link statistic, and it is not weakened by anything
+here.
+
+**No gate changes.** `partition.py` (gate 2) tests dense2's partitioning against
+its own pre-registered ≥1.5× threshold on the finished 3-cell smoke, and is not
+affected by a percentile computed on 1 cell. Nothing in `gate_and_launch.sh` is
+touched.
+
+**Method note.** The failure mode that produced the first two answers is the
+same one both times: a comparison between groups that differ in *how long they
+were observed*. It was caught by asking for a matched window, and then the
+matched window was itself caught by asking whether the answer depended on which
+window. The second check is the one that mattered, and it is the one that is
+easy to skip after the first check has already "fixed" the problem.
