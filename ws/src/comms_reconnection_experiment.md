@@ -8199,3 +8199,81 @@ density where it can currently be tested — and the evaluator's fired branch is
 therefore unreachable on every dataset that exists. It is exercised in the
 self-test instead, 7/7. `pb4d` is not the place to discover a pre-registration
 had a typo in it.
+
+### 29.43 The mid-campaign check, and noticing that the analysis was in the measurement
+
+§29.41 and §29.42 produced two evaluators that have to run **during** `pb4d`,
+not after it — the 0.55–0.67 band at about the tenth `hybrid` cell, the 10 pp
+arrived-share margin as soon as both arms have cells. That existed as a todo
+entry: *run `pb4d_tripwire.py` once ~10 hybrid cells are finished*. A todo entry
+that has to survive two to five days of elapsed time is §29.32's class of
+instruction, and §29.39 and §29.40 are both the same lesson already learned
+twice. So it became `pb4d_watch.sh`, tested 12/12 on fixtures.
+
+**Gate 0 is the binary equality, and nothing else was checking it at runtime.**
+The whole dose–response rests on `pb4d` running the same `explo_planner_node`
+as `pb3g2` and `fd2s`: 122 cells on disk, one hash, `b05e162ca74df23b`. If a
+`pb4d` cell ever carried a different one, the 250-vs-400 contrast would be
+between two *generations* rather than two densities, and every number
+downstream would be void — silently, because each cell's output would still
+look perfectly well-formed. A rebuild between cells is exactly the kind of thing
+that happens on day three of a campaign. So the driver reads every `pb4d`
+manifest, refuses to run a single readout on a mismatch, and says which of the
+two failures it found: cells disagreeing with *each other*, or cells agreeing
+with each other but not with `pb3g2`.
+
+**Absence is not agreement.** A third case: cells present, no
+`sha256_explo_planner_node` in any of them. The naive form of this check —
+"collect the distinct hashes, complain if there is more than one" — passes that
+case, because zero is not more than one. It would print *binary equality OK*
+over a set of cells whose provenance field had vanished. §23.3 is a guard that
+stops checking; this is the same guard passing *because* its input disappeared.
+It is now its own stop, with its own message.
+
+None of those three branches is reachable from any dataset that exists, which is
+why they are driven on synthetic manifests: two hashes, one wrong hash, no hash,
+and — the case that proves the suite is testing the right thing — a valid root
+where the readouts must actually *run* rather than be skipped. Plus the §29.41
+hazard as a fixture: a started-but-unfinished cell must count as started and not
+as complete.
+
+**One classifier, not two.** Both drivers read §29.40's exit-status convention,
+so the classifier moved to `rc_classify.sh` and both source it. A copied
+discriminator is a §23.3 machine with a delay fuse: the copy nothing self-tests
+is the one that drifts, and it drifts invisibly because both copies keep
+printing confident verdicts. The self-test moved with it and gained a case —
+an exit status the convention does not define must read as ERROR, never as
+success — and the drivers refuse to run at all if the file is missing, which is
+also tested. 7/7.
+
+#### The measurement had me in it
+
+The `fd2s` smoke exists to *price* `pb4d`. Its output is a wall-to-sim ratio.
+And I have been running analysis on the same box while it runs.
+
+Two windows of `fd2s` cell 2, same cell, minutes apart: **1.89×** across the
+window containing a 60-cell `pb3g2` read, **1.78×** across a window with only
+writing. About 6 %, in the direction the mechanism predicts. Both windows are
+short — 3 to 12 minutes of a 90-minute cell — and the simulator's own real-time
+factor varies with what the robots are doing, so 6 % is an indication and not a
+measurement. The measurement is the per-cell ratio once cells 2 and 3 land,
+against cell 1's 1.855×.
+
+The direction is the reassuring part: analysis load *inflates* the observed
+ratio, so a price derived from a contaminated cell is an **over**-estimate, and
+`pb4d` is being budgeted conservatively rather than optimistically. That is the
+right way round, but it is luck, not design. Heavy reads are held until the
+smoke lands; the remaining work is write-only.
+
+**For `pb4d` the same problem returns, worse and then better.** Worse because
+the primary metric is completion time and the campaign runs for days. Better
+because completion time is measured in **sim** seconds, so wall-clock slowdown
+does not enter it directly — and because `launch_pb4d.sh` runs seed-major, so
+arms alternate and any transient load lands on both arms almost equally,
+entering as noise rather than as a between-arm bias. That is a real benefit of
+the ordering that was not among the reasons it was chosen.
+
+"Almost equally" is not "provably equally", so `pb4d_watch.sh` stamps the load
+average before and after each run and records its own wall duration in
+`PROVENANCE.txt`. If a cell later looks anomalous, whether analysis was running
+during it is a question with an answer on disk instead of a shrug.
