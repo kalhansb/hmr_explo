@@ -7668,3 +7668,28 @@ descriptors would survive, freshly-constructed paths would resolve through the
 symlink, and *probably fine* is not the standard for the data the launch
 decision depends on. The safe window is after the smoke and before pb4d, when
 nothing is writing. That is the same window the IV commit already occupies.
+
+**The refusal message is itself a printed instruction.** It ends *"if `/tmp`
+was wiped, RESTORE from the backup"* — and §29.32 is a section about printed
+instructions nobody has ever executed. So "restore from the backup" was not a
+procedure yet; it was a sentence. `restore_campaign.sh` makes it one, and its
+hazard runs the *opposite* way to the backup's: backup can delete the copy,
+restore can overwrite the **original**, dropping a stale mirror onto a
+campaign that has moved on and silently reverting finished cells. Hence: it
+refuses whenever the destination already holds cells, and it never passes
+`--delete`, because a cell live-but-absent-from-the-mirror is newer than the
+mirror and losing it is the one thing a restore must not do.
+
+`test_restore_campaign.sh` is **9/9** and runs the whole loop —
+back up, refuse-over-populated, **wipe**, refuse-to-mirror-after-wipe, restore
+— on four *real* pb3g2 cells rather than synthetic ones, because a fixture I
+wrote could be malformed in precisely the way that makes the backup and the
+restore agree on nonsense.
+
+The assertion at the end is the only one that counts. Not *four directories
+came back*: `peek.py`'s output, diffed byte-for-byte across the wipe, so the
+test's check is the same command the restore script tells the operator to run
+rather than a private re-implementation that could agree while the advice is
+wrong. And because a diff of two empty outputs passes beautifully, the
+negative control deletes a manifest from a restored cell and requires the
+comparison to notice.
