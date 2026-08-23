@@ -8455,3 +8455,93 @@ filter, and it is the same one `rate_compare.world_profile` uses to build the
 ratio this projection rests on. Against the live root it currently counts two
 `dense2` cells, one of which is still running: correct, and only correct because
 of the truncation.
+
+### 29.46 Auditing the shape of every readout instead of reading them one at a time
+
+§29.44 found `dropout_position.py`'s SUPPORTED branch unreachable by reading the
+file. That is not a control. Thirteen files read carefully once is a sample of
+one attention span, and the four sections before it establish that this class of
+defect — a registered rule and the code that runs it drifting apart, silently,
+with the output still complete and well-formed — is not a thing careful reading
+reliably catches. It has now been caught five times, every time by accident.
+
+So `rule_audit.py` does it mechanically: parse each readout with `ast`, work out
+which of §29.40's three exit statuses `main()` can actually produce, and name the
+missing ones. It reads **no campaign data** — source only — which is why it could
+be written and run with the smoke live.
+
+The framing that makes it useful is that a missing status has a meaning:
+
+* **no `0`** — the script cannot report a clean result. Everything it can say is
+  adverse or a shrug. §29.44 exactly.
+* **no `1`** — the script cannot fire. Any rule its docstring registers is
+  decorative.
+* **no `2`** — the script cannot decline. It will answer on any amount of data,
+  which is `power_n.py`'s failure with the serial numbers filed off.
+
+None is automatically a defect; a pure reporter legitimately returns only 0. The
+audit's job is to turn thirteen assumptions into one table of decisions.
+
+**The first draft was wrong in the dangerous direction.** It flagged
+`dropout_null_k.py` as unable to fire — a script whose `return 1, "RE-DERIVE"` I
+had written the day before. `main()` there ends `return rc_`, a variable, and the
+parser could not follow it, so "could not determine" was being printed as
+"cannot". For a checker whose entire purpose is *do not assume*, reporting
+unknown as unreachable is the same sin in the other direction, and worse in
+practice: false alarms are how a check trains its reader to ignore it, which is
+§23.3 arriving through the front door rather than by decay. The status set is now
+explicitly a **lower bound** whenever anything is unresolved, and missing statuses
+split into **UNREACHABLE** (main fully resolved — these are proofs) and
+**UNDETERMINED** (they are not). Four return forms resolve: a constant, one level
+into a local function, both arms of a conditional expression, and a name assigned
+exactly once. A name assigned *twice* deliberately does not resolve — picking the
+last assignment is a guess about control flow, and guesses are what this file
+exists to delete.
+
+With that fixed, four proven findings beyond §29.44:
+
+| script | cannot | verdict |
+| --- | --- | --- |
+| `dropout_position.py` | return 0 | §29.44, rediscovered from source |
+| `merge_sensitivity.py` | return 1 | **its adverse answer exits 0** |
+| `censor_power.py` | return 2 | correct — it sweeps rather than trusting n=1 |
+| `gap_percentile.py` | return 1, 2 | correct — its docstring already says it is descriptive, "not a test, and no p-value, because n=1 admits none" |
+
+**`merge_sensitivity.py` is the live one.** It asks whether `merge_crossing.py`'s
+22.3 % is partly an artefact of its own absolute 0.5 m distance cut — if
+`dense2`'s steps are systematically shorter, more of them are eligible to be
+called stationary and the detector manufactures its own finding. A sweep that
+came back *destroying* `merge_crossing`'s result would exit 0, and the driver's
+summary line would read `CLEAN`. A confident summary standing over an answer
+nobody read is §29.44's shape pointed at the driver instead of at a rule.
+
+**It was not given a threshold.** The sweep has already been run at n=1, so any
+threshold chosen now would be chosen after seeing the data it judges — §29.42's
+line about the 10 pp margin's standard error applies unchanged. The honest fix is
+to stop calling it CLEAN. The driver now carries a `REPORTERS` array, prints
+`REPORT` for those scripts, and surfaces them in the attention block as *exit
+status carries no verdict — read the output*.
+
+**And the annotation is checked against the code, not maintained beside it.** A
+hand-kept list of script names is exactly the artefact that goes stale, and it
+would go stale in the flattering direction — a script that stops being able to
+fire would keep being summarised as CLEAN. So `rule_audit.py` re-derives the set
+from source and fails if it disagrees with the driver's array, in either
+direction: a script missing from `REPORTERS` gets its adverse output called
+clean, and a stale entry hides a real verdict behind "read the output". Both are
+named separately, because they need opposite fixes.
+
+`--calibrate` asserts the audit rediscovers §29.44 — `dropout_position.py` cannot
+return 0, while `dropout_null_k.py` and `gate_reweight.py` can return all three.
+An audit that cannot reproduce the defect that motivated it is not auditing
+anything. Self-test 22/22 on synthetic sources, including the shape that produced
+the false alarm.
+
+One thing left as-is and worth naming. `censor_power.py`'s only `return 1` is
+TEST 0 — its null calibration failing to reproduce α — so the driver will
+classify a *broken power simulation* as "a pre-registered rule fired". Both
+demand attention and both reach the attention block, so nothing is lost; but they
+call for opposite responses, one being "act on this finding" and the other "do
+not believe this script". Giving one script a private fourth status would cost
+more than it buys, so the convention stands and the ambiguity is recorded here
+instead.
