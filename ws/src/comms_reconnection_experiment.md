@@ -7155,3 +7155,102 @@ Scripts: `rate_compare.py` (world rates + refusal band), `gate_project.py`
 (saturated-vs-slow). All three refuse rather than guess when their inputs are
 out of range — v1's failure was not a wrong number, it was a confident verdict
 attached to one.
+
+### 29.28 Closing §29.27's open assumption, and failing to
+
+§29.27 held `RECONNECT_MIN_SHARE_VOX=550000` on one number — gate declines land
+at median `unknown` 0.593 in `dense` and 0.617 in `dense2` — and flagged the
+assumption underneath it as the thing that could still move the conclusion:
+
+> dispatches are assumed to fall similarly over map fraction in the two worlds.
+> `dense2` drops out MORE often (+58.6 % trees, occlusion-gated link); WHERE
+> those extra dropouts land is **unmeasured**.
+
+It turns out to be measurable now, which is worth doing before `pb4d` rather
+than after. `dropout_position.py`.
+
+**The `off` arm and nothing else.** A reconnect manoeuvre moves the robots,
+which moves where the *next* dropout happens — in a treated arm, outage position
+is partly an *outcome* of the treatment, and conditioning the projection on it
+would be §29's post-treatment trap in a new costume. `off` logs `peer_lost` and
+does nothing, so its outage positions are a property of the world and the
+geometry alone. It is also the only arm present on both sides, `fd2s` being
+off-only.
+
+**Weighted by outage-seconds, not counts.** A dispatch needs an outage to
+outlive the gate (60–240 s). A swarm of 5 s flickers can never produce one, and
+counting outages would let them outvote the few long ones that drive the
+mechanism.
+
+#### The same error, one file away, in a new costume
+
+First run: **TVD 0.611**, and the script concluded the two worlds drop out in
+completely different places. That is `rate_compare.py`'s v1 error again — `fd2s`
+is a floor smoke (`done_unknown_fraction=0.30`, unreachable), so it crosses 0.60
+at ~1840 s and then runs ~3560 s more with the pair parked on a plateau. Sixty-
+five of its 74 outages were in that tail, and the median "outage" came out at
+1090 s, which is not a dropout any `pb4d` cell could ever experience because
+`pb4d` stops at 0.60 exactly as `pb3g2` does.
+
+Both worlds are now cut where a `pb4d` cell would actually end — the moment the
+last robot reaches `unknown ≤ 0.60`, which is what `run_explo_sim_rviz.sh:1294`
+does at runtime. It only bites `fd2s`: 68 of its 74 outages were post-stop.
+
+Worth naming plainly: this error had been diagnosed, written up, and fixed in a
+sibling script *that this one imports*, and it still recurred. The lesson that
+transfers is not "remember the truncation" — it is that **any statistic pooled
+across `fd2s` and `pb3g2` is wrong by default**, because one campaign is
+deliberately run to a cap the other never approaches.
+
+#### The number that made the answer honest
+
+Truncated, TVD rose to **0.814**. Two verdicts, 0.611 and 0.814, both pointing
+at "the worlds differ" — and neither meant anything, because nothing had
+established what a *same-world* cell scores.
+
+Leave-one-out over the 30 `pb3g2` `off` cells, each against the other 29 (exact,
+no sampling, so no RNG to get wrong — §LCG):
+
+| | TVD |
+|---|---|
+| min | 0.219 |
+| median | **0.490** |
+| p90 | 0.692 |
+| max | 0.768 |
+
+A single cell scores **0.49 against its own world**. The statistic is
+intrinsically noisy at n=1, and both earlier "refutations" sat comfortably
+inside the noise floor that had never been measured. This is `power_n.py`'s
+lesson (§power-sim) arriving in a new place: a comparison with no null
+calibration is not a weak test, it is not a test.
+
+One more diagnostic, because 0.814 does clear the null's maximum:
+
+| largest single outage, as a share of all outage-seconds | |
+|---|---|
+| `dense` | 4.1 % |
+| `dense2` | **48.6 %** |
+
+Half of `dense2`'s evidence is *one outage*. A TVD computed from that is a
+statement about that outage, not about the world.
+
+#### Verdict: suggestive, underpowered, no action
+
+TVD 0.814 exceeds all 30 same-world scores, which is why it is worth
+scheduling — and it rests on one cell, half of whose weight is a single event.
+It does **not** overturn §29.27 and it does **not** support it. §29.27's open
+assumption stays exactly as open as it was written, which is what writing it
+down as an assumption was for.
+
+**Decision rule, fixed now so the 3/3 answer is read by a rule instead of being
+shaped into one:**
+
+* TVD ≤ **0.692** (`dense` p90) → assumption **supported**, HOLD stands.
+* TVD **0.692–0.768** → still inside `dense`'s own spread, no action.
+* TVD > **0.768** at 3/3, **and** no single outage over 50 % of the seconds →
+  re-derive §29.27's decline states from `dense2`'s *own* outage positions
+  **before** `pb4d` launches.
+
+The third branch is the one that costs something, so it is worth being explicit
+that it is affordable: it is an analysis re-run against data that will already
+exist, not another campaign.
