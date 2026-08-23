@@ -7002,3 +7002,156 @@ outage, and it would present itself at 3am mid-campaign.
 The live path is unchanged and verified: `pb3g2` is still the only populated
 group, so the default still resolves, and `cells.py` reports 120 cells across 4
 arms, 0 % censored, exactly as before.
+
+### 29.27 The gate is denominated in information; the clamp is denominated in time
+
+`RECONNECT_MIN_SHARE_VOX=550000` is not a duration and not a size threshold. It
+is the numerator of
+
+```
+t = 550000 / (self_rate + peer_rate)      clamped into [60, 240] s
+```
+
+(`explo_planner_node.cpp:3926`, `midrunGateSec`). The whole reason the mid-run
+trigger was re-expressed this way on 2026-08-19 is that a quotient in
+information transfers across worlds where a fixed clock does not. But the
+**clamp** is still in seconds, and it was never rate-normalised. So the
+treatment `pb4d` administers depends on how fast `flatforest_dense2` gives up
+map — and **nothing in `run_manifest.txt` changes when it does.** §29.24 checked
+the manifest diff, found one independent variable, and was right about the
+manifest and blind to this: a mechanism can shift underneath two identical
+manifests.
+
+That is worth stating plainly because it is the failure mode this whole document
+keeps rediscovering. §29.19 retracted a density detector. §29.23 found a tested
+gate testing the wrong branch. Here the parameter is *literally identical across
+the dose points* and that is exactly what makes it worth checking.
+
+#### The measurement was wrong twice before it was right
+
+**v1 — median per-step rate over the whole file.** `dense2` came out 187×
+slower and the script printed a calm verdict that the gate was safe. `fd2s` is
+deliberately burned to the 5400 s cap (`done_unknown_fraction=0.30`,
+unreachable) while `pb3g2` cells stop at completion, so the median was largely
+measuring *how long each run was left switched on*.
+
+**v2 — same statistic, each cell windowed at its own `t_cross(0.60)`.** Still
+23×. The window was right and the statistic was wrong: §29.17 established that
+`dense2`'s map arrives in rare enormous merges rather than by driving, so its
+per-step distribution is mostly near-zero with occasional huge values. The
+median tracks the near-zero part; the gate is fed by something closer to the
+total. Step cadence was checked and exonerated (4.45 s vs 4.65 s), which is what
+forced the statistic itself into question.
+
+**v3 — bin by map fraction, and calibrate against a known answer.** Both worlds
+hold ~1.46 M voxels when `unknown_fraction` crosses 0.60, so "40 % of the way to
+the criterion map" is a comparable place to stand in either. Ratio: **0.377×**,
+i.e. gates lengthen **2.65×** in `dense2`.
+
+The calibration is the part that makes v3 believable where v1 and v2 were not.
+The planner **logs `gate_sec`**, and `gate_sec = 550000 / rate_sum`, so
+`rate_sum` is *recoverable exactly* for every unclamped dispatch — the planner's
+own winsorised estimate, not a reconstruction. Predicted median 103 s against an
+observed 83 s across 206 real dispatches, a 24 % error that leans in the
+direction the dispatch-time skew predicts (dispatches cluster early, where the
+rate is high, and the decile weighting does not know that). A predictor that
+cannot reproduce the world where the answer is logged has no business projecting
+into the one where it is not.
+
+#### A quote used against its own meaning
+
+The projection said 44.7 % of `dense2` dispatches would pin at the 240 s
+ceiling, against 6.8 % in `dense`, and the natural reading — the one taken here
+for several hours — was that `hybrid` would degenerate into the legacy fixed
+clock, since `MIDRUN_MAX_SILENCE == MIDRUN_SILENCE == 240`. The harness comment
+even seemed to supply the phrase:
+
+> at 400k the floor binds and the arm would be a fixed 60 s clock wearing the
+> gate's name
+
+**That phrase belongs to the floor.** Two lines further down the same comment
+endorses the ceiling explicitly:
+
+> `550k / 319 = ceiling` → a saturated pair drifting apart slowly is declined,
+> which is the gate doing its job: 200 s of silence at that rate is only ~64k
+> voxels, four chance merges.
+
+Ceiling-pinning is a *designed decline*, not degeneration. "44.7 % of dispatches
+pin" is on its own evidence of nothing.
+
+#### The question that actually decides it
+
+A low rate has two unrelated causes, and the gate cannot tell them apart because
+a rate is all it has:
+
+* **saturated** — little left to find. Declining is correct, by design.
+* **slow** — plenty left to find, found slowly. Declining is a *mistake*.
+
+`pb3g2` reaches the ceiling at 319 vox/s in a pair that is nearly done. `dense2`
+is 2.65× slower everywhere, so it could reach the same quotient with most of the
+world still unknown. So the test is not *whether* the gate declines but **in
+what informational state**, and `unknown_fraction` (column 30) measures that
+directly. Both campaigns stop at `done_unknown_fraction = 0.60`, so the two
+worlds' values sit on one scale.
+
+| | dispatches | median `unknown` at decline |
+|---|---|---|
+| `dense` (`pb3g2`, 250 stems/ha) | 14 of 206 | **0.593** |
+| `dense2` (projected) | 92 of 206 | **0.617** |
+
+**0.024 apart, on a scale both campaigns run to 0.60.** The gate declines a pair
+that is about to finish, in both worlds. It transfers.
+
+#### Decision, recorded before `pb4d` has a single cell: HOLD 550000
+
+Not rescaled to ~207,000. Rescaling would preserve the *arithmetic* while moving
+the decline to a different informational state than `pb3g2`'s — breaking the
+correspondence the table above establishes, and changing the independent
+variable to fix a problem that measurement says is not there. The rise from
+6.8 % to 44.7 % is the density effect arriving *through* a working mechanism,
+not a mechanism substitution: `dense2` spends more of its dispatches near the
+done threshold, which is a fact about the world, which is what `pb4d` is for.
+
+Also rejected: **widening the clamp.** `MIDRUN_MAX_SILENCE` must stay ≤
+`MIDRUN_SILENCE`; a ceiling above it lets the gated arm fire *later* than its
+own control and confounds "gated vs not" with "waited longer". The planner warns
+at startup. This one is closed by the design, not by preference.
+
+#### What is pre-registered, and what is still assumed
+
+`gate_sec` is logged, so this is checkable **from `pb4d`'s first `hybrid` cell**
+— roughly one hour in, not at day 2.3. Registered now:
+
+* **Prediction:** ceiling fraction ≈ 45 % (`pb3g2`: 6.8 %); median `gate_sec`
+  ≈ 209 s (`pb3g2`: 77 s).
+* **Tripwire:** if the realised median `unknown_fraction` at a declined dispatch
+  falls outside **0.55–0.67** — the 0.593/0.617 pair with room either side — the
+  gate is *not* making the same decision in the two worlds, the dose–response is
+  not attributable to density, and it must be reported that way rather than
+  quietly.
+
+Two assumptions remain, and they are not equally reassuring:
+
+1. **The ratio rests on n=1 `dense2` cell.** Re-run at n=3 when the smoke lands.
+   This one is scheduled.
+2. **Dispatches are assumed to fall similarly over map fraction in the two
+   worlds.** `dense2` has 58.6 % more trees and the link is occlusion-gated
+   (§29.20), so it certainly drops out *more*; whether those extra dropouts land
+   early or late in map fraction is **unmeasured**, and n=1 cannot measure it.
+   This is the one assumption that could still move the conclusion, and it is
+   recorded as an assumption rather than folded into the verdict.
+
+One consolation about direction. §27.8 predicts `hybrid` does not beat `off` at
+400 stems/ha. If the gate *were* degenerating, it would fire *later*, dispatch
+*fewer* chases, and cost less time — pushing `hybrid` toward looking **better**.
+The confound therefore works *against* the registered prediction, so the
+predicted outcome would survive conservatively. The unpredicted one — `hybrid`
+winning at 400 — is the result that could not be attributed to density without
+first ruling this out. That asymmetry is registered here, before the data, for
+the obvious reason.
+
+Scripts: `rate_compare.py` (world rates + refusal band), `gate_project.py`
+(dispatch-weighted projection + decline state), `saturation_check.py`
+(saturated-vs-slow). All three refuse rather than guess when their inputs are
+out of range — v1's failure was not a wrong number, it was a confident verdict
+attached to one.
