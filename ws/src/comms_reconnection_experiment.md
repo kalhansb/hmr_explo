@@ -6620,3 +6620,64 @@ overlap. So **88.0 % remains the number**, and this exercise is a robustness
 check on the estimator rather than a competing estimate. Quoting 93 % because it
 came from the more carefully controlled comparison would be reintroducing the
 selection the control was built to expose.
+
+---
+
+## §29.22 Two pre-launch audits: one clean, one that found a live hazard
+
+Both were run while the smoke was still burning, on the principle that the
+moment the gates pass is the worst possible time to discover a typo. Recorded
+including the one that found nothing, because §"checks that stopped checking"
+is about guards that were never *exercised*, not guards that failed.
+
+### Audit 1 — does `overlap_link.py` assume "no sensing" when it means "unknown"?
+
+The suspect line computed the share of a gain attributable to the robot's own
+sensing as `0.0` whenever the trailing voxels-per-metre baseline was
+unavailable. But an unavailable baseline means *unknown* sensing, not *zero*
+sensing: if the robot drove during the settle window, real sensing would be
+credited as received map. Direction of the error is transfer too large →
+intersection too small → **overlap too low**, so it would have deflated the
+88 %, not inflated it. Safe direction, still wrong.
+
+`audit_baseline.py` over pb3g2's 116 robot-windows: **7** had an unknown
+baseline, and in **all 7** the robot had not moved — where crediting the whole
+gain as transfer is correct. **0 defective windows**; fd2s had 0 unknown
+baselines at all. The 88 % is untouched.
+
+The path was closed anyway, since pb4d runs in a world whose driving behaviour
+is not yet observed and the fix costs nothing: unknown baseline **with**
+movement now returns unidentifiable rather than zero. Re-running afterwards
+reproduced 43 % / 88.0 % / 72.2 % exactly, confirming a no-op on today's data.
+
+### Audit 2 — would `launch_pb4d.sh` actually launch 60 cells?
+
+`run_campaign.sh:66` makes an unknown flag **fatal**, so a typo surfaces only at
+launch. All ten flags `launch_pb4d.sh` passes were diffed against the parser's
+accepted set (lines 45–70): **all ten parse**.
+
+The seed expansion was the real find. `run_campaign.sh:77` is
+
+```bash
+IFS=',' read -ra _S <<< "$SEEDS"
+```
+
+which splits on **commas only**. The script is correct — it passes
+`SEEDS=$(seq -s, 1 30)`, verified to expand to 30 seeds × 2 arms = **60 cells**.
+But its own header comment documented the flag as `--seeds 1..30`, and that form
+parses as a *single* seed literally named `1..30`:
+
+| form | seeds parsed | cells |
+|---|---|---|
+| `$(seq -s, 1 30)` | 30 | **60** ✓ |
+| `1..30` | 1 (the string `"1..30"`) | **2** |
+
+A future reader "simplifying" the code to match the comment would get a
+two-cell campaign that looks like a normal one which merely finished early —
+and against a 2.3-day expectation, finishing early is the failure mode least
+likely to be questioned. The comment now carries the parser line number and an
+explicit instruction not to simplify it.
+
+**Neither audit changed a result.** One closed a latent path before new data
+could reach it; the other removed a hazard that lived in a comment rather than
+in code, which is where the checks that stopped checking tend to live.
