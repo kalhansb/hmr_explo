@@ -7466,3 +7466,66 @@ did.** The scratchpad analysis scripts are not version-controlled, so a suite
 that passed at a known commit and fails now cannot be bisected. The date in
 `cells.py`'s own comment is what dated the regression. Comments are not a
 substitute for history, and the next such change may not carry one.
+
+### 29.32 Three scripts that read a campaign without saying which
+
+§29.31's refusal message ends with advice:
+
+> `HMR_GROUP=pb4d python3 <script>`     any script, no edit needed
+
+That is a printed instruction that had never been executed, which is the exact
+shape recorded under *checks that stopped checking*. Tested on a fixture with
+both groups populated (three `off` and three `hybrid` cells each): unset →
+refuses; `HMR_GROUP=pb4d` and `HMR_GROUP=pb3g2` → exit 0, each returning its own
+group's rows. **The advice holds.** It needs no edit and no caveat.
+
+Testing it is what turned up the smaller problem. `cells.resolve_group`'s
+docstring says its `source` field is carried into the verbose banner "so a
+read-out always says out loud which world it is reporting on and why". Three of
+the eight default-group scripts pass `verbose=False` and so print no such line:
+
+| script | what it is | now prints |
+|---|---|---|
+| `peek.py` | per-cell bookkeeping | `group pb3g2 (from default …)` |
+| `shape_tripwire.py` | **gate 3** | same |
+| `censor_power.py` | the re-pricing the tripwire sends you to | same |
+
+The other five (`cles`, `dropped`, `preflight`, `spread`, `taildrift`) already
+show the banner and were left alone.
+
+The tripwire is the one that matters. Its output is captured into
+`gate_and_launch.sh`'s log, and that log is the record of *why pb4d was allowed
+to start*. A gate that cannot say what it looked at is not a record. It now
+prints the group as its first line, above the reference figures, so the
+`n=30, median 804s` it is reasoning from is attributable. Exit codes untouched —
+`--check` still returns 2 at 1-of-3 cells.
+
+**A second thing in `peek.py`, same class as §29.31.** Asking for a pb4d cell
+under `HMR_GROUP=pb3g2` reported `not loadable yet` — which reads as *that run
+has not finished*, when the cell is finished, present, and merely out of the
+selected group. During a live pb4d campaign that is the difference between
+"wait" and "you set the wrong group", and the wrong one of those is the
+comfortable one. Three conditions now get three names:
+
+```
+group pb4d (from $HMR_GROUP)
+pb4d_off_seed1          off     completion_s   606.43   distance_m    380.34
+in group pb3g2, not pb4d -- re-run with HMR_GROUP=pb3g2: pb3g2_off_seed1
+not loadable yet: pb3g2_off_seed99
+```
+
+The redirect is gated on the directory actually existing. Without that, a name
+belonging to another group but present *nowhere* would be sent off to re-run
+under that group only to be told "not loadable yet" — a true answer reached in
+two steps, and the second step is the one that tells you anything.
+
+**What this does not do.** It makes the scripts *say* which group they read; it
+does not stop anyone selecting the wrong one. `HMR_GROUP=pb3g2` on pb4d data is
+still a confident answer about the wrong world — the guard fires on ambiguity,
+and an explicit override is by definition unambiguous. The defence there is that
+the group is now on screen, which is weaker than a check and is all that is
+available once the operator is allowed to override at all.
+
+Regression: `test_gate_launch.sh` **10/10** with the negative control still
+failing as designed; `test_group_resolution`, `test_pb4d_loader`, `test_cells`,
+`test_censoring_path`, `test_finished_cells` all exit 0.
