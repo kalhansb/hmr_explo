@@ -8006,3 +8006,118 @@ printing nothing useful would also produce two identical files. **12/12.**
 Run against the live root right now it exits 3 and names the fd2s smoke. That
 is the correct answer today, and it is the check working rather than the check
 being untested.
+
+### 29.40 Eleven scripts that answer in their exit status
+
+The fd2s smoke lands three cells, and eleven readouts have to be re-run against
+them in the window before `pb4d` launches. Eleven ad-hoc invocations, typed
+once, unattended, is §29.39's three commands again, so it became
+`fd2s_readouts.sh`. Running it against the one finished cell — before the
+window, when a mistake is free — found something worth more than the driver.
+
+**Three of the eleven exited non-zero, and none of them had failed.** All
+eleven end in `sys.exit(main())` and encode a three-valued answer in the
+status: `0` clean, `1` a pre-registered rule fired, `2` not enough data to
+decide. `rate_compare.py` returned 1 to say the 550000 gate is not the same
+mechanism at both densities; `dropout_position.py` returned 2 to say it
+declined to answer on one cell. The first version of the driver labelled both
+"FAILED". In the real window that reads as three broken scripts, and the
+repair for a script that is working correctly is to break it.
+
+So the driver classifies rather than counts: CLEAN, VERDICT, DEFERRED, ERROR,
+and only ERROR is a failure of the run. A fired rule is the readout doing its
+job and is for a person to act on.
+
+**The one genuine ambiguity is worth stating.** An uncaught Python exception
+also exits 1, so a crash and an adverse verdict are indistinguishable by status
+— and "a rule fired" is the flattering reading of the two. The log is checked
+for a traceback to separate them, scoped to `rc == 1` deliberately, because
+`traceback.print_exc()` inside an `except` block prints one and then returns
+cleanly. Without that check a script that began crashing would report "rule
+fired" indefinitely, which is §23.3 arriving by a new route. The classifier is
+a function with a `--self-test` that drives all six cases, including the two
+that no real run produces.
+
+**The other half of the driver is a name.** Every one of these scripts
+hardcodes its own tags and reads whatever cells are on disk. At n=1 they
+produce complete, plausible, correctly-formatted answers; at n=3 they produce
+different ones; nothing in the output says which. These numbers go into this
+document. So the output directory is named `readouts_n<k>` for the number of
+**finished** cells — `run_end_reason` present, not the directory existing — and
+every file carries a header naming the cells and their end reasons. The n=1
+rehearsal and the real n=3 run cannot land in the same place.
+
+Current state, n=1: 8 CLEAN, 2 VERDICT (`merge_crossing`, `rate_compare`), 1
+DEFERRED (`dropout_position`), 0 ERROR. Both verdicts are already answered in
+this document — §29.27 records HOLD 550000 against exactly the trilemma
+`rate_compare` prints — and the deferral is the assumption §29.27 lists as
+still open. The readouts and the pre-registration agree, which is the result
+this rehearsal was looking for.
+
+### 29.41 A tripwire nothing could pull
+
+§29.27 registers a tripwire before `pb4d` has a cell: if the realised median
+`unknown_fraction` at a declined dispatch falls outside **0.55–0.67**, the gate
+is not making the same decision in the two worlds, the dose–response is not
+attributable to density, and it must be reported that way rather than quietly.
+
+Nothing evaluated it. `gate_project.py` computes the 0.593 / 0.617 pair the
+band is drawn around, but it *projects* `pb3g2`'s dispatches into `dense2`
+rates — it never reads a `pb4d` cell, and it could not, because `pb4d` had not
+run. The tripwire was a sentence in a document.
+
+This is the §23.3 inert-guard pattern one step earlier than usual. A guard that
+stops checking at least checked once. This one would have gone the whole
+campaign without executing, and the campaign would have ended with a
+pre-registration that read as satisfied because nothing had contradicted it.
+
+`pb4d_tripwire.py` evaluates it. The definition of a decline — a dispatch whose
+`gate_sec` is pinned to the 240 s ceiling — is imported from `gate_project`
+rather than re-derived, so the evaluator and the projection cannot drift apart.
+Run against `pb3g2` it reproduces `gate_project`'s figures exactly: 14 declines,
+median 0.593. That equality is the reason to believe it is reading the right
+rows.
+
+**Finished cells only, which corrects §29.27's own timing claim.**
+`unknown_fraction` falls from ~1.0 toward the 0.60 done threshold, so declines
+seen early in a run sit at high unknown and a part-run cell biases the median
+*upward* — toward the top of the band and out of it. A tripwire that fires
+because it was read early is worse than none, because it fires against the arm
+it exists to protect.
+
+Which makes §29.27's "checkable from `pb4d`'s first `hybrid` cell — roughly one
+hour in" wrong, and the arithmetic was available when it was written.
+`pb3g2`'s `hybrid` arm issued 68 dispatches over 30 cells at a 2.9 % ceiling
+rate; at `dense2`'s projected 44.1 % that is about **one decline per cell**.
+One cell yields a median of one number.
+
+The floor is calibrated against the world that has an answer rather than
+chosen. `pb3g2`'s 14 declines have sd 0.037; the median's standard error is
+about 1.253·sd/√n, and requiring that to be at most half the band's half-width
+gives n ≥ 2.3. The floor is set at **10**, not 2.3, because that sd is
+*dense's* — `dense2`'s spread is unmeasured, which is the entire reason the
+tripwire exists — and 10 tolerates a spread 2.1× wider before the median's
+error reaches the band edge. Fixed now, before any `pb4d` cell exists, which is
+the only time it can be chosen honestly.
+
+So the honest timing: `launch_pb4d.sh` runs seed-major, every arm at seed 1
+before any at seed 2, so the tenth `hybrid` cell is campaign cell ~20 — about
+**20 hours in** at the point pricing, ~40 at 2×, against a 58–115 hour
+campaign. A third of the way, not the first hour. Still early enough to be
+worth having, which is why it is registered at all.
+
+Exit status follows §29.40's convention — 0 inside, 1 fired, 2 not enough
+declines — and all four paths are exercised: no cells, below floor, inside band
+on real data (`pb3g2 rendezvous`, 0.584, via a `--floor` override documented as
+calibration-only), and the out-of-band branches through a `--selftest`, since
+no real data reaches them. `pb3g2`'s three arms sit at 0.584 / 0.582 / 0.617,
+all inside. A band whose firing path has never executed is not a check, and
+`pb4d` is not the place to discover it had a typo.
+
+The direction argument from §29.27 is reprinted in the fired branch, because it
+is the thing most likely to be forgotten at the moment it matters: a gate
+degenerating toward a fixed clock fires later, dispatches fewer chases, and
+costs `hybrid` less time — pushing `hybrid` toward looking **better**. §27.8
+predicts `hybrid` does not beat `off` at 400. The confound therefore works
+against the registered prediction, so a `hybrid` loss survives it
+conservatively and a `hybrid` win is the result that has to rule this out first.
