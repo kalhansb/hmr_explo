@@ -6743,3 +6743,70 @@ inert.
 by eye, at the one moment when the cost of getting it wrong is 2.3 days. The
 fixture that was supposed to prove a branch worked instead proved the branch had
 never run — which is the argument for building it.
+
+### 29.24 The manifest diff: four lines, one independent variable, and an unrecorded regime difference
+
+§29.23 tested the launch script. This checks the thing the script launches. The
+claim behind pb4d is that it differs from pb3g2 in the **world and nothing else**,
+and now that an fd2s cell exists that claim is checkable against a real manifest
+rather than against my reading of the flags. Diffing the two, ignoring
+timestamps, hashes and paths, leaves four lines:
+
+```
+< scenario=flatforest_dense2_2robot_lidar.yaml   > flatforest_dense_2robot_lidar.yaml
+< done_unknown_fraction=0.30                     > 0.60
+< comms_trees_loaded=441                         > 278
+                                                 > run_gates_verdict=CLEAN
+```
+
+`tx_power_dbm`, `duration_s`, `record`, `seed` and every arm parameter match
+exactly. The fourth line is only pb3g2 having finished. So one intended
+independent variable, one consequence of it, and one deliberate difference that
+needs justifying.
+
+**441 vs 278 trees.** This is the strongest evidence yet that dense2 is a
+genuinely different world, and it is worth its own sentence because of where it
+comes from. §29.19 retracted the claim that dense2 is more partitioned than
+pb3g2 after the link column failed to carry it three times. `comms_trees_loaded`
+is not derived from the link column, not a statistic, and not something my
+analysis chose — it is the count of occluders the comms model loaded, **+58.6 %**,
+written by the run itself. Given that dropouts here are occlusion-gated rather
+than power-gated, that is the mechanism, measured directly. It corroborates
+§29.13's partition licence (60.5 % vs 30.0 % outage median) from an independent
+direction, which is exactly what a retracted claim needs before its replacement
+is trusted.
+
+**The 0.30, and the regime it hides.** The smoke runs to `done_unknown=0.30`
+while pb4d will run at 0.60. That is deliberate: a floor gate has to see *past*
+the criterion to show the criterion is reachable with margin, and stopping later
+cannot move a crossing that already happened. But it implies something that was
+nowhere on the record. With `STOP_ON_DONE` at 0.60, the **first robot to finish
+parks**; in the 0.30 smoke it keeps exploring. Since merges occur in the off arm
+(§29.20), pb4d's second robot loses a map source at the moment its partner
+finishes — a regime the smoke never enters, which would make smoke-derived
+pricing and gate2's C3 margin optimistic.
+
+The exposure is bounded by the lag between the first robot reaching 0.60 and
+both reaching it. pb3g2 ran at 0.60 with stop-on-done, so it measures this in
+pb4d's own regime, over 120 cells:
+
+| | lag |
+|---|---|
+| p50 | 15 s (2.3 % of run) |
+| p75 | 45 s |
+| p90 | 120 s |
+| p95 | 195 s |
+| max | 890 s (61.6 %) |
+| cells > 60 s | 25/120 (21 %) |
+
+A median 2.3 % of a run happens with a parked partner. fd2s cell 1's lag — 22 s,
+measured with *no* parking, since nothing stops at 0.60 there — sits around
+pb3g2's p60, giving no sign that parking inflates it. That comparison is n=1 and
+proves nothing on its own; the load is carried by the exposure being small in
+the first place.
+
+**Verdict: the gates measure what they claim to.** The difference between smoke
+and campaign was real and unrecorded, and it turned out to be worth about 2 % of
+a run. Recorded here because "we checked and it was small" and "we never thought
+to check" are indistinguishable from the outside, and this project has already
+been bitten by the second one wearing the clothes of the first.
