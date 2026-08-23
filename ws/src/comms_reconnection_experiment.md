@@ -11363,3 +11363,81 @@ columns, monotone odometer, and a mean pace of 0.27 m/s inside the plausible
 ground-vehicle band, which is the cross-check that ties the CSV to physics) and
 `tick_census.py` (classifies every tick rather than filtering, which is how both
 traps above surfaced).
+
+### 30.14 Capping the simulated lidar at the range the map already keeps
+
+The sim's lidar reports to 100 m and **nothing downstream keeps a metre of it
+past 20**. This is the one wall-clock saving found so far that is not paid for
+in experiment validity, so it is recorded with its evidence chain rather than
+applied on plausibility.
+
+**Every consumer already truncates at 20 m.**
+
+| consumer | cap | where |
+|---|---|---|
+| `scovox_node` (the map) | 20.0 m | `simple_nav_3d.launch.py:467` |
+| nav costmap | 20.0 m | `simple_nav_3d.launch.py:287`, `sensors.max_range_m` |
+| comms model | — | never subscribes to a pointcloud at all |
+
+The comms entry is the one that mattered most to check: the link is
+occlusion-gated over a ~50 m corridor, so a 20 m sensor cap would be
+catastrophic if the radio read occlusion off the lidar. It does not —
+`hmr_comms_sim_node.cpp:549` builds the Fresnel corridor analytically from
+ground-truth tree positions and `tree_radius_m_`, and subscribes to no cloud.
+
+**The cull is unconditional, and it happens before anything else.** This needed
+checking because it first looked inert: the lidar path runs `carve_band: -1.0`
+and `range_decay_length: -1.0`, which makes `need_rng` at `scovox_node.cpp:1443`
+false. But `need_rng` only gates computation of the *transformed* range for the
+decay weight. The range cull itself is unconditional, at `scovox_node.cpp:1601`
+and `:1666`:
+
+```cpp
+if (rr2 < min_r2 || rr2 > max_r2) continue;
+// "culled returns never reach deskew, binning, or the medoid stats"
+```
+
+So a return at 45 m today is raycast by Ignition, serialised, published over
+DDS, and dropped at the **first branch** of the point loop. It contributes no
+occupied hit and — because the cull precedes integration entirely — **no
+free-space carve either**. Shortening the sensor therefore removes computation,
+not information. This also confirms §30.12's "the map integrates at 20 m" for
+the right reason rather than by coincidence.
+
+**The change: `<max>100</max>` → `<max>20.5</max>`** in
+`COSTAR_HUSKY_SENSOR_CONFIG_LIDAR/model.sdf:260`.
+
+**Why 20.5 and not 20.0.** The cull is *strictly* greater-than. If Ignition
+reports a no-return ray as a point at exactly the configured maximum rather than
+as `inf`, then at a 20.0 m cap that point satisfies `rr2 > max_r2` = false, sails
+through the gate, and integrates as an **occupied hit** — a spurious spherical
+shell at 20 m painting false walls around every robot, at exactly the radius
+where the map stops. That failure would look like a legitimate map and would
+throttle exploration silently. At 20.5 m the boundary is unreachable whatever
+Ignition's convention is, because 20.5 > 20.0 culls at both consumers. The cost
+is 0.5 m of extra raycast against 79.5 m removed. (Ignition is believed to emit
+`inf`, which the `isfinite` guards at `:1597`/`:1663` already drop — but the
+margin makes the belief unnecessary.)
+
+**Acceptance test, and it is a hard gate: the map must come out bit-identical.**
+If it does, the saving is free forever and comparability with `pb3g2` is
+untouched. If it does not, this is a behavioural change and gets priced like any
+other — a new binary/world generation, with everything that implies for the
+archive rule.
+
+**Expected saving: unknown, and deliberately not estimated.** `gpu_lidar` cost
+is a depth render whose far clip is the max range; in `flatforest_dense` a 100 m
+clip puts all ~250 stems in frustum against ~31 within 20 m, so scene geometry
+drops ~8×. Render cost is not linear in geometry, so the win is real and
+unquantified until measured. Ray *count* does not change: 1800 × 16 is fixed by
+`<samples>`.
+
+**Timing is not negotiable.** Every cell launches Ignition fresh and re-reads
+this SDF, so editing it mid-campaign gives `tr1` cells 30–60 a different sensor
+from cells 1–29. Even granting that the change is expected to be neutral,
+splitting a live campaign is the worst available way to discover it is not. The
+edit lands after `tr1`'s final cell, never before.
+
+**Non-claim.** Neutrality is *expected*, not established. Until the
+bit-identity test runs, this is a proposed optimisation with a good argument
+behind it, not a verified free lunch.
