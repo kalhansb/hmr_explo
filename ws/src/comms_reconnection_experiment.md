@@ -6260,3 +6260,92 @@ edge, which is the good case. But it also means cell-to-cell variation in
 t_cross will be driven by *which* cliff crosses the line, not by smooth
 variation in exploration speed — so the three smoke cells are not three
 measurements of one number, and the spread between them is the thing to read.
+
+### 29.18 What the endpoint actually measures, and a free measurement of map overlap
+
+§29.17 established that in dense2 the criterion is crossed by a merge. That
+forces a question about the endpoint that has never been asked in writing:
+**whose map is the criterion evaluated on?**
+
+`run_explo_sim_rviz.sh:1294` answers it. `STOP_ON_DONE=1` "ends the run once
+EVERY planner is in DONE", and a planner enters DONE on its **own**
+`unknown_fraction` falling to `done_unknown_fraction`. So the endpoint is
+per-robot map coverage, required of *both* robots. (This also confirms
+`shape_tripwire.py` is right to take `max` over robots rather than `min`; a
+per-robot crossing would price a cell shorter than the campaign runs it.)
+
+**The threat to validity, named before the result rather than after.** If
+progress to the criterion is merge-gated and the criterion is per-robot, then a
+method that engineers reconnections is partly being rewarded for making the
+*stopping rule* fire, not for exploring. A reader will raise this, and it is
+much cheaper to answer now.
+
+The answer is that a merge cannot manufacture coverage — it can only reveal it.
+The voxels bestla hands atlas at 1805 s are ground bestla had already driven.
+Crossing 0.60 still requires the *union* to have covered 40 % of the ROI, which
+no amount of radio achieves on its own. What the merge changes is the lag
+between ground being covered and the robot that must act on it *knowing* it was
+covered. Reducing that lag is not an artifact of the stopping rule; it is the
+entire operational point of a reconnection method, and it is the mechanism
+behind the redundancy already on record — a robot that does not know its
+partner swept a region goes and sweeps it again.
+
+So the endpoint stands, restated precisely: **time until joint exploration
+becomes common knowledge.** Both arms are measured identically against it.
+
+**A measurement that turns out to be free.** The same identity that explains the
+jumps also measures map overlap, with no code change:
+
+    delta |A| at a merge = |B - A|
+    |A union B|     = |A| + |B - A|
+    |A intersect B| = |B| - |B - A|
+
+`total_observed_voxels` already logs this, in every campaign ever run,
+retroactively. "Per-voxel merge transfer logging" has been on the deferred list
+as a planner change; for the aggregate it was mainly wanted for, it is
+unnecessary. (It is still worth doing for per-voxel detail.)
+
+Because both robots merge, one event gives **two independent estimates of the
+same quantity, from different columns of different files.** They must agree.
+Result on fd2s cell 1 at the 1805 s event:
+
+| from | gain = other − me | \|atlas\| | \|bestla\| | union | overlap | of partner |
+| --- | --- | --- | --- | --- | --- | --- |
+| atlas | 317,386 | 1,284,745 | 1,264,453 | 1,602,131 | 947,067 | **74.9 %** |
+| bestla | 327,645 | 1,284,745 | 1,264,453 | 1,592,098 | 957,100 | **74.5 %** |
+
+Two independent estimates differing by 1.0 %, with the union identity closing
+against each robot's own post-merge count to under 1 %.
+
+**The cross-check earned its keep immediately — it caught two bugs that each
+produced a confident wrong number.**
+
+1. *Reading the partner's "before" count at my own merge time.* The merges are
+   mutual and near-simultaneous, so by the time atlas merges, bestla's count
+   already includes atlas's contribution, double-counting the shared volume. It
+   read 77.7 % from atlas against 71.5 % from bestla — plausible on their own,
+   but the *absolute* overlaps differed by 300,000 voxels, which is what
+   exposed it. Fixed by pairing events across robots and taking one reference
+   time before either merged.
+2. *An absolute voxel threshold for "this is a merge".* Sensing yield decays as
+   the world saturates: atlas's first sweep adds 127,963 voxels and the next
+   step adds 35,242 for 2.5 m driven, while a late-run sensing step adds ~10. A
+   fixed threshold therefore flags the opening sweeps as a merge and reports
+   **negative overlap** — the tell that saved it. Fixed by comparing each step
+   against that robot's *own trailing voxels-per-metre*, so the detector
+   follows the saturation curve instead of fighting it.
+
+Neither bug would have been caught by a single-sided calculation. This is the
+same lesson as §"checks that stopped checking", in the constructive direction:
+the redundant estimate was not ceremony, it was the only thing that failed.
+
+**What the 75 % is and is not.** It is MAP overlap: volume both robots have
+observed. It is **not** redundant driving. The robots start close together by
+standing instruction and a LiDAR sees far, so a large shared volume is sensed
+from the first sweep without either robot re-covering the other's ground. Treat
+it as an upper bound on wasted travel, consistent with — not a replacement for
+— the existing finding that redundancy is sequential rather than comms-driven.
+
+The single-sided events at 300 s and 1020 s report 87 % and 89 % but have no
+partner event to check against and their union identity closes only to 2.7–4.5 %.
+They are printed with that flag and should not be quoted.
