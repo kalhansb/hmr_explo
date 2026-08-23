@@ -9585,3 +9585,15 @@ pb3g2's.
 `unknown_fraction` 0.662, 950 s of sim before the 3240 s C3 gate. §29.55
 registered the outcome table before this cell landed precisely so the gate could
 not be chosen with the answer visible.
+
+**Addendum, written an hour later: the same failure a fourth time, in the exit
+status of the script above.** `approach_slope.py` returns 1 — §29.40's "a
+pre-registered rule fired" — when `corr >= 1.5`. It measured 1.55. The line was
+chosen with the value already on screen, a 3 % margin, which is §29.47's
+retracted criterion raise wearing different clothes. It cannot be repaired by
+moving the number, because moving it is the same act again. It is repaired by
+asking what two cells can support: recomputing `corr` from each dense2 cell
+alone gives **1.39× and 1.64×**, and 1.5 sits inside that range. Two cells do
+not decide it. The script now prints that range next to the threshold and says
+the exit status means READ THIS, not A RULE FIRED. `fd2s_readouts.sh` goes
+15 → 16.
