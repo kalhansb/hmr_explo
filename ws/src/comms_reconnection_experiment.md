@@ -11289,10 +11289,77 @@ variables already there.
 Nothing here shows the runs are gain-limited rather than travel-limited, and
 that is exactly what decides whether the change pays: if the robots spend their
 time driving rather than choosing, a better gain model buys little. That
-question is answerable from the planner CSVs and is deliberately left unanswered
-while `tr1` occupies the machine. (2) The 10 m / 20 m gap is a mismatch, not
+question is answerable from the planner CSVs — **answered in §30.13**. (2) The 10 m / 20 m gap is a mismatch, not
 self-evidently an error — a conservative gain model that under-credits distant
 frontiers is a defensible choice, and no measurement here says which value
 explores faster. (3) **Out of scope for `tr1`**, on the same grounds as §30.11:
 changing how candidates are scored changes the planner's behaviour, and `tr1`
 is in flight.
+
+### 30.13 The run is travel-dominated, but the gain model is not decoration
+
+§30.12 left one question open, and it decides whether that arm is worth running
+at all: if the robots spend their time driving rather than choosing, a truer
+sensor horizon rescales numbers nobody acts on. Measured on `pb3g2`'s **control**
+arm — no reconnect behaviour, so every tick is ordinary exploration and no
+chase-selected goal is averaged into the answer. 30 cells, 60 robot-streams,
+11 339 planner ticks, **13.8 robot-hours**.
+
+**Where the clock goes.**
+
+| | value |
+|---|---|
+| sim time deciding (a candidate set was evaluated) | 3 503 s — **7.0 %** |
+| sim time driving / integrating | 46 282 s — **93.0 %** |
+| goal decisions per robot-run | **23** |
+| planning compute per decision | 290 ms median (≈ 6.7 s per run in total) |
+
+**The instrument nearly lied twice, and both traps were checked rather than
+assumed.** First, only 1 385 of 11 339 ticks carry a candidate set, so 88 % were
+dropped — if `info_gain_std` were zero exactly when the planner had a single
+candidate, the survivors would be "the ticks where it had a choice" and any
+conclusion about discrimination would be true by selection. The census says that
+class is **empty**: every dropped tick has an all-zero candidate block and sits
+in `NAVIGATE` (7 828), `DONE` (1 461), `INTEGRATE` (583) or `WAIT_FOR_MAP` (44).
+The planner is not choosing badly at those ticks; it is not choosing.
+
+Second, the tick share is **not** a time share: scored ticks are 2.47 s apart
+and dropped ticks 5.00 s apart, so scaling 12.2 % of ticks by one rate would
+have been wrong in the flattering direction. The 7.0 % above is summed elapsed
+gaps, not a count times a rate.
+
+**When it does choose, the gain term is doing work.** Against the candidate-set
+summaries the planner logs for itself:
+
+- `z_gain = (selected − mean) / std` of candidate info gain: median **+0.72 σ**,
+  and the chosen candidate beat the candidate-set average on information in
+  **91 %** of decisions. A decorative gain term would sit at z ≈ 0 and 50 %.
+- `cost_ratio = selected / mean` candidate path cost: median **0.22**, below
+  average in **100 %** of decisions.
+
+**So: travel-dominated in time, but not travel-*decided*.** Both terms bind. The
+run's clock is 93 % driving, which means the only way a better gain model can
+pay is by choosing goals that shorten future driving — not by planning faster,
+which is already free at 6.7 s per run. With just **23 decisions per robot-run**,
+each one is high-leverage: one badly-valued goal is a long drive. That is the
+case for running §30.12's arm, and it is a *permission to test*, not a
+prediction of the sign.
+
+**Non-claims.** (1) `cost_ratio = 0.22` does **not** establish "it picks the
+nearest candidate". Candidate path costs in a 100 × 100 m world are strongly
+right-skewed, so 0.22 × mean is equally consistent with picking around the 30th
+percentile; ranking the selection would need per-candidate rows, which the CSV
+does not carry. (2) Nothing here predicts that `fov_max_range = 20` explores
+faster — it establishes that the mechanism it acts through is live, which is the
+weaker thing that was actually asked. (3) 38 ticks (0.3 %) sit in `state=PLAN`
+with no candidate set at all — a faint trace of the §21.3 starvation path, far
+too rare to affect any figure above, recorded so it is not rediscovered as
+novel. (4) Raising the horizon lengthens every gain raycast, so `plan_time_ms`
+will rise; from 290 ms against a 756 s run there is room for several times that
+before it registers.
+
+Instruments: `gain_vs_travel.py` (calibrated on three checks — no frozen
+columns, monotone odometer, and a mean pace of 0.27 m/s inside the plausible
+ground-vehicle band, which is the cross-check that ties the CSV to physics) and
+`tick_census.py` (classifies every tick rather than filtering, which is how both
+traps above surfaced).
