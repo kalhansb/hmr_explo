@@ -6862,3 +6862,143 @@ assertion, but by `check_signatures` refusing a pool whose `scenario` disagrees.
 a signature mismatch — correctly"). So the dangerous direction has **two
 independent guards, and the backstop does not depend on `GROUPS` being right** —
 which is the property worth having, since `GROUPS` is the part written today.
+
+### 29.26 The default that was correct until the day it wasn't
+
+§29.25 tested `load_cells(group="pb4d")` because that path had never executed.
+It passes, 16/16. But testing the path I had just written left the more common
+path unexamined: **the twelve callers that never mention a group at all.**
+
+I counted them. Fourteen scripts in the analysis directory call `load_cells()`.
+Exactly two — `final_table.py` and `permtest.py`, the two that carry the primary
+endpoint — accept `--group`. The other twelve take `DEFAULT_GROUP`, which is
+`pb3g2`:
+
+```
+final_table.py     passes group   has --group flag
+permtest.py        --             has --group flag
+preflight.py       --             iterates cells.GROUPS itself
+peek.py            NO group arg   no CLI flag
+censor_power.py    NO group arg   no CLI flag
+spread.py          NO group arg   no CLI flag
+taildrift.py       NO group arg   no CLI flag
+cles.py            NO group arg   no CLI flag
+...
+```
+
+That default is not a latent bug. It is *correct*, today, and has been correct
+for every day this directory has existed, because `pb3g2` is the only populated
+group. It becomes wrong at a specific, knowable moment: **the first time pb4d
+writes a cell.**
+
+And it becomes wrong in the worst available direction. `peek.py` is the progress
+check — the thing I will run dozens of times over a 2.3-day campaign to see how
+far along it is. Run mid-pb4d, it would have found pb3g2's 120 finished cells,
+computed a perfectly valid summary of them, and printed `120 cells, 0 % censored`.
+No error. No empty result. No traceback. A confident, well-formatted report about
+a campaign that finished two days ago, which I would have read as pb4d being
+healthy. This is the exact failure the `cells.py` module was written to prevent,
+arriving through the one door the module left open — its own default.
+
+**The rule.** An implicit default is honoured only while it is unambiguous. Once
+two groups have cells on disk, a caller that did not choose is refused:
+
+```
+AMBIGUOUS CAMPAIGN GROUP -- refusing to guess.
+
+  root       /tmp/hmr_campaign
+  populated  pb3g2 (120 cells), pb4d (1 cells)
+
+More than one campaign group has cells on disk and this caller did not say
+which it wants. Defaulting to 'pb3g2' was unambiguous until the second group
+existed; now it would quietly report on the OLDER campaign while the newer one
+is the reason you are running this at all. No error, no empty result -- just a
+confident answer about the wrong world.
+
+Say which:
+  HMR_GROUP=pb4d python3 <script>     any script, no edit needed
+  HMR_GROUP=pb3g2 python3 <script>     to keep the old behaviour
+  load_cells(..., group="pb4d")        in code
+```
+
+The escape is an **environment variable, not a flag**, and that is a deliberate
+design choice rather than laziness. The refusal fires for the first time while a
+2.3-day campaign is in flight. If the fix required adding argument parsing to
+twelve scripts, I would be editing analysis code under time pressure to see a
+progress number — which is exactly the circumstance in which edits go wrong.
+`HMR_GROUP=pb4d ./peek.py` works on every script, including ones not yet written.
+
+`load_cells` now also prints *how* the group was chosen, so a read-out can never
+look right while reporting on the wrong campaign:
+
+```
+pooled cells (group 'pb3g2', chosen by default (only one group populated)):
+```
+
+#### The caller that would have escaped the fix
+
+`final_table.py` prints the primary endpoint. It read:
+
+```python
+group = cells.DEFAULT_GROUP
+if "--group" in sys.argv:
+    group = sys.argv[sys.argv.index("--group") + 1]
+rows = cells.load_cells(..., group=group)
+```
+
+It always passed `group` **explicitly**. And an explicit argument is, correctly,
+treated as a choice — `resolve_group` must not second-guess a caller that named
+its group. So the highest-stakes script in the directory, the one that produces
+the number that goes in the paper, would have sailed straight past the new guard
+and remained the single caller still able to quietly table pb3g2 while pb4d was
+the campaign in question. Passing the default explicitly *looks* like good
+practice and here it defeats the check. It now leaves `group = None` and routes
+through the same resolution as everything else.
+
+I only found this because the test runs `final_table.py` and `peek.py` as **real
+subprocesses**. An in-process assertion about `load_cells` would have gone green
+and declared the problem fixed while the script that matters most still had it.
+That is the §29.23 lesson again in a different costume: testing the mechanism is
+not testing the thing that uses it.
+
+#### An expectation I had to break on purpose
+
+`test_pb4d_loader.py` contained this assertion, written yesterday, passing:
+
+```python
+ok("default group is still pb3g2", ...)
+```
+
+with the comment *"so every pre-2026-08-23 caller analyses exactly what it used
+to."* Under the new rule, in a fixture root holding both groups, that call now
+raises — the test failed.
+
+The temptation is to read a red test as evidence the change is wrong. Here it is
+the opposite: **the assertion encoded the promise that expires.** Back-compat was
+the right commitment while one world existed and is precisely the bug once two
+do. I amended the assertion to state the new truth (an unstated group is refused)
+plus its companion (`HMR_GROUP=pb3g2` restores the old read in one variable), and
+left the original wording in the comment so the reversal is legible rather than
+quietly overwritten. 16/16.
+
+#### Calibration
+
+Per the standing rule that a suite never shown a broken input proves only that it
+ran, `test_group_resolution.py` (15 assertions) carries a negative control, and
+`mutate_check.py` gained two mutations:
+
+| mutation | break | caught by |
+|---|---|---|
+| `silent_default` | remove the ambiguity refusal | 3 assertions fail |
+| `env_ignored` | make `$HMR_GROUP` inert | dies at the escape-hatch case |
+| `permissive` | sibling group pools in | signature check |
+| `strict` | sibling group raises | group assertion |
+| `no_cap` | censored cell keeps its own time | §29.10 cap assertion |
+
+**5/5 caught.** `env_ignored` breaks the *escape*, not the *guard* — it is in
+there because a refusal with no working way out is not a safety feature, it is an
+outage, and it would present itself at 3am mid-campaign.
+
+The live path is unchanged and verified: `pb3g2` is still the only populated
+group, so the default still resolves, and `cells.py` reports 120 cells across 4
+arms, 0 % censored, exactly as before.
