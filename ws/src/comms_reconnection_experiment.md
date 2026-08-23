@@ -11441,3 +11441,89 @@ edit lands after `tr1`'s final cell, never before.
 **Non-claim.** Neutrality is *expected*, not established. Until the
 bit-identity test runs, this is a proposed optimisation with a good argument
 behind it, not a verified free lunch.
+
+### 30.15 `tr1` was run three shards wide, against the runner's own rule
+
+`run_campaign.sh` opens with a prohibition, and it is worth quoting because
+this section is a record of deviating from it:
+
+> SEQUENTIAL, not parallel, and not negotiable: every run drives one Gazebo, two
+> scovox mappers and two planners on shared cores, and the emulator's airtime
+> model and the planner's single-threaded executor both turn CPU contention into
+> apparent COMMS behaviour. Two runs at once would not be two independent
+> samples, they would be two runs of a slower stack
+
+`tr1` was nonetheless run as **three concurrent shards**: disjoint seed ranges
+1–10 / 11–20 / 21–30, each on its own `IGN_PARTITION` (`trA`/`trB`/`trC`) and
+its own `ROS_DOMAIN_ID` (42/43/44), all appending to one `campaign_index.csv`
+under one `--tag`. Every completed `tr1` cell carries that condition. It is not
+recorded in `run_manifest.txt`, which is why it is recorded here.
+
+**The isolation is real; the sharing is CPU only.** Separate partitions and
+domains mean no cross-cell topic discovery — the failure mode where one cell's
+planner subscribes to another cell's map cannot occur. Disjoint seed ranges
+matter for a subtler reason: the resume check skips a cell that already has a
+`run_end_reason`, but that line is written at the *end*, so two shards given
+overlapping ranges would both start the same cell and race on its output
+directory. Ranges must never overlap.
+
+**Why the prohibition's hazard is not firing.** The rule assumes contention.
+Measured on the running box with three cells live:
+
+| channel | reading |
+|---|---|
+| `/proc/pressure/cpu` | `full avg10=0.00 avg60=0.00 avg300=0.00` |
+| `vmstat` idle | 32–33 % |
+| per-cell CPU | ~4.5 cores; 3 cells ≈ 13.5 of 20 |
+| RTF, all 36 finished cells | **0.53–0.56** |
+
+Zero *full* stall pressure and a third of the machine idle: the cells are not
+competing for a scarce pool. The RTF band is the load-bearing number — 36 cells,
+a spread of 0.03, regardless of how many neighbours each had. A cell is limited
+by its own serial thread chain (§30.16), and that thread gets a core whether or
+not two other cells exist. Contention is the mechanism the rule guards against,
+and the mechanism shows no signal.
+
+**A dose–response test was attempted and refused.** `contention_effect.py`
+reconstructs each cell's wall-clock window from `started_utc + wall_s`, counts
+overlaps as a contention dose, and regresses the endpoint on it. It does not
+work: shard A shows `hybrid` seed 1 spanning 17:29:34–17:50:01 while `off`
+seed 2 starts at 17:44:17, and a sequential shard cannot overlap itself. There
+are no duplicate rows, so the two columns simply do not compose into a cell's
+true occupancy. The script prints MISMATCH and reports nothing, per §fire_lag
+discipline.
+
+Its first calibration missed this. The check asked only whether reconstructed
+concurrency was `>= 2` and passed a peak of **10** as "consistent with 3 shards"
+— a number that is impossible on its face. The statistic was also mislabelled:
+it counted cells *touching* a 25-minute window, not cells running *at once*.
+Replacing it with a sweep line and a two-sided bound `2 <= peak <= 3` turned the
+pass into the failure it always was. Another entry for [[checks-that-stopped-checking]]:
+a bound with only one side is half a check.
+
+**Two corrections to earlier claims in this log.** First, the box was described
+as saturated at three cells. It never was — see the pressure and idle figures
+above. Second, and following from it, going sequential was twice described as
+free in throughput on the grounds that aggregate output was pinned regardless of
+shard count. That is wrong: the shards are three largely independent serial
+chains, so sequential costs close to **3× the campaign wall-clock**. The
+correct statement is that concurrency here is nearly free, not that sequencing
+is.
+
+**The scaling rule, and the gate.** At ~4.5 cores per cell against 20, a fourth
+shard fits with ~2 cores spare and a fifth does not. The gate is the RTF band:
+add a shard, and if cells stay at 0.53–0.56 the shard is free; if RTF falls
+below the band, or `full` pressure moves off 0.00, the new shard is taking time
+from the others and the rule's hazard has become real. That is a live check with
+a known-answer calibration — the current three-wide configuration is the
+negative control.
+
+**Non-claims.** (1) No `tr1` cell has ever run alone: measured dose spans
+roughly 0.9 to 2.9 concurrent neighbours. This is a *marginal* result inside
+that range, not a 1-wide vs 3-wide comparison, and the sequential baseline
+remains unmeasured. (2) Flat RTF rules out gross starvation of the *simulator*.
+It does not directly measure ROS executor lag or QoS queue drops, which are the
+specific mechanisms the runner's header names — 32 % idle makes executor
+starvation unlikely, but unlikely is not measured. (3) None of this argues the
+prohibition was wrong when written. It argues that its premise, a contended box,
+does not hold on this hardware at this shard count.
