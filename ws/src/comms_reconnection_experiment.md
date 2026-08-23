@@ -6021,3 +6021,70 @@ null rejects at 4.8 % against a nominal 5 %; the claimed 80 %-power ρ delivers
 count only the seconds inside the window. The rank correlation and the
 permutation p were both hand-written, and an LCG's low bits have already
 produced a biased permutation p once in this project.
+
+### 29.15 The analysis code was pre-registered too, and two of its defaults were wrong
+
+Everything in §25–§29 pre-registers what will be *computed*. None of it
+pre-registers the *code that computes it*, and while pb4d was still gated on a
+smoke — i.e. while no pb4d cell existed and no choice here could be shaped by
+an outcome — the read-out path was run against the world it is about to face.
+Two defaults did not survive.
+
+**Both were silent.** Neither would have raised, printed a warning, or produced
+a number that looked wrong.
+
+**1. `final_table.py` would have analysed the wrong campaign.** It called
+`load_cells(arms=cells.ARMS, require_done=True)` with no `group`. `group`
+defaults to `DEFAULT_GROUP`, which is `pb3g2`. Run against a finished pb4d it
+would have printed a complete, correctly formatted, entirely plausible table —
+of pb3g2. Nothing in the output named the group, so there was no line a reader
+could have checked. This is the same class of error as §29.11: the `GROUPS`
+partition added in §29.9 did its job perfectly at the loader and was then
+bypassed by a caller that never passed the argument.
+
+**2. It would have dropped exactly the cells §29.10 exists to keep.**
+`require_done=True` discards every cell that did not reach `all_done`. §29.10
+pre-registers the opposite — keep them at `min(T, cap)` with `censored=True` —
+because dropping conditions on a post-treatment variable and does so
+asymmetrically: the slower arm loses more cells, its surviving median is pulled
+down, and the ratio is dragged toward 1.0. **The filter manufactures nulls.**
+On pb3g2 this cost nothing, and that is precisely why it survived: pb3g2 was
+120/120 `all_done`, so the flag never bound.
+
+Both now come from the command line, spelled exactly as `permtest.py` spells
+them (`--group`, `--cap`), so the descriptive table and the inferential test
+cannot drift apart; and the group and censoring policy are printed in a banner,
+so analysing the wrong campaign became something the output says out loud.
+Back-compat was verified against the published §28 numbers — no arguments still
+reproduces 1.026× completion and 1.094× distance, exactly.
+
+**A branch that has never executed is not tested by the campaign that passed.**
+
+The censoring path had *never run on real data*. `censored` was `False` for
+every cell ever analysed, so every line of `cap_s` handling was dead code that
+sat in the loader looking implemented. pb4d explores ~2.5× slower against the
+same 5400 s cap, so pb4d is the first campaign to enter that branch — directly
+underneath the headline number. "pb3g2 passed" is evidence only that the branch
+was never entered.
+
+`test_censoring_path.py` (14/14) therefore builds a fixture campaign with
+censoring known by construction — synthesised rather than symlinked from real
+cells, because the property under test *is* the `end_reason`/cap interaction and
+no real cell can express it. What it pins:
+
+| | check | why it would be silent |
+|---|---|---|
+| **A** | dropping censored cells turns a real **1.100×** into a perfect **1.000×** | a manufactured null reads as "no effect found" — publishable-looking and wrong |
+| **B** | censored times impute to the **cap**, not their own `t_sim` | a run's last step lands ~40 s under the cap, making a cell that *failed* to beat it look marginally faster; same direction every time |
+| **C** | distance **excludes** censored rows, completion keeps them | the fixture's medians are identical either way — only the **count** exposes it |
+| **D** | the ≥50 % abort fires at 60 %, not at 40 %, **and at exactly 50 %** | a boundary silently reading as strict `>` passes both ordinary cases and fails only the one it was written for |
+
+Row **C** is the one worth keeping. Including truncated distances did not move
+the fixture's median at all — the check that would have caught it in a table is
+the pool size, not the statistic. A test asserting on the median alone would
+have passed while the defect sat in the output.
+
+**What this does not claim.** These are two defects in read-out code, found and
+fixed before the data existed. They say nothing about whether pb4d's world is
+the right one — that is what the gates in §29.12 and §29.13 decide, and they are
+still the thing standing between here and a 2.3-day campaign.
