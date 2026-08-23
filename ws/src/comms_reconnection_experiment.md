@@ -10631,3 +10631,189 @@ subtracting cannot detect ten added and ten stranded at once.
 `reconnect_min_share_voxels=550000.0`, `pursuit_budget_max_sec=2400.0`,
 `seed=31`, and `sha256_explo_planner_node=b05e162ca74df23b` — **the same binary
 as all 122 prior cells**. The registration and the run agree on every field.
+
+## 30. The small-world pivot: why pb3g2 was null, and what the review did to the plan
+
+Written 2026-08-23, immediately after `fd2t` was killed at cell 1 of 6 and the
+`pb4d` launch path was abandoned. §30.1 is the measurement that forced the
+pivot. §30.2 is the plan as first drafted. §30.3 is the adversarial review of
+that plan, which found three blocking defects and killed the headline parameter.
+§30.4 is what is actually being run.
+
+### 30.1 The finding: the treatment almost never got to act
+
+Every campaign so far has been tuned for *how much* the radio is down. That was
+the wrong quantity. The right one is how many outages last long enough for the
+reconnect manoeuvre to react, and it had never been measured.
+
+Measured by replaying the exact `NextBandwidth()` state machine
+(`hmr_comms_sim_node.cpp:584-618`) against every `link_states.csv` on disk. The
+replay reproduces the simulator's own `connected` column with **0.000 %
+disagreement**, so the numbers are the simulator's, not a model of it.
+
+| | pb3g2_off | fd2s_off | archived sparse |
+|---|---|---|---|
+| median run | 802 s | 5437 s | 1487 s |
+| link down | 56.3 % | 48.6 % | 49.7 % |
+| **median outage duration** | **8.9 s** | 5.8 s | 7.8 s |
+| **outages outlasting the 113–127 s trigger lag** | **4.4 %** | 7.6 % | 5.5 % |
+| **actionable opportunities per cell** | **0.73** | 5.67 | 1.14 |
+
+The median pb3g2 cell offered the treatment **less than one opportunity to
+act**. We then ran 30 cells per arm and applied an exact permutation test. A
+1.026× ratio at p = 0.395 is what a method that never fires produces, and no
+amount of n would have changed it.
+
+This does not retract the pb3g2 null — the null is real. It re-reads its cause:
+the radio flickers on a ~9 s timescale and the method responds on a ~120 s one.
+§29's framing, that severity belongs to the environment and should be raised by
+densifying the forest, optimised a quantity that was never binding.
+
+### 30.2 The plan as first drafted
+
+Three simultaneous changes, all runtime parameters so the planner binary stays
+`b05e162ca74df23b`: `ROI_HALF` 50 → **25** (a 50 × 50 m world, 4× less area, for
+throughput); `tree_attenuation_db` 11.98 → **28.0** (measured peak of the outage
+count, ×2.2); `MIDRUN_SILENCE` 240 → **60** (cut the trigger lag).
+
+Predicted budget: 0.26 opportunities per cell from the shorter run, ×2.2 from
+attenuation, ×3.6 from the trigger cut ≈ **2.1 per cell**.
+
+**Every one of those three factors was wrong.** The review is why.
+
+### 30.3 Adversarial review — three blocking defects
+
+**Defect 1 — `MIDRUN_SILENCE` is inert, so the ×3.6 lever does not exist.**
+`run_manifest.txt` records `reconnect_min_share_voxels=550000.0`, and
+`run_explo_sim_rviz.sh:225-233` states that when that is non-zero the fixed clock
+is *replaced*: the fire time becomes
+`clamp(550000 / pair_gathering_rate, MIDRUN_MIN_SILENCE, MIDRUN_MAX_SILENCE)`
+and `MIDRUN_SILENCE` is never evaluated. Measured on pb3g2's own planner CSVs,
+the pair gathers 7,734 vox/s early and 2,985 vox/s late, giving fire times of
+71 s and 184 s — which is exactly the 113–127 s lag observed. The trigger dial
+is the **voxel target**, not the silence clock. The plan named the wrong knob.
+
+**Defect 2 — the gate could never fire in a small world, and would have failed
+silently.** The pair observes **3,107,708** voxels per cell at 1.0 ha, so the
+550 k target is 17.7 % of the map. Scaled by area, a 0.25 ha map holds ~788 k
+voxels, and **550 k is 70 % of it**. Reaching the target would require near-total
+exploration, so essentially every mid-run reconnect would be declined and the
+hybrid arm would silently *become* the off arm — producing a clean,
+well-powered, perfectly executed null. That is pb3g2's failure again, and it
+prints nothing. The fix is to hold the target's *share of the map* fixed rather
+than its absolute value.
+
+**Defect 3 — a 50 × 50 world destroys the phenomenon under study, and this is
+the one that killed the headline parameter.** Trunks on a link grow with
+separation, so a smaller world puts *fewer* trees between the robots. Two
+uniform points in an L × L square are 0.5214·L apart on average — 52.1 m at
+L = 100, against pb3g2's measured 52.8 m, so the geometry transfers and the
+short-separation segments of existing runs are a fair proxy for a smaller world.
+Replaying those segments:
+
+| proxy world | median sep | mean trunks | best atten | actionable ≥35 s per 250 s run |
+|---|---|---|---|---|
+| 50 × 50 (`ROI_HALF=25`) | 22.0 m | 1.10 | 44 dB | **0.37** |
+| 70 × 70 (`ROI_HALF=35`) | 32.4 m | 1.95 | 28 dB | **1.32** |
+| 100 × 100 (today) | 47.0 m | 3.37 | 11.98 dB | 1.08 |
+
+At 22 m separation the link is **100 % up at the shipped attenuation**, and
+**not one outage reaches 75 s at any attenuation up to 44 dB**. Raising
+attenuation there produces many 3–7 s flickers, never a usable outage: at short
+range a robot walks out of a tree shadow before the trigger can mature. A
+50 × 50 world would be *worse than pb3g2* on the only quantity §30.1 identified
+as binding. **The requested world size cannot host this experiment.**
+
+A fourth, non-blocking finding, recorded because it refutes a hypothesis this
+plan originally rested on: the claim that a shorter link corridor makes the link
+flicker faster is false. Crossing rate of `trees_on_link` over its own mean rises
+monotonically with separation (21.4 per 1000 s at 0–15 m against 111.7 at
+55–70 m in pb3g2). Close robots have a *quieter* link, not a busier one.
+
+### 30.4 The revised design
+
+Campaign `sw1`, at **`ROI_HALF=35`** — 70 × 70 m, 0.49 ha. This is the smallest
+world the review's evidence supports: it still halves the runtime, which is the
+point of the pivot, while keeping separations in the band where the forest
+actually breaks the link.
+
+| knob | pb3g2 | `sw1` | why |
+|---|---|---|---|
+| `ROI_HALF` | 50.0 | **35.0** | 0.49 ha → ~2× throughput; 50×50 rejected by Defect 3 |
+| `TREE_ATTEN` | 11.98 | **28.0** | peak actionable rate at the *new* 32 m separation |
+| `RECONNECT_MIN_SHARE_VOX` | 550000 | **270000** | holds the target at 17.7 % of the map (Defect 2) |
+| `MIDRUN_MIN_SILENCE` | 60 | **20** | floor above the ~15 s real planning latency |
+| `MIDRUN_MAX_SILENCE` | 240 | **60** | ceiling; must stay ≤ `MIDRUN_SILENCE` |
+| `MIDRUN_SILENCE` | 240 | **60** | inert while the gate is on; set consistently |
+
+At 270 k the fire time is 35 s early and 90 s late, the latter clamped to the
+60 s ceiling — so an outage is actionable at 50–75 s rather than 127 s. Against
+the measured rates at 32 m separation and 28 dB, a ~390 s run yields **0.5 to
+2.1 actionable opportunities per cell** against pb3g2's 0.73. The honest range is
+that wide because the early and late gathering rates differ 2.6×; the smoke
+measures the truth rather than picking an end.
+
+### 30.5 What `sw1` does NOT claim
+
+1. **It is not comparable to pb3g2 on any metric.** Different area, radio and
+   trigger. Any cross-campaign ratio against pb3g2 is meaningless.
+2. **The treatment itself changed.** Retuning the gate modifies the method under
+   test, so `hybrid` in `sw1` is a *different method*. A positive `sw1` result
+   does not overturn the pb3g2 null.
+3. **Three changes land together and are not separable.** That is deliberate —
+   the goal is an operating point where the treatment can act at all, not
+   attribution to one knob — but no later section may attribute an effect to one.
+4. **The trigger cut has a real failure mode.** The 113–127 s lag was an
+   information gate *on purpose*. With a 20 s floor the manoeuvre will sometimes
+   fire on links that were about to recover, spending distance for nothing. **If
+   `sw1`'s hybrid arm is slower than its off arm, this is the first hypothesis,
+   not an anomaly.**
+
+### 30.6 Pre-registered launch gates
+
+`sw1` launches only off an `sw0` smoke, off-arm, run at **both** `ROI_HALF=25`
+and `ROI_HALF=35`. 25 is included even though §30.3 predicts it fails, because
+the prediction rests on a proxy — short-separation *segments* of big-world runs —
+and a real 50 × 50 run may distribute separations differently. The proxy is
+tested, not trusted.
+
+**G1 — the unknown-fraction floor.** `done_unknown_fraction=0.60` was calibrated
+at 1.0 ha and does not transfer; §29.62 makes re-measuring it blocking. Read from
+the **planner CSV**, never the events log (§29.57: a minimum over a sparse grid
+reads high). Above 0.60, no run terminates; just below, completion time measures
+the stopping rule instead of the policy. Neither announces itself.
+
+**G2 — the opportunity floor. This gate is new and is the whole lesson of
+§30.1.** Median actionable outages per `sw0` cell — outages outlasting the
+realised fire time plus ~15 s planning latency — must be **≥ 1.5**. Below that,
+`sw1` reproduces pb3g2's defect faster, and must not launch. Measured on the
+**off** arm: it prices the *supply* of opportunities, which the treatment must
+not influence.
+
+**G3 — run length.** Median `run_end_t_sim` must fall in **[150 s, 700 s]**.
+Below 150 s the run measures spawn transients; above 700 s the throughput
+argument has evaporated and with it the pivot's justification.
+
+Exit-status convention is §29.40's: 0 clean, 1 a registered rule fired, 2
+insufficient data. Primary metric, test and stopping rule are inherited
+unchanged from §25.3 — completion time, ratio of medians, exact two-sided
+permutation test, α = 0.05, n = 30/arm, **no early stopping**; §29.10 censoring.
+
+### 30.7 `TREE_ATTEN`: the dial the plan needed and the harness did not have
+
+The review's first pass found that `tree_attenuation_db` had **no environment
+override and no manifest field**, while its sibling `tx_power_dbm` has both —
+and `run_explo_sim_rviz.sh:312` says why in as many words: it exists so the
+number "lands in the run manifest and can be swept from the command line during
+calibration rather than by editing the installed yaml, which would silently
+re-scope every later run and leave no record of which severity any given run
+used." Setting attenuation by editing `comms_sim_params.yaml` would have done
+exactly that, and left `sw1` and pb3g2 cells indistinguishable on disk.
+
+Added, mirroring `TX_POWER` exactly: `TREE_ATTEN` in `run_explo_sim_rviz.sh`
+defaulted to the shipped 11.98 so a bare invocation changes nothing, passed as
+`tree_attenuation_db:=` to `comms_sim.launch.py`, layered onto the params file
+in the same `overrides` dict, and echoed to `run_manifest.txt` beside
+`tx_power_dbm`. Verified by reading the parameter back from a live node: 28.0
+applied, `tx_power_dbm` and `tree_radius_m` untouched at their yaml values.
+Harness only — the planner binary is not rebuilt and the hash does not move.
