@@ -7529,3 +7529,80 @@ available once the operator is allowed to override at all.
 Regression: `test_gate_launch.sh` **10/10** with the negative control still
 failing as designed; `test_group_resolution`, `test_pb4d_loader`, `test_cells`,
 `test_censoring_path`, `test_finished_cells` all exit 0.
+
+### 29.33 pb4d's independent variable is not committed
+
+The three gates ask whether `dense2` is the right *world*. Nothing asked whether
+the *launch command* is right, and `launch_pb4d.sh` is a file of assertions
+about other files — every flag carries a comment explaining why, and a comment
+is not a check. Audited each mechanically:
+
+| claim in `launch_pb4d.sh` | verified against | result |
+|---|---|---|
+| `seq -s, 1 30` gives the comma form | ran it | `1,2,…,30` ✓ |
+| seeds split on commas **only** | `run_campaign.sh` `IFS=',' read -ra _S` | ✓ — the range form really would yield 2 cells |
+| `--done-unknown` defaults to 0.55 | `run_campaign.sh:44` | ✓ — omitting it silently runs a different endpoint |
+| `STOP_ON_DONE=1` hardcoded | `run_campaign.sh:145` | ✓ |
+| pb3g2 ran `done_unknown_fraction=0.60` | pb3g2 manifest | ✓ |
+| `--duration 5400`, `--tx 30.0` | `duration_s=5400`, `tx_power_dbm=30.0` | ✓ |
+| `--env` reproduces pb3g2's arm params | `exploitation_enabled=false`, `reconnect_min_share_voxels=550000.0`, `pursuit_budget_max_sec=2400.0` | ✓ all three |
+| scenario resolves | `run_explo_sim_rviz.sh:96` reads the **install** space; it is a symlink to source | ✓ identical by construction |
+
+Two provenance checks that had to be done because §archive records a whole
+campaign generation voided by an unnoticed binary change:
+
+- **`sha256_explo_planner_node` is `b05e162ca74df23b` in both pb3g2 and fd2s.**
+  Same planner. The density dose is not confounded with a binary generation.
+- **The harness has not moved.** `run_explo_sim_rviz.sh` was last modified
+  2026-08-21 12:34:59; pb3g2's first cell manifest is 14:50:04, two hours later.
+  So one harness across pb3g2, fd2s and pb4d.
+
+`git_hmr_explo` differs between the two campaigns (`8ed316f-dirty.595f3da2` vs
+`8ed316f-dirty.7607b26e`) and that is benign: this document lives inside that
+repository, so every section committed here moves the dirty hash.
+
+**`git_hmr_sim` went clean → dirty, and that one is not benign.** pb4d is pb3g2
+in a denser world, and that world is three files:
+
+```
+?? hmr_sim/config/scenarios/flatforest_dense2_2robot_lidar.yaml
+?? hmr_sim/worlds/flatforest/flatforest_dense2.sdf
+ M hmr_sim/launch/_world_registry.py
+```
+
+Two untracked, one modified. The manifest of a 60-cell campaign would record
+`git_hmr_sim=a0df1ca-dirty.2f9eb048`; the commit half resolves and **the dirty
+half resolves to nothing**. So the only thing distinguishing pb4d from pb3g2
+would be the one thing the provenance record fails to pin down, and a later edit
+to that 1.4 MB SDF would be undetectable and unrecoverable. Everything the
+campaign is *for* is recorded; the independent variable is not.
+
+Not fixed by committing on the spot, because the commit has a right moment.
+Committing now would give fd2s cells 2 and 3 a different `git_hmr_sim` than cell
+1 for a byte-identical world — provenance noise inside the very smoke the gates
+read. **After the smoke, before the launch.**
+
+Which is a timing constraint, and a note saying "remember to commit first" is
+the kind of instruction §29.31 just finished showing does not transfer. So it is
+a guard: `gate_and_launch.sh` step 0, **exit 7**, refusing to launch while any
+of the three IV files is untracked or modified, and naming which. It sits ahead
+of the gates for the same reason the pb4d-exists check now does — a campaign
+that cannot record what it varied should not consume 2.4 days finding out
+whether it mattered.
+
+Tested three ways rather than one, because a guard that fires is only half of a
+guard: **untracked** → 7, **tracked-but-edited-since** → 7 (the same hazard in
+the other costume — committed once, edited after, recorded sha no longer
+describing the world that ran), and **clean** → 0. That third case is the one
+worth having. A guard that never releases would pass both failure tests and
+block the campaign permanently. All three run against `fx_pass`, the fixture on
+which every other case passes, so nothing but the guard can produce the 7.
+
+`test_gate_launch.sh` is **13/13**, negative control still failing as designed.
+
+**Pricing corrected while auditing.** The script priced pb4d from a 1.77×
+wall/sim read off a partial cell; the full run gives 10019 s / 5400 s = **1.855×**,
+so ~2.4 d rather than 2.3 d. Small — but it is the second optimistic projection
+in a row, after 1423 s predicted against 1815 s measured for the crossing, 28 %
+low. Both errors ran the same direction, which is the direction an estimate
+drifts when it is taken while the thing being measured is still running.
