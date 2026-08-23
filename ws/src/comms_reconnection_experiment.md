@@ -9842,3 +9842,60 @@ first. It is recorded as contingent.
 The general shape, for the third time in two days: the sweep that finds the
 defect and the sentence that asserts the defect is absent were written by the
 same person minutes apart, and only the sweep is evidence.
+
+### 29.59 C3 failed. Written down before the number that prices the response
+
+At 11:39 on 2026-08-23, `fd2s_off_seed3` passed sim t=3240 s with its worst
+robot at `unknown_fraction` **0.622**. gate2's C3 requires every calibration cell
+to cross 0.60 at or before 60 % of the duration cap — 3240 s of 5400 s. The cell
+did not. **C3 fails**, and it fails in the one way that cannot be argued with:
+not by a margin, but by the gate having already passed.
+
+This is recorded now, at the moment it became determined, because the rest of the
+outcome is still open and the rest is what prices the response. The cell has
+2125 s of sim left. Where it crosses inside that window sets `s`, and `s` is the
+only input `cap_raise.py` takes from the smoke. Writing the verdict down while
+the number that scales the remedy is still unknown is the same discipline
+§29.55's outcome table used, and it costs nothing here because the verdict is no
+longer contingent on anything.
+
+**Against the registered table.** §29.55 priced three regimes before this cell
+started and marked C3 `pass` in all three, because the three crossing values it
+tabulated (< 1838 s, 2501 s, > 3165 s) all sit under 3240 s. It also named the
+risk explicitly in the same paragraph: *"gate2's C3 is the binding constraint …
+A cell 3 that crosses after 3240 s fails C3 outright, independently of anything
+the cap does."* So the outcome is outside the tabulated regimes but not outside
+what was anticipated — the table priced the cap, the prose priced the gate, and
+it is the gate that went. `s_sensitivity.py`'s n≥3 mode scores the realised value
+against that table; it will report a crossing past every row.
+
+**The response, which was fixed in advance and is not being chosen now.**
+§29.47 settled that the criterion cannot be principledly raised: marginal
+exploration cost plateaus across u = 0.70/0.65/0.60 (paired exact sign tests
+p = 0.37 and p = 0.90), so there is no measurable sense in which a raised
+criterion is "the same endpoint in a harder world" — it is a weaker endpoint, and
+it would make pb4d's completion times incomparable with pb3g2's, which is the
+comparison the second world exists to provide. The cap has no such problem:
+raising it changes nothing about what is measured, only how long we wait to
+observe it. `cap_raise.py` sets the size by its own pre-fixed rule —
+`max_i(s · T_i)` over pb3g2's thirty observed `off` completions, divided by C3's
+own 0.60, rounded up to the next 600 s — deliberately projecting from pb3g2's
+30-cell spread rather than the smoke's three crossings, because a cap fitted to
+make C3 pass on the three cells C3 is then tested on would make C3 vacuous.
+
+**One refusal stands between here and that number.** `cap_raise.py` refuses if
+any fd2s cell never reaches the criterion at all: `s` would then be estimated
+from survivors only, biased low, and the cap would come out short — a smoke that
+did not reach the criterion cannot price a cap for reaching it. Cell 3 has not
+crossed yet. If it runs out the 5400 s cap at 0.62, C1 fails as well as C3, the
+raise cannot be priced, and the honest report is that the 0.60 criterion is not
+demonstrably reachable at 400 stems/ha within any cap this smoke can justify —
+which is a finding about the world, not a setback to be worked around.
+
+**What it already tells us, independent of where cell 3 lands.** The three
+crossings are 1838 s, 3165 s, and > 3240 s. §29.55 recorded `s` jumping 36 % on
+one added cell from two cells spanning 1.72×; the third does not settle that
+spread, it widens it. Whatever cap comes out of this, it is being fitted to a
+distribution whose shape three cells cannot describe — and that is a limitation
+to carry into pb4d's reading, not a reason to add smoke cells until the number
+stops moving, which is choosing a sample size by watching the estimate.
