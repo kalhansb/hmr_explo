@@ -6681,3 +6681,65 @@ explicit instruction not to simplify it.
 **Neither audit changed a result.** One closed a latent path before new data
 could reach it; the other removed a hazard that lived in a comment rather than
 in code, which is where the checks that stopped checking tend to live.
+
+### 29.23 The launch script's PASS path had never run, and the first attempt to test it tested the wrong branch
+
+`gate_and_launch.sh` decides whether to spend 2.3 days on pb4d. Its refusal
+path was tested at 0/3 cells (exit 3). The path that actually **launches** had
+never once executed, and it was going to execute for the first time unattended,
+against a smoke that exists once. That is exactly the gap `test_censoring_path.py`
+was built to close for §29.10, and §"checks that stopped checking" is the record
+of what happens when it is left open.
+
+Testing it needed a fixture, and a fixture needed the gates to be pointed
+somewhere other than the live campaign. `gate2.py`, `partition.py` and
+`shape_tripwire.py` each hardcoded `/tmp/hmr_campaign`; all three now read
+`HMR_CAMPAIGN_ROOT` with that path as the default, and the wrapper exports it so
+a wrapper and a gate can never disagree about where the data is. Re-run against
+the real root afterwards, every verdict was unchanged.
+
+**The first attempt to test the tripwire branch did not test it.** The obvious
+fixture stretches one cell until `max/min` exceeds the armed 2.36x. It does trip
+gate 3 — and it also pushes that cell's crossing past gate 2's "crosses by 60 %
+of cap" condition, so **gate 2 fails first** and the script prints gate 2's
+instructions. The verdict line still read `tripwire=TRIPPED`, and both paths
+exited 1:
+
+```
+VERDICT   gate2=FAIL   partition=LICENSED   tripwire=TRIPPED
+gate2 FAILED. Pre-registered response (§29.12): raise the criterion ...
+```
+
+Read on the real run, that output invites the wrong pre-registered response —
+re-pricing `censor_power.py` when the actual fix is raising the cap. Neither the
+exit code nor the summary line distinguished the two. Isolating gate 3 required
+scaling **all three** cells (0.70/1.20/1.70): ratio 2.43x with the slowest cell
+still crossing inside 3240 s. Two fixes followed: each failure block now prints
+all three gate verdicts, and the exit codes are distinct — 1 gate2, 5 partition,
+6 tripwire, 4 pb4d-already-exists, 3 smoke-incomplete.
+
+A second case passed for the wrong reason. The NOT-LICENSED fixture deleted the
+pb3g2 reference, so `partition.py` bailed with `need cells for both (0, 3)`
+before computing anything — same exit code, different code path, and the branch
+that fires in the real world stayed untested. Replaced with a fd2s link column
+forced permanently connected, so the gate refuses on its own arithmetic
+(median 0.0 % against a required 45.0 %).
+
+`test_gate_launch.sh` now covers all nine paths. It ends with a **negative
+control**: the pass fixture asserted to exit 3, which must be reported as FAIL.
+Ten green lines on first run is also what a harness that cannot fail looks like,
+and this project has already shipped six guards that printed PASSes after going
+inert.
+
+```
+  PASS  pass / incomplete / invalid / gate2_cap / tripwire
+  PASS  partition / guard_off / guard_hybrid / clears_again
+  FAIL  NEGCTL_expect_fail     exit 0 (want 3)   <- expected
+  10 passed, 0 failed
+```
+
+**The suite found no bug in the launch logic itself.** What it found was in the
+*reporting*: two distinct failures that a reader would have had to disambiguate
+by eye, at the one moment when the cost of getting it wrong is 2.3 days. The
+fixture that was supposed to prove a branch worked instead proved the branch had
+never run — which is the argument for building it.
