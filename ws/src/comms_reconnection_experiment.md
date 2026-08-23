@@ -7254,3 +7254,141 @@ shaped into one:**
 The third branch is the one that costs something, so it is worth being explicit
 that it is affordable: it is an analysis re-run against data that will already
 exist, not another campaign.
+
+### 29.29 The 5400 s cap, decided before it is unchangeable
+
+The cap is not an analysis choice. It is a runtime parameter baked into every
+cell, and it cannot be revisited afterwards: raising it mid-campaign makes early
+and late cells incomparable, and re-running only the capped cells conditions the
+re-run set on the outcome — §29's post-treatment trap in yet another costume.
+§29.10's rule (keep capped cells at `min(T, cap)`, `censored=True`) is the right
+*handling* of censoring, but handling it does not undo it. If pb4d censors
+heavily, the primary metric is a ratio of medians computed on a distribution
+whose upper half has been folded onto one value.
+
+`cap_decision.py`, which is deliberately *not* `censor_power.py` — that script
+asks the harder question (given censoring, does n=30 still have power) by
+simulation and sweeps the slowdown because it was written before any `fd2s` cell
+finished. This asks the prior and much cheaper one: at the slowdown we can now
+measure, how much actually censors.
+
+| | |
+|---|---|
+| pb3g2 `off`, n=30 | median **679 s**, min 450 s, max 1480 s |
+| cells at or near the cap | **0** — so the input tail is uncensored and scaling it is legitimate |
+| `fd2s` crossing at `unknown ≤ 0.60` | 1838 s |
+| slowdown `s` | 1838 / 679 = **2.71×** |
+| projected pb4d `off` censoring at 5400 s | **0.0 %** |
+
+The refusal condition is worth naming: if pb3g2's own cells had hit the cap,
+`T_i` would itself be censored, the observed tail would be shorter than the real
+one, and scaling it would understate pb4d's censoring — in exactly the direction
+that makes launching look safe. The script checks that first and refuses to
+report a rate otherwise.
+
+**And 0 % from 30 draws is a claim about 30 draws.** The largest of 30 is about
+a 97th percentile, and §redundancy-leads-the-tail records that slow runs here
+are a real phenomenon rather than sampling noise. A pb4d cell censors if its
+pb3g2-equivalent time exceeds 5400/2.71 = **1994 s**. Across all 120 pb3g2 cells
+— four arms, a 4× better look at tail *shape*, used only for shape and never as
+a location estimate — the maximum is **1515 s, 76 % of the threshold**, and 0 of
+120 reach it. That is headroom, not a lucky sample.
+
+**HOLD the cap at 5400 s.** Projected cost 2.56 days, unchanged by raising it,
+because nothing censors either way.
+
+Direction of the residual error, recorded now: censoring folds a slow arm's tail
+onto the cap and shrinks any ratio toward 1.0, so whatever censoring survives
+makes §27.8's prediction (hybrid does not beat `off`) *easier* to satisfy. A
+hybrid loss is therefore not evidence; a hybrid win despite it cannot be
+explained by censoring.
+
+### 29.30 Is the pb4d endpoint reached by driving, or by a map arriving?
+
+§29.17 found dense2's criterion crossed by a **merge** — one stationary step
+gaining +140,348 voxels where a typical step gains 7–17. §29.18 settled that
+this is legitimate: the endpoint is per-robot coverage of *both* robots, and a
+robot that learns the world from its partner has genuinely reached it. Neither
+section noticed the consequence for pb4d specifically.
+
+hybrid's entire mechanism is forcing reconnects, which is to say forcing merges.
+If the endpoint at 400 stems/ha is merge-limited, then
+
+> hybrid completes sooner ← hybrid forces merges sooner
+
+is a nearly tautological path from treatment to outcome that never routes
+through exploration. Still a real effect — sharing *is* how a team covers
+ground — but a different effect from the one §27.8 predicts about, and one that
+would make pb3g2→pb4d a comparison of two endpoints rather than one endpoint at
+two densities. After the data, a null and a win are both explicable and the
+choice between explanations stops being falsifiable. So: before.
+
+#### Three detectors, and two of them were wrong
+
+**Binary crossing classifier.** Was the step that crossed 0.60 a merge? dense
+`off` 1.7 %, dense2 **50 %** — a +48 pp chasm, "different endpoints". It is
+noise: one Bernoulli draw per cell, and one hit out of one cell reads as 100 %.
+
+**Per-robot continuous.** Share of the map that arrived rather than was sensed.
+This looked much better until the unit was checked — **the two robots in a cell
+merge maps with each other**, so one arriving map raises both at once. They are
+one observation, not two, and treating them as two halves the apparent standard
+error of everything downstream. n=2 robots is n=1 cell.
+
+**Per-cell continuous**, which is the right unit. And here a live cell got
+counted as a finished one: `classify()` guards against a robot that has not yet
+crossed 0.60, `cell_arrived()` did not, so `fd2s_off_seed2` — forty minutes old
+— contributed a 0.0 % and pulled dense2's median from 22.3 % to 11.1 %, straight
+into the "no action" band. The truncation error of `rate_compare` v1 and
+`dropout_position` v1, for the third time, in a third costume. It is no longer
+reasonable to treat this as a slip: **any statistic computed over a directory
+glob must state what it does with runs that have not finished**, because the
+glob will match them.
+
+#### The detector had a parameter I warned about and then used anyway
+
+`merge_crossing.py` makes the voxel threshold relative to each cell's own median
+step, with the stated reason that an absolute cut "would classify the slow world
+as merge-driven by construction" — and then applies an **absolute 0.5 m** cut to
+distance. Denser forest, shorter steps, more steps eligible to be called
+stationary: the same construction error in the other coordinate.
+
+Sweeping both (`merge_sensitivity.py`), 4 distance cuts × 5 voxel multiples:
+
+* The voxel multiple, swept **200×** from 5 to 1000, never flips a single row.
+* The disagreement lives entirely on the distance axis, and only at 0.10 m.
+* At **1000×** — rotation-proof, since §29.17's real merge was ~10,000× and no
+  rotation of a limited-FOV sensor reveals that from one pose — the cuts 0.25 /
+  0.50 / 1.00 m return **identical** numbers. Every step that large is already
+  under 0.25 m, so the detector is magnitude-only there and has no distance
+  parameter left to be sensitive to.
+
+So the finding is real and **smaller than the headline**: at 10× it reads 22.3 %
+against a dense max of 16.3 %; at 1000×, where rotation and slow-sensing cannot
+contribute, dense2 is **7.1 %** against a dense median of 0.0 % and a dense max
+of 4.9 %. Above dense — by single digits, not by a category.
+
+#### The decision, which does not rest on any of that
+
+Two things settle it, and neither is the n=1 comparison:
+
+1. **The tautology check is powered and null.** At 250 stems/ha all four arms
+   ran, 30 cells each. If forcing reconnects were a shortcut to the endpoint,
+   hybrid's arrived-share would exceed `off`'s. It is **1.2 % against 3.3 %** —
+   hybrid *lower*. The shortcut is not operating at the one density where it can
+   currently be tested.
+
+2. **pb4d diagnoses itself, for free.** It runs `off` and hybrid at 400, so the
+   same 30-vs-30 contrast becomes available at the density that actually
+   matters. Pre-registered now:
+
+   > If hybrid's cell-level arrived-share at 400 stems/ha exceeds `off`'s by
+   > more than **10 pp**, the treatment is buying the endpoint through merges
+   > rather than through exploration, and the headline is reported that way.
+
+That is a real test, powered, fixed before the data — which is precisely why
+nothing should be changed now on the strength of one cell.
+
+Re-read at 3/3 by this rule: dense2 median ≤ 8.5 % (dense p90) → same endpoint,
+nothing to report; > 16.3 % (dense max) → carry a stated caveat that pb3g2→pb4d
+is not one endpoint at two densities.
