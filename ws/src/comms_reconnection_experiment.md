@@ -9979,3 +9979,71 @@ hazard will fire wrongly in some other configuration. (2) `s` has now moved
 distribution; they are being shoved by each new one. Whatever launches carries
 that as a stated limitation — not as a reason to keep adding smoke cells until
 the estimate stops moving, which is choosing `n` by watching it.
+
+### 29.61 Branch A, and the remedy immediately found a hole in the launcher
+
+`fd2s_off_seed3` crossed 0.60 at **3565 s** — above 3165 s, as the lock in §29.60
+required, so the forecast made while both branches were still open holds without
+a single adjustment:
+
+| | forecast (t=3480, outcome unknown) | realised (crossed 3565 s) |
+| --- | --- | --- |
+| median fd2s crossing | 3165 s | **3165 s** |
+| `s` | 4.664 | **4.664** |
+| `cap_raise.py` cap | 12000 s | **12000 s** |
+| price over 60 cells | +2.9 h (+3 %) | **+2.9 h (+3 %)** |
+
+C3 still fails at the current cap — 3565 s is past the 3240 s gate, and §29.59
+settled that before the crossing existed. What is new is that the registered
+remedy is now *live*: the cap has to actually change from 5400 s to 12000 s.
+
+**And the moment it became a real edit rather than a priced hypothetical, it
+turned out there are two caps.**
+
+    gate_and_launch.sh:47      CAP=5400          -> fed to gate2 as C3's cap
+    launch_pb4d.sh:80          --duration 5400   -> what every cell actually runs
+
+Nothing links them. They agree today only because both literals say 5400, and
+§29.60's remedy requires editing both. Editing only the first is the plausible
+mistake, and it is the bad one: gate2 would certify the criterion reachable
+within 12000 s while every cell was killed at 5400 s — censoring precisely the
+tail the raise exists to buy back, and censoring it **invisibly**, because the
+gate that would have caught the truncation had been handed the raised number.
+The 2 of 30 projected cells that exceed 5400 s are the entire content of the
+remedy; a half-edit deletes it and reports success.
+
+This was not found by the remedy failing. It was found by writing down what
+applying the remedy would consist of, which is the only reason it was found
+before rather than after a four-day campaign.
+
+**Guard, at `gate_and_launch.sh` step 0b, exit 10.** It reads the launcher's own
+`--duration` and refuses if it disagrees with `CAP`, naming the direction:
+shorter is the half-edit above, longer means C3's margin was checked over a
+window the campaign no longer runs in — not a censoring bug, but a gate that has
+stopped describing the campaign. A launcher that calls `run_campaign.sh` with no
+`--duration` at all also fails, because an unseen default is not agreement.
+
+**The stub path is where this kind of guard usually dies.** `HMR_LAUNCH_CMD`
+substitutes a stand-in so the launch branch can be tested without starting a
+four-day campaign, and a stand-in has no `--duration`. Skipping silently there
+would make the guard inert in **every** `check_live` case in the suite while it
+went on printing PASSes — the failure this document already catalogues six
+instances of. So the skip is conditional on the launcher not invoking
+`run_campaign.sh` at all, it is announced, and `cap_stub_skips` asserts the
+announcement appears. Five cases, all passing:
+
+| case | launcher | exit |
+| --- | --- | --- |
+| `cap_short` | `--duration 3600` | 10, "half-edit" |
+| `cap_long` | `--duration 12000` | 10, "cells outrun the window" |
+| `cap_absent` | no `--duration` | 10 |
+| `cap_agrees` | `--duration 5400` | 0, launches |
+| `cap_stub_skips` | no `run_campaign.sh` | 0, prints the SKIP |
+
+`cap_agrees` is there because a guard that blocks the good path is just a broken
+launcher, and the negative control still reports a deliberately wrong
+expectation as FAIL, so the five PASSes above are worth what they say.
+
+The unfiltered suite remains a launch-window step: a `TGL_ONLY` run exits 2 by
+design and cannot stand in for it, and the 25 cases it skipped have not been run
+since step 0b was inserted ahead of them.
