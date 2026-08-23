@@ -8831,18 +8831,38 @@ circumstance §29.47 refused to leave a criterion choice in. §29.41's shape a
 third time: a rule with no evaluator becomes an evaluator with no caller.
 
 So step 0 now runs ahead of all three gates and reads
-`readouts_n3/SUMMARY.txt`. **Exit 9**, five refusals:
+`readouts_n3/SUMMARY.txt`. **Exit 9**, six refusals:
 
 | condition | why it is a refusal and not a warning |
 | --- | --- |
 | no `SUMMARY.txt` | the launch window's order is readouts *then* launcher, so an absent directory means the sequence was not followed. That must not resemble "came back clean" |
 | a missing status line | a driver that died mid-list leaves exactly this, and "no line" would otherwise read as "nothing to report" |
+| a status outside {0,1,2} | see below — this one was a live hole, not a hypothetical |
 | verdict `ERROR` on either | §29.40 makes exit 1 "a rule fired", but an uncaught exception exits 1 too. A crash and an adverse verdict arrive **identical**, and only one of the two readings is flattering |
 | `gate_reweight` rc=1 | HOLD FAILS. Launch-blocking on §29.45's own terms, no conjunction required |
 | rc=1 **and** rc≠0 without the doc marker | §29.48's square, unrecorded |
 
 and two releases: the square once the doc carries a `29.48 FIRED:` line naming
 the guard, and a RE-DERIVE closed by HOLD SURVIVES.
+
+**The hole the first version had.** Every branch above is written as "is the
+status 1?", so a status that is neither 0, 1 nor 2 answers *no* to all of them
+and falls out the bottom — into the launch. And the driver emits exactly such a
+status: a readout whose `.py` file is absent gets `MISSING` with **rc=-1**. The
+guard built to stop a launch on an unread verdict would have licensed one on an
+unrun script.
+
+The fix is a whitelist, not another blacklist row. `ERROR` is a blacklist
+entry, and a blacklist is a list of the ways of being wrong that were thought
+of; §29.46's finding was that the reworded case is the one that gets through.
+A status this script does not understand is not a verdict, and there is
+nothing in it to act on. That the *permissive* direction was the fall-through
+is the part worth keeping: the failure mode of a guard written as a series of
+`if fired then refuse` is silence, and silence is indistinguishable from
+consent.
+
+Found by reading the driver's `MISSING` branch **after** the guard was written,
+syntax-checked, tested 8/8 and committed. Nine cases now, six blocking.
 
 **The marker is the mechanism, not a formality.** §29.48's item 2 withdraws the
 cross-world mechanism claim, and a withdrawal that exists only in a terminal
@@ -8861,9 +8881,9 @@ something convenient, because what is under test is a pair of `sed`
 expressions reading *that* format. A fixture in a format the driver never emits
 would test the parser against itself.
 
-Eight cases: five that block, three that release. The release cases are there
+Nine cases: six that block, three that release. The release cases are there
 per `iv_clears` — a guard that never clears passes every blocking case and
-blocks the campaign forever. **8/8 pass.**
+blocks the campaign forever. **9/9 pass.**
 
 **And a filter, for §29.43's reason.** The fd2s smoke is still running, and
 §29.43 measured analysis load leaking into the wall/sim ratio that smoke exists
