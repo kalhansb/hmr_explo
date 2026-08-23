@@ -8277,3 +8277,82 @@ the ordering that was not among the reasons it was chosen.
 average before and after each run and records its own wall duration in
 `PROVENANCE.txt`. If a cell later looks anomalous, whether analysis was running
 during it is a question with an answer on disk instead of a shrug.
+
+### 29.44 A rule that could only return two of its three answers
+
+§29.27 names one assumption as the only one that could still move the
+conclusion — whether `dense2`'s extra dropouts land early or late in map
+fraction — and records it as *scheduled*: re-run `dropout_position.py` at n=3
+when the smoke lands. Reading that script before the window, rather than at
+12:50 with a launch waiting, found three things.
+
+**The registered rule's reassuring branch is unreachable.** At n=1 the script
+prints a decision rule fixed in advance so the 3/3 answer is read by a rule
+rather than shaped into one:
+
+* TVD at 3/3 ≤ dense p90 → assumption **SUPPORTED**, HOLD stands
+* TVD in p90–max → still inside dense's own spread, no action
+* TVD > max at 3/3, no single outage over 50 % → **re-derive** §29.27's declines
+  from `dense2`'s own outage positions before `pb4d` launches
+
+`main()` tests `if nl and tvd <= nl[-1]: return 2` before it ever reaches that
+rule, and `nl[-1]` is the max. Since p90 ≤ max, every TVD the first bullet
+describes is intercepted by the no-power branch and reported as *"NO VERDICT …
+does not get to overturn — or confirm — §29.27"*. The script contains **no
+`return 0` at all**: its best case is DEFERRED. §29.27's one open assumption was
+scheduled to be closed by a check that cannot return "supported", and the only
+answer it *can* return is the one that blocks the launch.
+
+That is §29.41 in a third shape. Not a rule with no evaluator (§29.41), not a
+rule that looked implemented because its primitive existed (§29.42) — a rule
+whose evaluator can return two of its three registered answers, and not the
+reassuring one. All three were invisible from the output, because in each case
+the output was complete, plausible and correctly formatted.
+
+**The null stops matching the statistic at n=3.** `null_tvd` is leave-*one*-out:
+what a single `dense` cell scores against the other 29. At n=1 that is the right
+reference. At n=3 the observed TVD pools *three* `dense2` cells, which is a
+different statistic with a different sampling distribution.
+
+`dropout_null_k.py` computes the matched null by exact enumeration of all
+C(30,k) subsets — 4060 at k=3, no sampling and so no RNG to get wrong — and the
+measurement corrected what I had assumed. I expected the matched null to be
+simply *tighter*. It is not; it is a different **shape**. Matched 2-cell null
+0.075–0.816, p90 **0.591**; 1-cell null 0.164–0.789, p90 **0.776**. Much tighter
+in the bulk, because pooling averages away single-cell noise — but with a
+*longer* right tail, because an extreme pair can sit further from the remaining
+pool than any single cell can.
+
+Which changes how a number is read, not just how it is described. The current
+TVD of 0.727 sits comfortably below the registered 1-cell p90 of 0.776 — and in
+the top decile of the matched null. The registered thresholds are the 1-cell
+ones and are used unchanged; the matched null is reported beside them and never
+exit-coded, the same split §29.42 made for the 10 pp margin's standard error. A
+threshold improved after seeing the data it will judge is not a
+pre-registration.
+
+The first draft of the self-test asserted the matched null had a smaller
+maximum, and passed, because the synthetic fixture happened to agree. The real
+data disagrees. The assertion now covers what actually generalises — tighter in
+the bulk — and prints the tail ordering as a NOTE saying real data has it the
+other way round. A test that agrees with the draft and disagrees with the world
+is worse than no test.
+
+**And it was counting a cell that was still running.** `dropout_position` globs
+`fd2s_off_seed*/` and filters on nothing. Run against the live smoke it reported
+"dense2 (fd2s) **2 cells**" while one of them was mid-flight, its outages
+truncated at wherever the clock happened to be — not a smaller sample, a biased
+one. Every other script here uses `run_end_reason` as the completion predicate.
+`dropout_null_k.py` refuses outright if any globbed cell lacks it and names the
+offender. At the real n=3 window the driver will have exited and all three will
+be finished, so this changes nothing then — which is exactly why it would never
+have been noticed, and why the n=1 rehearsal's number was quietly mixed.
+
+The cross-check is the reason to trust the rest: the per-cell histograms are
+rebuilt here from `dropout_position`'s own primitives, so at k=1 the
+reconstruction must reproduce `null_tvd()` element for element or the script
+refuses. It reproduces all 30. Self-test 13/13, driving every branch of the
+registered rule including SUPPORTED, which no dataset can reach through the
+original.
+
+The readout driver now runs **12** scripts rather than §29.40's eleven.
