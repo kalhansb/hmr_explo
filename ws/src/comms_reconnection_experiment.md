@@ -9264,3 +9264,187 @@ Standing rule, on top of the existing never-`pkill -f` one:
   `run_explo_sim_rviz.sh` at 1401 s under `run_campaign.sh`. Two independent
   reads, neither of them an exit code.
 - Nothing gets relaunched on the strength of a single negative probe.
+
+### 29.54 A sweep for two defects, and the abort rule that only printed
+
+§29.52 found the same shape twice in one afternoon — a check aimed at a filename
+that never appears, and a rule that fired on every mid-campaign run — so the
+remaining 18 scripts called by `pb4d_watch.sh` and `fd2s_readouts.sh` were swept
+for both: **a root or filename the caller cannot redirect**, and **a rule whose
+firing does not depend on the data**.
+
+Most of the fleet came back clean, and for a reason worth recording: four
+scripts never read `HMR_CAMPAIGN_ROOT` themselves, but three of them import
+`dropout_position`, `merge_crossing` or `cells` and inherit `ROOT` from the
+import. Reading the environment is not the property that matters; being
+redirectable is.
+
+**`campaign_health.py` was the real instance.** `ROOT = "/tmp/hmr_campaign"` as
+a literal. The proof is not a code reading: handed a freshly-created empty
+directory it reported **120/120 pb3g2 cells**. So `test_pb4d_watch.sh`, which
+builds a temp root precisely to keep its fixtures off the live campaign, had
+been running this script against the **real campaign on every invocation** — a
+test whose entire purpose is isolation, silently not isolated. Production
+escaped only because `move_campaign_root.sh` leaves a symlink at the old path,
+i.e. by luck rather than by design.
+
+**Pulling that thread found the worse defect.** §29.10 pre-registers an abort at
+>50 % censored in an arm, and §27.9's condition 4 makes cap saturation one of
+the four things that would render pb4d uninterpretable. `campaign_health.py`
+evaluated that rule correctly — and then appended the string
+`"   <-- ABORT THRESHOLD"` to a line of output and returned `None`. The file
+contained **no `sys.exit` at all** and `main()` was called bare, so a
+majority-censored arm reached `pb4d_watch.sh` as **exit 0**, was classified
+CLEAN by `rc_classify`, and produced no attention line anywhere. Over a 2.3-day
+campaign the finding would have existed only in a scrollback nobody had a reason
+to re-read. This is §29.49's shape again: not a check that is missing, but a
+check whose answer never leaves the script.
+
+**A threshold registered before the data exists.** The abort is a fraction, and
+1 of 1 is 100 % and means nothing, so `MIN_N_ABORT = 10` is now in the file —
+written 2026-08-23, before a single pb4d cell exists. Below that n the condition
+is still **reported**, marked `PROVISIONAL`, and not acted on. The guard governs
+the word, not whether the reader is told, and the reason to tell them early is
+plain: a majority-censored arm on day one changes whether the remaining four
+days are worth spending, and learning it on day five is the expensive version.
+Aborting is a decision for a person; the script's job is to make sure the
+decision is not missed.
+
+Three exit codes verified against known answers: an empty root returns **2**
+(no data is not a verdict, §29.52's lesson in the other direction), the real
+pb3g2 root returns **0** with 0 % censored in all four arms — the historical
+answer is unchanged by the edit — and the live fd2s smoke returns **1** with
+
+    !! §29.10 censoring abort: off at 2/2 = 100.0 % > 50 % [PROVISIONAL, n=2]
+
+which is a correct evaluation of the rule, and which turned out to be the
+beginning of §29.55 rather than the end of this one.
+
+### 29.55 The smoke's threshold, the estimator's 69 seconds, and the number that moved 36 % on one cell
+
+§29.54's last line — the fd2s off arm reading 2/2 censored — is not a small
+thing if it carries. `cells.py` sets `censored = end_reason != "all_done"` and
+`completion_s` to the run-end time, so an arm that fully censors has an
+endpoint identically equal to 5400 and a ratio of medians of exactly 1.000. The
+primary metric would not be weak; it would be degenerate.
+
+**What the runs were actually doing.** Both robots in cell 1 descend to
+`unknown_fraction` 0.530 and sit below 0.60 for roughly two-thirds of the run —
+about 3600 s — without the run ever ending. Whatever the runs were terminating
+on, it was not 0.60. The manifests say why:
+
+    fd2s_off_seed1    duration_s=5400  done_unknown_fraction=0.30  censored_at_T
+    fd2s_off_seed2    duration_s=5400  done_unknown_fraction=0.30  censored_at_T
+    pb3g2_off_seed1   duration_s=5400  done_unknown_fraction=0.60  all_done
+
+uniformly: 0.30 across the smoke, and 0.60 across **all 120** pb3g2 cells.
+
+My first reading was that this is a second variable, and that §29.50–29.51's
+one-variable verification had missed it. That reading is wrong, and the
+correction matters more than the alarm. §29.50–29.51 verified **pb4d against
+pb3g2**, which is the comparison the campaign makes; the smoke is not that
+comparison. And the difference is deliberate and documented at the point of use
+— `launch_fd2s.sh`'s header says so in capitals, with the consequence spelled
+out in advance:
+
+    DONE_UNKNOWN=0.30 IS DELIBERATE AND IS NOT A TYPO. A smoke run at 0.60 would
+    terminate AT 0.60 and tell me only that 0.60 is reachable -- not how far
+    below it the floor sits, which is the entire question.
+        run_end_reason WILL be the duration cap, not all_done. That is SUCCESS.
+
+So the censoring is the design, and `campaign_health.py`'s abort is a correct
+evaluation of a rule written for campaigns that run at a terminating criterion,
+applied to a probe that deliberately does not. The rule is not given a
+tag-specific exemption — that is how a guard stops checking — it is read with
+the smoke's own header next to it.
+
+**The alarm still earned its keep**, because it forced a question nobody had
+asked: does the stopping threshold contaminate the crossing times the gates are
+measured from? It cannot, and this is checkable rather than arguable.
+`done_unknown_fraction` has exactly **one decision site** in the planner —
+`explo_planner_node.cpp:3008`, a saturation check that runs *before* candidate
+generation and short-circuits out of PLAN. It is read once at line 1500, logged
+once at 2101, and compared once at 3008. It never enters cost, gain, frontier
+ranking, or budget. A stopping rule that is only ever compared against the
+current unknown fraction cannot change behaviour that happened earlier, so a
+0.60 crossing measured in a run that continues to 0.30 is the same 0.60
+crossing pb4d would terminate on.
+
+**Then the same reading found something cap_decision was claiming falsely.**
+Its docstring said its estimator — max over robots of the first crossing — "is
+what the harness itself does". It is not. The harness wants
+`done_min_consecutive_steps` (=3) consecutive cycles below the threshold, resets
+the streak on any tick back above, and then has to notice and tear down. pb3g2
+is the **answer key** for exactly this: 30 `off` cells that ran at 0.60 and
+ended `all_done`, each with the harness's own `run_end_t_sim` in its manifest.
+Scored against it, the estimator lands a median **69 s early** (p90 107 s, max
+223 s) — an order of magnitude more than the ~15 s the 3-cycle streak explains
+at the measured 5.0 s row cadence.
+
+Whether that matters turns on a question the scripts had never separated:
+
+    additive lag L:      a cell censors if s*C + L > CAP,  i.e. C > (CAP-L)/s
+    multiplicative lag:  ... if s*C*k > CAP,               i.e. C > CAP/(s*k)
+
+Splitting the 30 cells at their median crossing answers it without a model: the
+crossing grows **1.59x** across the split while the lag holds at **68.9 s →
+63.9 s**. The lag is machinery — detection and teardown — and machinery does not
+know how many trees are in the world. Additive. Priced: it tightens the
+censoring threshold by 1.3 % of its value and **0.3 % of the cap**, and changes
+the number of pb3g2 cells above that line **by zero**. Correcting for it would
+be false precision inside the sim's own run-to-run spread. Zero of those 30
+cells and zero fd2s cells ever bounced back above 0.60 after crossing, which is
+the failure mode that would have made the lag unbounded instead of constant.
+
+**The number does not change; the claim does.** A docstring that says an
+estimator *is* the endpoint, when it is a proxy that runs 69 s early, is the
+kind of sentence that stops the next reader checking — which is precisely how
+this one survived. It now states the proxy, the measurement, and the split that
+licenses ignoring it.
+
+**And the finding that actually matters for the launch.** Cell 2 landed while
+this was being written, and `s` — the dense→dense2 slowdown the whole cap
+decision turns on — moved:
+
+    n=1   crossing 1838 s               s = 2.71x
+    n=2   crossings 1838, 3165 s        s = 3.69x
+
+a **36 % jump on one added cell**, from two cells spanning **1.72x**. That
+spread is the same order as the effect pb4d exists to measure. Three cells will
+produce a number, not an estimate.
+
+So the regimes were registered **before cell 3 landed**, because once it is in,
+any threshold can be chosen to clear it — not deliberately, but by knowing the
+answer while picking the question, which is the failure §29.47 already had to
+retract a criterion raise for. Scored against `cap_decision.py`'s own acceptance
+test (off censoring < 25 % and hybrid-at-1.6x < 50 %), written and committed
+before any fd2s cell existed:
+
+| cell 3 crosses | s | off censored | hyb 1.6x | cap 5400 | gate2 C3 |
+| --- | --- | --- | --- | --- | --- |
+| < 1838 s | 2.71x | 0.0 % | 6.7 % | OK | pass |
+| 2501 s | 3.69x | 3.3 % | 16.7 % | OK | pass |
+| > 3165 s | 4.66x | 6.7 % | 36.7 % | OK | pass |
+
+**The 5400 s cap survives every value cell 3 can take.** The cap is not the
+binding constraint and `cap_raise.py` is not going to be needed for it.
+**gate2's C3 is the binding constraint**: cell 2 crossed at 3165 s against a
+3240 s gate, a margin of 75 s — **2.3 %**. A cell 3 that crosses after 3240 s
+fails C3 outright, independently of anything the cap does, and §29.47 settled
+that the licensed response is the cap, never a criterion raise.
+
+`s_sensitivity.py` carries both modes, because a script written to sweep
+forward at n=2 would sit in `SCRIPTS` returning DEFERRED forever afterwards and
+look like it had been consulted — §"checks that stopped checking" one more time.
+At n≥3 it scores the realised value against the table above, and a cell that
+**never** crossed fires gate2's C1 rather than quietly taking a median over the
+cells that did: a non-crossing is the absence of a crossing, not a slow one, and
+a median that drops it reports a slowdown computed from the cells that happened
+to finish.
+
+21 fixtures, and one of them was passing for the wrong reason. The negative
+assertion "a C1 failure does not quote a slowdown" matched on `-> s =`, a string
+that appeared nowhere in the output because the code printed `->  s =` with two
+spaces — so it would have held no matter what the C1 branch printed. The fix was
+to make the code emit stable tokens rather than to loosen the assertion.
+`fd2s_readouts.sh` goes 13 → 15.
