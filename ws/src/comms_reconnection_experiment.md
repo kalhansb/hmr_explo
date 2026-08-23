@@ -9448,3 +9448,140 @@ that appeared nowhere in the output because the code printed `->  s =` with two
 spaces — so it would have held no matter what the C1 branch printed. The fix was
 to make the code emit stable tokens rather than to loosen the assertion.
 `fd2s_readouts.sh` goes 13 → 15.
+
+### 29.56 A power dimension the sweep could not reach, and a headline I had to correct twice
+
+`fd2s_track.py` was written to make the wait for cell 3 informed rather than
+blind — a forecast that "changes no threshold", printing each cell's
+worst-robot `unknown_fraction` on a fixed time grid. Its first version carried
+the last observed value forward, so a cell that had only reached t=1860 s
+printed its 1860 s reading in the 2400, 3000, 3600, 4200 and 4800 s columns.
+Six extrapolations rendered in the same typeface as the measurements, and the
+shape they drew — a trajectory that flattens and stops moving — is exactly the
+shape the eye is looking for. Past the end of the data is now blank.
+
+With that fixed, the table said something real:
+
+    cell              600  1200  1800  2400  3000  3240  3600  4200  4800   crossed
+    fd2s_off_seed1   0.72  0.67  0.63  0.54  0.54  0.54  0.53  0.53  0.53   1838s
+    fd2s_off_seed2   0.78  0.72  0.72  0.62  0.62  0.60  0.60  0.56  0.55   3165s
+
+Both dense2 cells crawl through the last stretch above the criterion. Cell 2
+sits at 0.62 for 600 s and at 0.60 for another 600 s. That is not the slowdown
+`s` already models — it is a change in the *shape* of the approach, and it
+lands on the one quantity the whole cap decision reads: the time at which
+`unknown_fraction` first touches 0.60.
+
+**Why it is a power question and not a curiosity.** If the approach through the
+criterion is flat, then a small run-to-run difference in *where the curve sits*
+converts into a large difference in *when it crosses*. Endpoint spread grows.
+The primary test is a ratio of medians via an exact permutation test, and its
+power turns on relative spread — so a flatter approach costs power in a way
+that has nothing to do with censoring.
+
+**And `censor_power.py` was structurally incapable of seeing it.** It models
+dense2 as pb3g2's own distribution times `s`. A uniform rescale leaves the
+coefficient of variation *exactly* unchanged, so no value of `s`, however far
+the sweep ran, could have moved power through dispersion — only through
+censoring. The sweep was not insufficiently wide; it was pointed at the wrong
+axis. That is the more useful kind of gap: not a wrong number, but a question
+the instrument could not have answered either way.
+
+**The correction chain, which is most of what happened here.** `approach_slope.py`
+measures the 0.65 → 0.60 traversal for the *last robot to cross* — the same max
+over robots `cap_decision.completion()` and `crossing_calib.cell()` take:
+
+    dense  (250 stems/ha, n=30)   median  20 s per 0.01 of u
+    dense2 (400 stems/ha, n=2)    median 171 s per 0.01 of u     8.52x
+
+I reported 8.52× as the power number. **That was wrong**, and wrong in the
+double-counting direction. Absolute seconds grow for two independent reasons —
+the approach is flatter, *and* every dense2 run is ~s times longer end to end —
+and the second is precisely what `s` is, costing no power at all. Normalising by
+each density's own median crossing isolates the new part:
+
+    dense    20 s / 679 s  = 2.95 % of the run
+    dense2  171 s / 2501 s = 6.82 % of the run      shape 2.31x
+
+**2.31× was still an overstatement**, because it assumes the band owns *all* of
+completion's spread. dense has 30 cells to test that on rather than assert it,
+and completion splits exactly: `t60 = t65 + band`. Measured:
+
+    reaching 0.65        p90-p10  411 s   (median 523 s)
+    the 0.65->0.60 band  p90-p10  265 s   (median 100 s)
+    completion           p90-p10  636 s   (median 679 s)
+
+The band carries **42 %** of completion's spread on **15 %** of its duration —
+over-represented 2.8×, which is why it is worth measuring, but a **minority**
+channel, which is what bounds the conclusion. Propagating 2.31× through that
+split, with the other 58 % assumed to scale with `s` and contribute no relative
+widening:
+
+    perfectly correlated (upper bound)  1.55x
+    independent (quadrature)            1.13x
+
+So the endpoint's relative spread grows by roughly **1.1×–1.5×**. Not 8.5×, and
+not 2.3× — the first an overstatement by a factor of about six. Both earlier
+figures were mine, and both were quoted before the check that killed them.
+
+**A fixture that asserted the opposite of its own name.** The case
+"a robot that never crosses does not silently yield the other robot" asserted
+that it *does*. The name was right and the code was wrong: `approach()` skipped
+the non-crossing robot and returned the other one's curve, which would describe
+a steep approach for a cell that never completed — selecting exactly the cells
+that make the slope look better. Same rule as gate2's C1: a non-crossing is the
+absence of a crossing, not a slow one. The **code** was fixed, then the fixture,
+then a single-robot case added. It moved no reported number, which is the only
+reason it is a footnote and not a retraction.
+
+**Two staleness defects in the same file, one of them mine, minutes old.**
+`censor_power.py`'s summary line read "AT THE MEASURED SLOWDOWN (2.3x)" — a
+literal taken from fd2s cell 1 alone. §29.55 moved `s` to 3.69× and the label
+did not move with it, so the script went on announcing "the measured slowdown"
+for a value that was no longer measured. It now selects the sweep row nearest a
+computed `s`. Fixing that, I introduced a worse one: `measured_s()` divided
+fd2s's *crossing* by pb3g2's *completion_s*, two different estimators the
+§29.55 calibration had just shown differ by a median 69 s. It returned **3.11×
+where `cap_decision` reads 3.69×** — a 16 % error in the single number the
+entire table is located by. Crossings on both sides now, which is what
+`cap_decision` and `s_sensitivity` already use, so the three agree by
+construction rather than by coincidence. It cannot be fixed the other way:
+every fd2s cell is `censored_at_T` by design, so its `completion_s` *is* the cap
+and carries no information about when it crossed.
+
+Then I wrote `SPREADS = [1.00, 1.13, 1.55]` with a comment naming the file the
+numbers came from — a constant pasted from another script's output, correct on
+the day it was pasted and silently wrong the moment the smoke gains its third
+cell. It is the defect class §29.54 swept for, authored twenty minutes after the
+sweep. `approach_slope.measure()` now returns the derived quantities and
+`censor_power.spreads()` recomputes them; `main()` was refactored to read the
+same function rather than compute the four lines a second time, because a
+printed number and an imported number that are computed separately are free to
+drift, and the printed one is the one a reader checks.
+
+**Three guards, because a check that cannot fail is not a check.** (1) If
+`measure()` returns nothing, the widening section says the question is **open**
+and stops — running the w=1.00 row alone would compute a power loss of exactly
+zero and print "not material", a reassurance about a quantity never measured.
+(2) The 10-point materiality verdict is now gated on its own Monte Carlo SE: at
+`N_SIMS=6` the estimate is 33 ± 19 points, the threshold sits inside 2 SE, and
+the script says **UNDECIDED** instead of issuing a verdict a coin could have
+issued. (3) A negative control (`nc_approach.py`) corrupts `measure()`'s return
+by 20 % and confirms the agreement fixture detects it — §29.55's fixture that
+matched a string the code never printed is recent enough to distrust a passing
+assertion that has never been shown to fail. 44 fixtures.
+
+**What this does not license.** It is a statement about power, not validity. It
+does not license a criterion raise — §29.47 settled that the cap is the only
+licensed lever — and it does not license more cells: the widening rests on two
+fd2s cells, and raising n on a 3-cell readout is choosing a design with the
+answer in hand. The 30/arm sizing was registered in advance and stays. What it
+does change is how a null must be *read*: as consistent with both "no effect"
+and "an effect this design could not see", with the minimum detectable effect
+quoted from pb4d's own `off` arm once it exists rather than inherited from
+pb3g2's.
+
+**Cell 3, at the time of writing.** t=2290 s of 5400, worst-robot
+`unknown_fraction` 0.662, 950 s of sim before the 3240 s C3 gate. §29.55
+registered the outcome table before this cell landed precisely so the gate could
+not be chosen with the answer visible.
