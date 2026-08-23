@@ -7942,3 +7942,67 @@ to write. **9/9.**
 I found this defect by running a test against real data instead of a fixture. A
 fixture would have had six cells, the enumeration would have been 924 tuples,
 and it would have passed forever.
+
+### 29.39 Rehearsing the move, and finding out it was the wrong question
+
+§29.34 mirrored the dataset out of `/tmp` and left the underlying problem in
+place: the root is still *at* `/tmp/hmr_campaign`, and pb4d will write there for
+two to five days. The plan was three commands — `mv`, `ln -s`, done — run once,
+unattended, in the window between the fd2s smoke ending and pb4d starting, on
+the only copy of a dataset that took days to produce. Written down, never
+executed. §29.32 is about exactly that class of instruction.
+
+So it became `move_campaign_root.sh`, and rehearsing it on a fixture of four
+real cells produced two findings that the three commands would not have.
+
+**The guard matched the thing running it.** The first liveness check grepped
+`ps` for the root path. Run against the live root it named ten simulation nodes
+and one `/bin/bash -c` belonging to the harness invoking the check. This is
+`pkill -f` again: a pattern broad enough to find the target is broad enough to
+find the searcher. It is worse here than it looks, because of what the caller
+does with the answer — it refuses to move while anything holds the root, so a
+check that can never come back empty means the move can never run, and the
+natural response to a guard that always fires is to switch it off. On the one
+operation that touches the only copy of the data.
+
+**Then the fix made the real question visible.** Replacing the grep with a
+/proc walk — open descriptors and cwd, plus argv for anything outside the
+caller's own ancestry — gave a precise answer to "what is holding the root",
+and the precise answer showed the question was wrong. The move is a rename
+within one filesystem (`/tmp` and `$HOME` are both dev 2049). Open descriptors
+follow the inode: every holder keeps writing to the same file at its new
+location without noticing. `cwd` follows too. And the symlink left behind means
+a *later* open-by-string still resolves. The genuinely unsafe interval is
+between the `mv` and the `ln -s`, and it is microseconds.
+
+So refusing on "anything holds the root" was both unusable and aimed at the
+wrong hazard. What is worth refusing for is a *campaign* being live, because
+there a single failed open costs a re-run cell priced in hours. Those are
+identifiable by name — the driver, the launchers, `explo_planner_node` — so
+`root_holders.py` classifies each holder CAMPAIGN or other, and only CAMPAIGN
+blocks. Everything else is printed with a note saying why it doesn't matter.
+Against the live root the blocking list is now six processes: four planner
+nodes, the driver, and the shell that launched it. No harness shells.
+
+The suite asserts both halves, because the narrowing is a deliberate design
+decision and not an oversight: a stand-in driver must block, and a `tail -f`
+inside the root must **not**. The stand-in does not `exec` — exec replaces
+argv, the marker and the path would vanish, and the test would pass by finding
+nothing.
+
+Also tested: refusal on an empty root, refusal on a destination that already
+holds cells (merging two campaign roots silently is how two generations end up
+in one table), idempotence when the root is already a symlink, and rollback if
+the `ln -s` fails after the `mv` has succeeded. The script's own verification
+is not `mv` returning 0 but `peek.py` reading a cell through the new symlink —
+a symlinked root that `find` walks and `cells.load_cells()` rejects would
+otherwise surface at the next read-out.
+
+The closing assertion is `peek.py`'s output diffed across the move, byte for
+byte, exactly as in §29.34's restore test. Negative control: delete one cell's
+manifest at the destination and require the diff to notice, since a `peek.py`
+printing nothing useful would also produce two identical files. **12/12.**
+
+Run against the live root right now it exits 3 and names the fd2s smoke. That
+is the correct answer today, and it is the check working rather than the check
+being untested.
