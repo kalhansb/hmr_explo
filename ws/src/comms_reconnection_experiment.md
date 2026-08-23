@@ -10154,3 +10154,98 @@ correct and the difference is not the *reduction* but the *source*: events
 and reasoned confidently from the assumption; `floor2.py` prints both floors on
 every run precisely so this is checkable, and it took one run to check. The
 number was never wrong — only my account of why it could not be.
+
+### 29.63 The smoke priced the cap and then told me what pb4d can actually see
+
+The smoke closed 3/3, all `censored_at_T`, which is the design and not a
+failure: fd2s runs at `done_unknown_fraction=0.30` precisely so cells traverse
+the whole curve and the 0.60 crossing is read off the series afterwards. Cost
+per cell: **9959 s wall for 5406 s of sim, RTF 0.54.**
+
+**Every digit of §29.60's forecast reproduced.** `cap_raise.py` on the complete
+arm returns s = 4.664, projected median 3165 s, projected max 6903 s, cap
+**12000 s**, price 102.7 h → 105.6 h, **+2.9 h**. The forecast was written while
+two branches were still open; nothing was adjusted afterwards.
+
+But the same run of `approach_slope.py` returned something the cap does not fix.
+
+**The endpoint is noisier in the denser world, and n was never sized for that.**
+The approach through the 0.65 → 0.60 band flattens from 0.500 to 0.042 u/1000 s,
+so a 0.01 shift in where the curve sits moves the crossing by 20 s at dense and
+236 s at dense2 — 11.79× more in absolute seconds. **That raw ratio is not the
+power number and quoting it as one would double count.** Most of it is that
+dense2 runs longer end to end, which `s` already models, and a uniform rescaling
+leaves the coefficient of variation — and therefore the power of a
+ratio-of-medians test — untouched. Normalised by each density's own median the
+shape change is 2.53×; propagated through the measured fact that the final
+approach owns only 42 % of completion's spread, the endpoint's *relative* spread
+grows by **1.20× (independent channels) to 1.64× (perfectly correlated)**. Not
+11.8×, and not 2.5×. The first would have overstated it by about sevenfold.
+
+That matters because §metric-power-and-fairness sized n = 30/arm on pb3g2's
+spread, where 30 was already the FLOOR — 58–84 %, not a clean 80 %. Widening the
+spread at fixed n pushes it below a floor, and "below a floor" is not a number
+anyone can report.
+
+**So the widening was converted into the one statement a reader can use, before
+launch.** `power_dense2.py`, n = 30/arm, two-sided exact permutation on the
+ratio of medians, α = 0.05:
+
+| ratio of medians | no widening | ×1.20 quadrature | ×1.64 correlated |
+| --- | --- | --- | --- |
+| 1.10 | 20 % | 15 % | 10 % |
+| 1.20 | 55 % | 41 % | 24 % |
+| 1.25 | 74 % | 57 % | 34 % |
+| 1.30 | 86 % | 73 % | 45 % |
+| 1.40 | 98 % | 90 % | 65 % |
+| 1.50 | 100 % | 98 % | 82 % |
+| **80 % power at** | **1.30×** | **1.40×** | **1.50×** |
+
+**pb4d can see a 1.30×–1.50× effect and nothing smaller.** pb3g2 observed
+1.026×; no column in this table would have detected that at any n this project
+will run. That is not a defect being disclosed late — it is the reason §27.8
+registered a *directional* prediction rather than a null-vs-alternative one, and
+the reason a denser world was chosen over more cells in the same one.
+
+**Three disciplines on this table.** The variance donor is pb3g2, not pb2:
+`power_corrected.py` draws from pb2 and defends it as "a property of the
+simulator and the forest, not of the planner patch", but the 2026-08-20 change
+is behavioural and a behavioural change can move spread as easily as location.
+pb3g2 is 30 cells/arm on the current binary in the world dense2 is the
+dose–response partner of. Reading a *finished, reported* campaign's spread to
+size the next one is a prior, not the peek §25.3 forbids, and no pb3g2 contrast
+is read. Residuals are taken about each arm's own median, so only within-arm
+noise survives.
+
+Second, the copied machinery is calibrated rather than trusted. `make_draw` and
+`reject_rate` are verbatim from `power_corrected.py`, and a copy nothing
+self-tests is the §23.3 machine — this directory has been bitten twice, by a
+hand-rolled sampler giving a biased permutation p and by `power_n.py` running
+~30 % low for want of exactly this check. So the null calibration runs first:
+ratio 1.0, 20 000 sims, **0.0529 against α = 0.050 with 2 SE = ±0.0031**. Inside,
+but only just, and the script prints no table at all and exits 1 if it lands
+outside.
+
+Third, the excluded cells bias the table the safe way. Non-`all_done` cells are
+dropped, which truncates the right tail, so every figure above is if anything
+**optimistic** — the conservative direction for a launch gate.
+
+**WHICH COLUMN APPLIES IS REGISTERED NOW, NOT CHOSEN LATER.** 1.20× and 1.64×
+are bounds, and `approach_slope.py` is explicit that 3 cells cannot separate them
+— per-cell they give 1.39×, 1.64×, 1.70×. pb4d's own **off arm** will supply 30
+fresh dense2 cells, so the widening becomes measurable: the applicable column
+will be selected by the ratio of the off arm's log-sd to pb3g2's off log-sd
+(0.298), computed **from the off arm alone**. That quantity never touches the
+between-arm contrast, so it is not post-treatment conditioning; and fixing the
+rule here means the column cannot be picked to suit the p-value.
+
+**The decision, and it is mine under the standing delegation.** Launch at n = 30.
+Holding power constant against a 1.64× widening needs n ≈ 81/arm — about 11.9
+days against 4.4 — and committing three times the budget on my own authority
+while the user is away is not a call I should make; the design is
+pre-registered at 30; the cost is affordable; and 1.586× the occluders is a
+large enough dose that a 1.3–1.5× cost is a plausible size for the mechanism
+rather than a hope. What the table buys is that a null in pb4d is now
+**reportable as a bounded claim** — "no effect of 1.5× or larger" — instead of a
+shrug. Extending to n = 81 remains available and is the user's call on cost, not
+a decision to be taken after seeing a p-value.
