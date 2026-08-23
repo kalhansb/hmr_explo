@@ -8943,10 +8943,14 @@ criterion, and the trees. `launch_pb4d.sh` was read against this and carries
 
 **The exposure now has a number.** `comms_trees_loaded` is deterministic per
 world — 278 in all 120 pb3g2 cells, 441 in both finished fd2s cells, invariant
-across seed and arm. The SDFs corroborate it and say something more: 325 and
-488 `<model>` entries, so **47 non-tree models in each**, identical. The comms
-emulator loads every tree and only trees, and the two worlds are the same world
-with 163 trees added.
+across seed and arm. The SDFs corroborate it, and the two worlds are the same
+world with 163 oaks added.
+
+**Correction.** This section first read the SDFs as "325 and 488 `<model>`
+entries, so 47 non-tree models in each". The 47 is wrong — it is 55, and the
+subtraction that produced it was invalid. §29.51 reconciles the inventory to
+the last entry and records why the arithmetic was the kind that cannot be
+caught by checking it.
 
     441 / 278  =  1.586x
 
@@ -8970,3 +8974,99 @@ check is a comparison of two manifests, so it certifies the configuration, not
 the trajectory: two runs can share every recorded field and still diverge, as
 §"sim is nondeterministic run-to-run" measured at 1803 s against 856 s on the
 same seed.
+
+### 29.51 Closing the inventory, and the units §27.8 is registered in
+
+§29.50 fixed the dose at `comms_trees_loaded` 278 → 441 and checked the
+manifests for a second variable. It left two things open, and one of them was
+wrong.
+
+**The wrong one first.** §29.50 reported "47 non-tree models in each,
+identical". The number is 55. The 47 came from `325 − 278` — total `<model>`
+entries minus the emulator's tree count — and those two figures do not
+enumerate the same set. Eight of the trees are not `<model>` entries at all:
+they are `<include>` blocks carrying `<uri>model://cmu_pine_tree</uri>`, which
+no `<model name=` grep can see. `hmr_comms_sim_node.cpp:177` says so in as many
+words — *"flatforestv2 has 80 'Oak tree' models plus 8 `pine_*` includes"* — a
+comment written because someone had already been caught by exactly this.
+
+The lesson is not "check the arithmetic". The arithmetic was right: 325 − 278
+is 47. What was wrong was subtracting one enumeration of a set from a different
+enumeration of the same set, and the output of that mistake is a plausible
+integer with nothing attached to it that could look wrong. Re-doing the
+subtraction returns 47 again, forever. Only enumerating both sides
+independently catches it, which is what should have happened before a number
+was written down:
+
+| | dense | dense2 |
+| --- | --- | --- |
+| `<model>` oaks (`Oak tree` + `Oak tree_dense`) | 270 | 433 |
+| `<include>` pines (`model://cmu_pine_tree`) | 8 | 8 |
+| **trees the emulator loads** | **278** | **441** |
+| non-tree `<model>` entries | 55 | 55 |
+| `<include>` wall segments (14 × 4) | 56 | 56 |
+| totals: `<model>` / `<include>` | 325 / 64 | 488 / 64 |
+
+Every entry accounted for in both worlds with no remainder. The difference is
+163 added oaks and nothing else.
+
+**And the units close.** §27.8's prediction is registered *"at 400 stems/ha"*.
+§29.50 could only offer "441 trees", and those are not obviously the same
+statement. The worlds state it themselves, in headers `densify_forest.py`
+writes and its docstring tells the reader to trust over the docstring:
+
+    dense : 80 existing + 190 added = 270 stems over 1.0816 ha = 250 stems/ha
+    dense2: 80 existing + 353 added = 433 stems over 1.0816 ha = 400 stems/ha
+
+Same walled 104 × 104 m stand, same `seed=7`, same `min_sep=2.2 m`, same 80
+originals. The registered prediction and the built world are in the same units
+and they agree exactly: **250 → 400 stems/ha**.
+
+That leaves two ratios, and they are not the same number. **433/270 = 1.604×**
+is stem density — the design. **441/278 = 1.586×** is occluder count — what the
+emulator ray-traces. §29.50's 1.586 stands as the dose, because the attenuation
+model uses its own set; the gap between them is the 8 pines, a fixed additive
+term in both worlds, which dilutes any ratio taken over it.
+
+**The physical dose is better stated per link than per hectare.** Both world
+headers and the scenario YAML carry it: about **3.9** trunks in the Fresnel
+corridor of a 50 m link in dense, **6.21** in dense2. At `tree_attenuation_db`
+= 11.98 dB (`hmr_comms_sim_node.cpp:222`) those 2.3 extra trunks are ≈ **28
+dB**. This matters more than 1.59× does, because dense sits *on* the cliff edge
+— 3.9 trunks against the ~3.8 needed to reach the 2 dB cutoff — which is why
+pb3g2's off arm was disconnected 55.5 % of run time with **0.0 %** of those
+samples having clear line of sight. dense2 is 28 dB past cutoff. The dose is
+not "1.59× more trees" in any linear sense; it moves the link from marginal to
+reliably broken.
+
+This is dose characterisation and nothing else. **§29.48's withdrawal of the
+cross-world mechanism claim stands.** None of the above licenses a prediction
+about what hybrid does with a link in that state, and legible physics is
+precisely the circumstance in which a withdrawn claim is easiest to smuggle
+back in.
+
+**The other two hiding places, checked.** §29.50 checked the campaign flags and
+the run manifests. A scenario is also a YAML file and a registry entry, and
+neither appears in the manifest:
+
+* `flatforest_dense_2robot_lidar.yaml` against
+  `flatforest_dense2_2robot_lidar.yaml` — the comment block, and `world:`.
+  Same robots, same sensors, same spawn poses, same 30 dBm radio, nothing else.
+* `_world_registry.py` — the two entries differ in `sdf_file` alone. The four
+  `default_spawn_points` are byte-identical, and the registry carries no comms
+  or tree parameters at all, so the emulator's defaults apply unchanged to both.
+
+Four places a second variable could have hidden; four checked. Spawn clearance
+would have been the most expensive miss and is already measured in the YAML's
+own comment — 2.75 m and 2.13 m to the nearest trunk, identical to
+flatforest_dense because the densifier never moves an original stem, and
+flatforest_dense ran 116 cells at exactly those clearances.
+
+**What this still does not establish.** That the walls occlude: they do not.
+`cmu_grey_wall` matches none of `{tree, pine, pinus, oak, euca, ulex}`, so all
+56 perimeter segments are invisible to the link model. Identical in both
+worlds, so not a confound — but "occluder" here means trunk, and a robot in a
+corner is not shadowed by the wall it is facing. And none of this measures an
+outage. Cell 1's crossing at 1838 s remains the only *measured* evidence that
+dense2 is harder in practice; cell 2 finished censored at the cap at 10:00 and
+cell 3 lands ~12:47, at which point `fd2s_readouts.sh` measures all three.
