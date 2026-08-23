@@ -11527,3 +11527,104 @@ specific mechanisms the runner's header names — 32 % idle makes executor
 starvation unlikely, but unlikely is not measured. (3) None of this argues the
 prohibition was wrong when written. It argues that its premise, a contended box,
 does not hold on this hardware at this shard count.
+
+### 30.16 What actually gates sim time: 76 % of the render thread computes nothing
+
+§30.15 asserts a cell is limited by its own serial thread chain rather than by
+the box. This is that chain, profiled with `perf record` (618 user-space samples,
+dwarf call-graph) on Ignition's render thread while a `tr1` cell ran.
+
+**The chain.** gz-sim 6 runs *one* render thread for all rendering sensors, and
+the physics System is single-threaded per world. Gazebo's main thread was
+measured 38–44 % blocked in `futex_wait_queue` while the render thread was 88 %
+runnable: the main loop waits on the render thread, and the render thread gates
+sim time. One thread cannot exceed one core, which is why a lone cell cannot use
+more of a 20-core box and why the fix must be *less work*, not *more threads*.
+
+**Where that thread goes.**
+
+| stack | share |
+|---|---|
+| `Ogre2LaserRetroMaterialSwitcher::cameraPreRenderScene` → `BaseScene::VisualById` | 46.6 % |
+| `Ogre2LaserRetroMaterialSwitcher::cameraPostRenderScene` | 29.5 % |
+| actual GPU work (`_renderPhase02` 5.5 % + readback 2.1 %) | **< 8 %** |
+
+Ignition supports an SDF tag `<laser_retro>` marking objects as retro-reflective.
+To implement it, the ogre2 backend swaps every renderable's material to a
+retro-encoding datablock before each scan and restores it after, resolving each
+by `BaseScene::VisualById()` — a **linear scan** over the visual store (the
+`_Rb_tree_increment` and `BaseObject::Id()` children in the profile are the walk,
+and each iteration copies a `shared_ptr`). Cost is O(items × visuals), per scan,
+per lidar.
+
+`grep -c laser_retro` on `flatforest_dense.sdf` returns **0**. With ~600 visuals
+in the forest (270 oaks × 2 + 48 maize + 56 walls + 8 pines), the simulator
+computes the default value zero six hundred times over, ten times a second, per
+robot, and discards it. The two disjoint switcher paths sum to **76.05 %** of
+the thread that sets how fast the whole simulation runs.
+
+**The fix is a cache, not a deletion.** Patch `VisualById` to an O(1) id→visual
+map rather than removing the switcher: behaviour-preserving unconditionally,
+including for a future world that does set `laser_retro`. Ranges come from the
+depth buffer, not the swapped material, and nothing in `scovox`, `dscovox` or
+`simple_nav_3d` reads an intensity channel — so scans should be bit-identical.
+Expected effect is roughly halving per-cell wall-clock; that endpoint is
+*inferred from the profile arithmetic, not measured*.
+
+Cost: `libignition-rendering6` is 6.6.4-1~jammy, already the newest in the OSRF
+repo, and no `deb-src` lines are configured — so this means cloning
+`gz-rendering` at branch `ign-rendering6` and overlaying the build. Dev headers
+are installed. There is **no runtime escape hatch**: the only environment
+variable the ogre2 plugin reads is `IGN_RENDERING_RESOURCE_PATH`, so the
+switcher cannot be disabled from outside. Must be done between campaigns;
+reverted by removing the overlay.
+
+**Open question worth one measurement.** Because the cost is *items × visuals*,
+§30.14's lidar cap (100 m → 20.5 m) might cut the same term for free by
+frustum-culling distant trees before the switcher runs. It might equally do
+nothing: the switcher fires as a camera listener inside `_cullScenePhase01`, and
+Ogre2's `cameraPreRenderScene` conventionally runs over the whole scene *before*
+culling. Unresolved from the profile alone. §30.14's acceptance test should
+therefore record **RTF alongside map bit-identity** — if RTF jumps, the cap
+delivered most of this section with no rebuild.
+
+**Free, unrelated to rendering:** `run_explo_sim_rviz.sh:1392` polls every 15
+*wall* seconds for `DONE_GRACE_S=30`, a *sim*-second criterion. Measured on
+`tr1_off_seed1`: all-DONE at `t_sim=468`, run closed 67 wall-seconds later.
+Fixed per-cell overhead totals ~169 s against a ~950 s cell. Dropping the poll to
+2 s recovers 30–50 s/cell with zero validity cost — the 30 sim-seconds of
+backlog drain the grace protects are untouched, only the quantisation changes.
+Edit between cells: a live bash re-reads the script at its byte offset.
+
+**Dead ends, recorded so they are not re-investigated.**
+
+- *GPU clocks.* The `gpu_lidar` is genuinely on the Quadro P2000 (real contexts,
+  `libGLX_nvidia` mapped, no `LIBGL_ALWAYS_SOFTWARE`). It averages 372 MHz
+  against a 1721 MHz ceiling at 7–8 W, throttle reason `Idle: Active` — it idles
+  *because* under 8 % of the thread asks anything of it. Raising clocks buys
+  almost nothing.
+- *Headless EGL instead of X11.* Xorg is at 0.1 % CPU; rendering is direct and
+  the X server proxies nothing. A robustness argument, not a speed one.
+- *Threading a single cell.* One render thread for all rendering sensors,
+  single-threaded physics per world. No knob exists.
+- *Trimming per-cell process fat.* Real waste exists — two 100 Hz IMU bridges
+  with no subscribers (`deskew_mode: "off"` proves it), `robot_state_publisher`
+  started outside its own RViz guard, an unconsumed `odom_noisy` publisher. But
+  gazebo free-runs with `-r` and never waits on ROS consumers, so none of it
+  gates sim time. Free to remove; expect no wall-clock from it.
+
+**Next bottleneck, conditional.** All 278 trees use the full un-submeshed canopy
+mesh as *collision* geometry — 261,368 triangles across 279 BVH shapes under
+DART/bullet at 100 Hz. Once the render thread stops gating, the main thread
+(measured 53.2 % CPU) becomes the cap. Lidar renders *visuals* and physics uses
+*collisions*, so swapping trees to a trunk cylinder leaves the map bit-identical
+— **but only if the canopy is currently out of the robot's reach**. If robots are
+today bouncing off branches, removing that changes navigation, which is a hard
+disqualifier. Measure the canopy's lowest triangle against the Husky's height
+before touching it.
+
+**Non-claim.** Every saving in this section except the poll quantisation is
+*inferred from a profile*, not measured end to end. The profile is solid; the
+translation from "76 % of one thread" to "half the wall-clock" assumes the
+render thread stays the gate right up until it stops being one, which is exactly
+the assumption §30.16's own "next bottleneck" paragraph doubts.
