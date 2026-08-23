@@ -8545,3 +8545,151 @@ call for opposite responses, one being "act on this finding" and the other "do
 not believe this script". Giving one script a private fourth status would cost
 more than it buys, so the convention stands and the ambiguity is recorded here
 instead.
+
+### 29.47 The criterion cannot be raised, and the measurement that says so
+
+`gate_and_launch.sh`'s gate2 failure branch ends on the last instruction in the
+launch window that exists only as a sentence:
+
+    Pre-registered response (§29.12): raise the criterion and RECORD THE NEW
+    VALUE IN THE DOC BEFORE pb4d RUNS. Choosing a criterion after seeing which
+    ones would have passed is the move that makes a gate decorative, so this
+    script will not choose one.
+
+Refusing to choose is right, and it leaves the choice to me, in a minutes-long
+window, with three cells' crossing times already on screen. Raising the
+criterion **weakens** the endpoint — `unknown<=0.65` stops a run earlier than
+`unknown<=0.60` — and it is the only lever that makes gate2 pass. "Smallest
+raise that passes" is a garden of forking paths on the primary endpoint of a
+2.3-day campaign, and in the doc it would be indistinguishable from a
+principled choice. So, per §29.45, the rule was written while its answer was
+still unknown.
+
+**The rule.** Stop when exploring has become as expensive as it was when we
+stopped in the world the criterion was registered in.
+
+    c_W(u)   = metres travelled while unknown fell from u+0.05 to u, per unit
+               of unknown; median over the `off` cells and both robots of W
+    c*       = c_dense(0.60)                         from pb3g2's off arm
+    CRIT(W') = highest u with c_W'(u) >= c* and c_W'(u-0.05) >= c*
+    proposed = max(0.60, CRIT(W'))
+
+The matched quantity is marginal cost rather than the obvious one — "the same
+share of the *achievable* map" — because that needs each world's asymptotic
+unknown floor and the smoke cannot measure dense2's. `DONE_UNKNOWN=0.30` is
+unreachable by design, so the cells burn to the 5400 s cap without asymptoting,
+and a floor read off a truncated curve is an extrapolation dressed as a
+measurement. Marginal cost needs no asymptote. Every constant is one already
+registered elsewhere: the 0.05 band is gate2's C2 band verbatim, 0.60 is the
+criterion, `MIN_CELLS=3` is `gate_and_launch.sh`'s `EXPECT_CELLS`.
+
+**And the calibration is the whole argument.** `--calibrate` applies the rule to
+flatforest_dense itself. `c*` is `c_dense(0.60)` *by construction*, so a rule
+that genuinely restates the existing criterion must return 0.60 there.
+
+It returned 0.65.
+
+**That failure is the result, not a bug.** The reference curve, 60 robot-series,
+median metres per unit unknown, with an exact two-sided sign test against the
+criterion band — paired, because the same 60 series contribute to every band
+from 0.90 down to 0.60, so nothing drops out between them:
+
+| u | n | cost | vs c\* | sign test vs 0.60 |
+| --- | --- | --- | --- | --- |
+| 0.95 | 44 | 28.4 | 0.04 | p < 0.0001 |
+| 0.90 | 60 | 368.4 | 0.48 | p < 0.0001 |
+| 0.85 | 60 | 304.6 | 0.40 | p < 0.0001 |
+| 0.80 | 60 | 362.6 | 0.48 | p = 0.0011 |
+| 0.75 | 59 | 479.0 | 0.63 | p = 0.0086 |
+| 0.70 | 60 | 740.7 | 0.97 | **p = 0.3663** |
+| 0.65 | 60 | 774.0 | 1.02 | **p = 0.8974** |
+| 0.60 | 60 | 761.5 | 1.00 | — (criterion) |
+
+Marginal exploration cost climbs steeply and then **plateaus across 0.70, 0.65
+and 0.60**. Every band from 0.75 up is distinguishable from the criterion band;
+the two immediately above it are not, one of them at p = 0.90. The plateau is
+not a survivorship artefact either — all 60 series reach all three bands, and
+the first band where the population thins (u=0.55, n=9 of 60) is excluded by
+the pooling floor precisely because the survivors there are the fast ones.
+
+So "as expensive as when we stopped" does not pick out 0.60. It picks out a
+0.10-wide plateau, three bands across, and cannot resolve the decision it was
+asked to make. Per its own docstring the rule is **rejected, not tuned** —
+there is no free parameter in it to tune, which was the point of building it
+that way.
+
+**What follows is a decision, not a shrug.** There is no measurable sense in
+which a raised criterion is "the same endpoint in a harder world". A raise is
+simply a weaker endpoint, and it would quietly break the one thing the frozen
+binary (`sha256_explo_planner_node = b05e162ca74df23b`, identical across all
+122 cells) exists to protect: pb4d's completion times being comparable with
+pb3g2's. Freezing the binary to keep two campaigns commensurable and then
+moving the endpoint between them would be an odd way to spend that discipline.
+
+**The cap has none of that problem.** Raising the duration cap changes nothing
+about *what* is measured — still the first time both robots reach
+`unknown<=0.60`, exactly as in pb3g2 — only how long we are willing to wait to
+observe it. It costs wall-clock and buys back censoring. `cap_decision.py`'s
+own argument licenses exactly this move at exactly this moment: "the cap is
+decided now or it is not decided", the objection being to changing it
+*mid*-campaign. So `cap_raise.py` registers the response gate2's branch was
+missing, again with no number of its own:
+
+    s      = median(fd2s completion) / median(pb3g2 off completion)
+    cap    = max_i(s * T_i) / 0.60, over pb3g2's THIRTY observed off times,
+             rounded up to the next 600 s
+
+0.60 is gate2's C3 constant used as its own inverse. The projection runs over
+pb3g2's real 30-cell spread rather than the smoke's three crossings, because a
+cap fitted to make C3 pass on the three cells C3 is then tested on would make
+C3 vacuous — the same forking path, one level down. The smoke contributes one
+scalar, `s`, which is all three cells are powered to say. Two refusals, both
+unflattering: a censored reference tail understates the projected maximum
+(`cap_decision.py`'s registered refusal, same reason), and an fd2s cell that
+never reached the criterion makes `s` a median of survivors, biased low, so the
+cap comes out short. A smoke that did not reach the criterion cannot price a
+cap for reaching it.
+
+**It will disagree with `cap_decision.py`, and that is not a contradiction.**
+cap_decision asks whether the cap *truncates* — at s = 2.71 it projects 0.0 %
+censoring and reads HOLD 5400 s. cap_raise asks whether the slowest projected
+cell clears C3's 60 % *margin*, which at the same s it does not: 1480 s × 2.71
+= 4106 s is 76 % of 5400. Different questions, and they are conditioned on
+different facts, because cap_raise runs only after gate2 has failed and gate2
+failing means the smoke was slower than the `s` cap_decision read. If it is
+ever run while gate2 passes, the censoring line it prints is the
+reconciliation: a raise proposed against zero censored cells is buying margin,
+not fixing truncation, and has to be argued for on those terms.
+
+**A fourth instance of the oldest bug here, found by running the new script.**
+`cap_raise.py` first reported two fd2s cells, one of which was still running.
+`cap_decision.cells()` globs the campaign root and calls `completion()`, which
+returns `censored=True` for a cell that has not reached `DONE_U` — and for a
+*live* cell that is a lie with a direction: "never crossed" instead of "has not
+crossed yet". It inflates the censoring rate cap_decision exists to report, and
+in cap_raise it fires a refusal on a cell that may cross a minute later.
+`overlap.py`'s docstring already records three separate wrong answers from this
+exact glob, in three different scripts, twice in scripts that imported the
+previous fix — and its stated remedy is that the guard belongs where the glob
+is. So the guard went into `cap_decision.cells()`, not into the caller. At n=3
+it is a no-op; it is there for every other moment either script might be run
+in, and the launch window is full of those.
+
+`rule_audit.py` gained a `--files` mode for the same reason. These
+contingencies run once, under time pressure, after a gate has already failed —
+a readout that returns the wrong status gets re-run, a launch-window
+contingency does not. It confirms `crit_raise.py` and `cap_raise.py` can return
+all three of §29.40's answers and that `crit_ref_curve.py` cannot return 1,
+which is what its own docstring claims. The driver's REPORTERS cross-check is
+skipped in that mode, because that annotation is a statement about the driver's
+list and says nothing about a script the driver never runs.
+
+**None of this will probably fire.** fd2s seed 1 crossed the criterion at
+1838 s of simulated time — 34 % of the cap, against C3's 60 % — so gate2 looks
+likely to pass and the criterion-raise branch to stay untaken. That is the
+expected outcome of writing a contingency early and not an argument against
+doing it. What survives either way is the measurement: the registered criterion
+sits on flatforest_dense's marginal-cost plateau, three bands wide, so the
+world offers no evidence about *where* on that plateau an endpoint belongs —
+and the lever that was registered for use when a gate fails turns out to be the
+one lever that cannot be justified.
