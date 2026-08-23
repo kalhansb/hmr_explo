@@ -6552,3 +6552,71 @@ deliver. That is exactly pb4d's premise, arrived at from a different column than
 §29.17's voxel jumps — and unlike §29.19 it is not a link statistic, so it does
 not inherit that section's caveat. **fd2s is n=1**; re-run when the smoke lands.
 This changes no gate: `partition.py` tests its own pre-registered threshold.
+
+---
+
+## §29.21 The settle window is a benign knob — checked, because §29.19 says check
+
+`overlap_link.py` has a tunable: how long after reconnection to wait before
+reading the post-transfer state. §29.19 was a retraction caused by quoting a
+statistic at the window that flattered it, so the knob gets audited before its
+number stays in the document.
+
+### The raw sweep, which looks alarming
+
+| settle | fd2s (known answer ≈72–75 %) | pb3g2 overlap | pb3g2 acceptance | unidentifiable |
+|---|---|---|---|---|
+| 10 s | **no measurement at all** | 95.8 % | 7/30 (23 %) | 28 % |
+| 20 s | **no measurement at all** | 90.8 % | 18/30 (60 %) | 21 % |
+| 30 s | **no measurement at all** | 87.8 % | 18/30 (60 %) | 26 % |
+| **60 s** | **72.2 %** ✓ | **88.0 %** | 13/30 (43 %) | 41 % |
+| 90 s | 72.1 % ✓ | 89.3 % | 10/30 (33 %) | 44 % |
+| 120 s | 72.1 % ✓ | 90.6 % | 10/30 (33 %) | 47 % |
+
+Acceptance swings 23 %→60 % and the overlap median moves 87.8–95.8 %. Taken at
+face value that is a knob choosing the answer, and the tempting move — pick 20 s,
+report 60 % acceptance — is precisely the §29.19 error.
+
+### Why short windows are biased, not merely different
+
+fd2s settles the question. Its transfer is not complete until ~60 s: at 10, 20
+and 30 s the calibration cell yields **nothing**. A window shorter than the
+transfer measures a *partial* gain, and since intersection = partner's map −
+transfer, a partial gain **inflates** overlap. That is the direction the sweep
+shows, with the shortest window highest at 95.8 %. So 60 s is not a preference,
+it is the shortest window that reproduces a known answer — and it was fixed as
+the default before this sweep ran.
+
+### The test that settles it: hold the cell set fixed
+
+Comparing medians across settle values compares different cells — 13 validate at
+60 s, 18 at 20 s. A moving median could be the estimate moving or the membership
+changing, which have opposite implications. On the **8 cells that validate at
+every setting**:
+
+| cell | 20 s | 30 s | 60 s | 90 s | 120 s | spread |
+|---|---|---|---|---|---|---|
+| seed10 | 97.7 | 97.7 | 97.7 | 97.7 | 97.7 | 0.0 pp |
+| seed14 | 90.6 | 85.0 | 84.7 | 84.3 | 84.3 | 6.3 pp |
+| seed17 | 96.5 | 96.5 | 96.6 | 96.6 | 96.5 | 0.1 pp |
+| seed19 | 88.9 | 87.9 | 88.0 | 88.0 | 88.0 | 1.0 pp |
+| seed2 | 94.2 | 93.4 | 90.4 | 90.5 | 90.5 | 3.8 pp |
+| seed20 | 92.7 | 92.7 | 92.6 | 92.5 | 92.5 | 0.2 pp |
+| seed25 | 76.8 | 76.0 | 76.7 | 75.3 | 74.5 | 2.3 pp |
+| seed8 | 93.8 | 93.8 | 93.8 | 93.8 | 93.8 | 0.0 pp |
+| **median** | **93.2** | **93.1** | **91.5** | **91.5** | **91.5** | — |
+
+Median per-cell spread **0.6 pp**, max 6.3 pp; the fixed-set median moves
+**1.8 pp** across a 6× change in the window. The knob decides **how many** cells
+can be measured, not **what** they measure. That is the benign form of a tunable
+parameter and the opposite of §29.19, where the window drove the value itself.
+
+### One thing this does not license
+
+The fixed-set median (91.5–93.2 %) is **higher** than the 13-cell median at the
+calibrated window (88.0 %). That is selection, not disagreement: cells
+measurable at *every* setting are the easy ones, and the easy ones have higher
+overlap. So **88.0 % remains the number**, and this exercise is a robustness
+check on the estimator rather than a competing estimate. Quoting 93 % because it
+came from the more carefully controlled comparison would be reintroducing the
+selection the control was built to expose.
