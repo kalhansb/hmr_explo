@@ -7192,6 +7192,15 @@ Scripts: `rate_compare.py` (world rates + refusal band), `gate_project.py`
 out of range — v1's failure was not a wrong number, it was a confident verdict
 attached to one.
 
+None of those three reads a `pb4d` cell — they project `pb3g2` into `dense2`
+rates, which is all that was possible when this block was written. The tripwire
+and the two predictions above are evaluated on `pb4d` itself by
+`pb4d_tripwire.py`, and the 10 pp arrived-share rule registered below by
+`pb4d_merge_rule.py`; both were written after this block and are the subject of
+§29.41 and §29.42, which also correct the "roughly one hour in" estimate above
+to about **20 hours** — `launch_pb4d.sh` runs seed-major, so the tenth `hybrid`
+cell is campaign cell ~20, and one cell yields a median of one number.
+
 ### 29.28 Closing §29.27's open assumption, and failing to
 
 §29.27 held `RECONNECT_MIN_SHARE_VOX=550000` on one number — gate declines land
@@ -8121,3 +8130,72 @@ costs `hybrid` less time — pushing `hybrid` toward looking **better**. §27.8
 predicts `hybrid` does not beat `off` at 400. The confound therefore works
 against the registered prediction, so a `hybrid` loss survives it
 conservatively and a `hybrid` win is the result that has to rule this out first.
+
+### 29.42 Finishing the sweep: which pre-registrations had evaluators, and why
+
+§29.41 found one registered check that nothing could execute. One is an
+accident; the question is whether it is a class. So: every rule registered to be
+evaluated **on `pb4d` data** was listed, and each was traced to the code that
+would run it.
+
+| registered on `pb4d` data | evaluator before | now |
+| --- | --- | --- |
+| headline: ratio of medians, exact permutation | `final_table.py`, `permtest.py` | unchanged |
+| §29.10 abort at ≥50 % censored in an arm | `cells.py`, `permtest.py`, `final_table.py`, `campaign_health.py`, `test_censor.py` | unchanged |
+| §29.27 median `unknown_fraction` in 0.55–0.67 | **none** | `pb4d_tripwire.py` |
+| §29.27 predictions: ceiling ≈45 %, `gate_sec` ≈209 s | **none** | reported by `pb4d_tripwire.py` |
+| 10 pp arrived-share margin, hybrid vs `off` | **none** | `pb4d_merge_rule.py` |
+
+**The split is not random, and that is the useful part.** The two rules with
+evaluators are the ones that are *tag-generic* — they took a campaign name as an
+argument and had already been run in anger on `pb3g2`. The three without are the
+ones written specifically for `pb4d`, about a density that does not exist yet.
+Nothing had ever forced them to execute, so nothing had ever forced them to be
+written. Reuse is what kept the first two honest; novelty is what let the other
+three stay sentences. That inverts the intuition — the checks most specific to
+the experiment, the ones written with the most care about *this* result, are the
+ones least likely to have code behind them.
+
+**The 10 pp rule looked implemented, which is why it survived the first pass.**
+`merge_crossing.cell_arrived` exists, is correct, and already contrasts `pb3g2`
+`off` against hybrid — the **3.3 % vs 1.2 %** pair quoted in the registration is
+its output. What did not exist was anything that applied it to `pb4d` or
+compared the difference to the number 10. The primitive being present is what
+makes this hard to see; there is no missing function, only a missing sentence of
+arithmetic that nobody would notice was missing until the campaign ended and the
+rule was reported as unviolated.
+
+`pb4d_merge_rule.py` closes it, importing `cell_arrived` and its `MERGE_MULT` /
+`MERGE_DIST` thresholds rather than re-deriving them, and reproducing 3.3 / 1.2
+at 30 cells per arm exactly. Same evidence standard as §29.41: the equality is
+the reason to believe it reads the right rows.
+
+Three decisions in it are worth recording.
+
+**Difference of arm medians, not paired by seed.** Same-seed cells in this
+simulator are not the same world — one seed returned 1803 s and 856 s — so
+pairing would import noise as though it were structure. The registered sentence
+says "hybrid's ... exceeds `off`'s", which is the unpaired form, and that is the
+form implemented.
+
+**"More than 10 pp" is strict.** Exactly +10.0 pp is WITHIN; +10.001 fires. Both
+are asserted in the self-test rather than left to whoever reads the comparison
+operator later. An off-by-one on a pre-registered threshold is invisible in
+review and decisive in a result.
+
+**The margin's scale is reported and deliberately not registered.** From
+`pb3g2`'s per-arm IQRs the difference of medians carries a standard error of
+about **1.6 pp**, so 10 pp sits roughly **6 SE** out: it detects a gross
+artefact, not a marginal one, and it will not fire on noise. That is worth
+knowing and is not a reason to move the margin now — a threshold recomputed from
+the data it is about to judge is not a pre-registration. For the same reason
+§29.27's two *predictions* are printed by `pb4d_tripwire.py` and never encoded
+in its exit status. Only the band was registered as a tripwire; a prediction
+that quietly acquires a failure status is a hypothesis promoted to a gate after
+seeing what it would gate.
+
+`pb3g2` reads **−2.1 pp** — hybrid *lower*, the shortcut not operating at the
+density where it can currently be tested — and the evaluator's fired branch is
+therefore unreachable on every dataset that exists. It is exercised in the
+self-test instead, 7/7. `pb4d` is not the place to discover a pre-registration
+had a typo in it.
