@@ -8356,3 +8356,102 @@ registered rule including SUPPORTED, which no dataset can reach through the
 original.
 
 The readout driver now runs **12** scripts rather than §29.40's eleven.
+
+### 29.45 Writing the contingency before knowing whether it fires
+
+§29.44 ended on a hole it did not fill. `dropout_position.py`'s registered rule
+cannot return SUPPORTED, so §29.27's one open assumption — that dispatches fall
+similarly over map fraction in the two worlds — had **no route to confirmation**
+at all. Its best available outcome was "no verdict", and its only decisive one
+was launch-blocking. An assumption that can only ever be attacked or ignored is
+not being tested.
+
+The rule's third branch also ends on a task that exists only as a sentence:
+
+    * TVD > max at 3/3, no single outage over 50 %
+                              -> re-derive §29.27's declines from dense2's OWN
+                                 outage positions BEFORE pb4d launches
+
+That is the §29.41 shape once more — a launch-blocking instruction in prose,
+indistinguishable from an implemented one until the moment it has to run, and
+the moment it has to run is a minutes-long window with a 60-cell campaign
+waiting at the end of it. So `gate_reweight.py` was written now, while its
+answer is still unknown, which is also the only time its thresholds can honestly
+be fixed.
+
+**What the re-derivation actually does.** `gate_project.py` projects `dense2`'s
+declines by taking `pb3g2`'s 206 *real* gate dispatches and dividing each
+`gate_sec` by the rate ratio at its map fraction. Every dispatch counts once —
+which is precisely the assumption. `dropout_position.py` already measures the
+thing that assumption is about: the share of outage-**seconds** each world
+spends in each map-fraction quintile. So each `dense` dispatch is weighted by
+
+    w(j) = dense2_second_share(j) / dense_second_share(j)
+
+and the decline statistics are recomputed as weighted statistics. Seconds and
+not counts, for `dropout_position.py`'s reason: a dispatch needs an outage to
+outlive the 60–240 s gate, so a swarm of 5 s flickers must not outvote the few
+long outages that can actually produce one.
+
+**It answers a better question than the rule it was a contingency for.** The TVD
+test asks *are the outage positions different?* That is a proxy. What §29.27
+needs to know is *does the conclusion move?* — and different positions only
+matter if they shift the state the gate declines in. The reweighting asks the
+second question directly. It also, unlike `dropout_position.py`, has a
+reachable supported branch: if the reweighted median decline state stays within
+`gate_project.py`'s registered 0.05 of `dense`'s observed 0.593, the agreement
+survives being handed `dense2`'s own geometry, and that is positive evidence
+rather than an absence of contrary evidence.
+
+Which is why it runs **unconditionally** at n=3 rather than only when the TVD
+rule fires. The readout driver now carries **13** scripts.
+
+**The threshold is not a new one.** `gate_project.py` already registers
+`|median unknown at dense2 declines − at dense declines| < 0.05` as "the
+declines land in the same informational state". `gate_reweight.py` reuses that
+number verbatim on a reweighted estimate. The only genuinely new thresholds are
+the two guards, and both are fixed here in advance of the data:
+
+* **Unrepresented mass.** If `dense` has no outage-seconds in a quintile where
+  `dense2` does, `w(j)` is infinite — there is no `dense` dispatch to stand in
+  for `dense2`'s mass there. Above 20 % of `dense2`'s seconds the projection is
+  extrapolating, and it defers.
+* **Effective sample size.** Importance weighting concentrates the estimate on
+  whichever dispatches drew the large weights. `ESS = (Σw)²/Σw²` says how many
+  dispatches the weighted median is really standing on; below 10 it defers.
+  This is `dropout_position.py`'s `top2 > 0.50` guard in the weighting domain:
+  a handful of events wearing a distribution's clothes.
+
+A third case is reported rather than gated — a decline sitting in a quintile the
+`off` arm never lost the link in. Dispatches come from the treated arms and the
+shares come from `off`, so the two need not cover the same quintiles. Those
+declines leave the weighted median because their weight is undefined, and the
+count is printed, because a silent exclusion inside a list comprehension is how
+a sample becomes biased without anyone deciding to bias it.
+
+**Checked by an identity, not by inspection.** Setting the target shares to
+`dense`'s own makes every weight exactly 1, and the reweighted median must then
+equal the unweighted one to the last bit. That forced the weighted median to be
+written so it reproduces `med()` including the even-*n* average of the two middle
+values, rather than the usual lower-crossing convention that would have been
+close enough to look right and wrong on every even count. `--calibrate` asserts
+that identity together with `gate_project.py`'s published 206 dispatches, 14
+declines and median unknown 0.593. Self-test 19/19 on pure functions, no data.
+
+**And it declines cheaply.** The first draft called `project()` — 60 `pb3g2`
+cells — before checking whether three `dense2` cells even exist. §29.43 measured
+analysis load leaking into the wall/sim ratio the smoke exists to produce, so
+the cheap refusal now comes first: against the live root it returns DEFERRED in
+`wall=0s` having read a handful of manifests. A script that is going to decline
+should decline before it does the expensive part.
+
+One thing that fell out of writing it. The completion predicate here is *not*
+`run_end_reason`. Every outage after the 0.60 crossing is dropped by the
+truncation anyway, so "both robots reached 0.60" is the **exact** completion
+predicate for this statistic rather than a conservative approximation of one —
+a cell still running past its crossing has already contributed everything it
+ever will. `ov.finished_cells(root, tag, "off", 0.60)` is therefore the right
+filter, and it is the same one `rate_compare.world_profile` uses to build the
+ratio this projection rests on. Against the live root it currently counts two
+`dense2` cells, one of which is still running: correct, and only correct because
+of the truncation.
