@@ -9607,3 +9607,118 @@ readout that flags the power risk was the one whose status shape was unverified.
 Direct returns, no behaviour change, and it now audits as reaching all three of
 §29.40's answers. Calibration still passes; 44 fixtures still pass; the exit
 status is still 1.
+
+### 29.57 The launch gate was measuring a different quantity from everything else
+
+`gate2.team()` reduced the two robots' `unknown_fraction` with a **minimum** —
+the *first* robot to reach the criterion. `crossing_calib.cell()`,
+`cap_decision.completion()`, `approach_slope.approach()` and
+`fd2s_track.worst_u()` all take the **maximum**, the last one. Four scripts
+against one, and the one is the gate that licenses the launch.
+
+It is not a naming quibble. §29.55 read the smoke against C3 like this: *"cell 2
+crossed at 3165 s against a 3240 s gate, a margin of 75 s."* 3165 s is the max
+crossing. C3 would have been evaluated on the min one. The margin quoted as
+decisive was a comparison between two different quantities. And `s` — the
+slowdown the entire cap decision turns on — is computed from max on both sides,
+so if the gate were right, `s` would be measuring something the gate does not
+read.
+
+**Settled against the harness, not by argument.** The original rationale for min
+was a sentence: "the run ends when the team's map meets the criterion." That is
+an empirical claim about what the harness does, so it can be checked. The 30
+pb3g2 `off` cells that ended `all_done` each carry the harness's own
+`run_end_t_sim`. `minmax_estimator.py` replays both reductions over the same
+stepwise hold on the same union of timestamps — so any difference found is the
+min-vs-max choice and not a resampling artefact — and scores each against that
+answer key:
+
+                              median      p90      max
+    end - MIN crossing          100s     546s     947s
+    end - MAX crossing           69s     107s     223s
+    MAX - MIN (the gap)          22s     510s     890s
+
+The two agree exactly in **3 of 30** cells. Median absolute error 100 s for min
+against 69 s for max, and the p90 is the sharper number: min's error is five
+times max's. Min is not merely biased — a bias is correctable — it is *unstable*,
+because how far apart the two robots finish is a property of the run, not a
+constant. Max is the estimator every other script already used, and it is the one
+that tracks the harness. So the gate moves to max and the four-against-one
+becomes five-for-none.
+
+**The direction is why this was allowed at all.** Changing a launch gate while
+waiting on the cell that will be judged by it is the shape of a self-serving
+edit, and it does not stop being that shape because the argument is good. What
+takes it out of that class is arithmetic: min crosses at or before max, always,
+so every crossing time this gate reads gets **later**. C1 ("every cell crosses")
+and C3 ("by 3240 s") both get **harder**. The change makes the launch I am trying
+to reach harder to license, not easier. It was registered while cell 3 was still
+running, and `gate2.main()` now evaluates and prints **both** verdicts side by
+side with a tripwire if max ever turns a fail into a pass — the one direction it
+should be arithmetically incapable of moving. A reader does not have to take the
+direction argument on trust; the output shows it.
+
+On the smoke's two landed cells the crossings move 1815 s → 1838 s and 3158 s →
+3165 s, and now match `crossing_calib` exactly. Small here. The 890 s gap in
+pb3g2 is what the number could have been.
+
+**A verdict about a run with 2800 s left to go.** Run by hand mid-smoke, `gate2`
+globbed the live cell's directory, read its partial CSV, found no crossing in it,
+and printed `C1 FAIL ... GATE FAILS. Do NOT launch pb4d at this criterion.`
+`gate_and_launch.sh`'s step 0 checks `run_end_reason` per cell and exits 3 before
+gate2 is ever reached, so the *pipeline* was never wrong. The footgun is the
+hand-run — which is exactly the path by which a number reaches this document.
+A cell that has not crossed **yet** and a cell that never crosses are
+indistinguishable to a gate that only sees the CSV, and the difference between
+them is the whole verdict. It now refuses: names the live cells, explains that
+this is §29.40's exit 2 (insufficient data) and not a failed gate, and returns
+before printing anything a reader could quote. This is §29.54's "a rule that
+fires on every mid-campaign run", one directory further down.
+
+**Two bugs in the guard itself, in ten minutes.** The first detector was a list
+comprehension that called `open()` before `os.path.exists()` — a missing manifest
+would raise instead of counting as live, which is the case it exists for.
+Rewritten as an explicit loop. The second is worse and nearly shipped: the file
+ended `if __name__ == "__main__": main()`, a bare call, because `main()` had
+always finished with `sys.exit(...)`. My refusal used `return 2`. Under a bare
+call a `return` from `main()` exits **0** — the refusal would have printed its
+careful explanation and then reported CLEAN to every caller. It is caught by
+`sys.exit(main())` and by making every branch return rather than exit. I caught
+it only because the line I had just replaced happened to be a `sys.exit()` and
+the new one was not; nothing in the suite would have.
+
+**Nothing in the suite would have, because the suite never ran `main()`.** All
+six existing fixtures fed synthetic worlds to `gate2.evaluate()` directly. Both
+of the above bugs live in `main()`, and so does the estimator choice. Two new
+cases:
+
+- **TEST 7** constructs two robots with the same floor and different time
+  constants, so both crossings are analytic. `team()` returns 465 s (the slow
+  robot) and `team(pick=min)` returns 155 s — a 310 s gap the old gate would have
+  credited to the team. 7c asserts the monotonicity the direction argument rests
+  on, at every one of the 601 samples rather than at the one crossing.
+- **TEST 8** writes a throwaway campaign root with a manifest lacking
+  `run_end_reason`, and asserts `main()` returns 2 and prints no verdict. Then it
+  appends `run_end_reason=all_done` to *the same* manifest and asserts the cell
+  is no longer refused and the gate passes. The second half is the point: a
+  refusal that blocked every root would satisfy the first half completely.
+
+TEST 8a failed on first run against correct code. It asserted `"GATE FAILS" not
+in output` — and the refusal *quotes* that string while explaining why it
+declines to print it. The assertion was matching the explanation. It now matches
+what a reader would actually copy out: the `VERDICT` block and the launch
+instruction. A fixture whose failure message reads identically whether the code
+or the fixture is wrong is one I have already been burned by (§29.56's tau=3200
+world), so it gets a comment saying which one it was.
+
+**One piece of stale advice removed.** gate2's failure branch used to end by
+suggesting the criterion be raised, with a pointer to `crossing.py` for choosing
+the new value. §29.47 settled that the criterion **cannot** be principledly
+raised and that the cap is the only licensed lever. The gate was offering, at the
+exact moment of failure, the remedy the campaign had already ruled out — the most
+persuasive possible moment to be given bad advice. It now points at
+`cap_raise.py` and says why.
+
+11 checks in `test_gate2.py`, all passing; `rule_audit --calibrate` still passes.
+`gate2.py fd2s` currently exits **2**, naming `fd2s_off_seed3`, which is the
+correct answer to a question asked too early.
