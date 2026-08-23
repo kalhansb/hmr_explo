@@ -8911,3 +8911,62 @@ negative control ran unfiltered in both subset runs and reached
 `ALL THREE GATES PASS` through the new guard — but expected is not measured,
 and an unfiltered `./test_gate_launch.sh` is now step 0 of the launch window,
 ahead of the IV commit. Exit 2 makes a filtered run unable to stand in for it.
+
+### 29.50 One variable, verified from the manifests rather than the flags
+
+`launch_pb4d.sh` asserts that pb4d differs from pb3g2 in the world and nothing
+else. Its flags are a statement of intent, and the failure they cannot catch is
+a **valid wrong value** — `--done-unknown 0.30` is the fd2s smoke's floor
+probe, it is one character from `0.60`, and pasted into the launcher it would
+turn a 2.3-day confirmatory campaign into a 2.3-day floor probe. Nothing
+downstream would notice: `gate_and_launch.sh`'s exit 8 catches a launcher that
+is *fatal*, not one that is merely wrong, because `run_campaign.sh` would
+accept 0.30 without complaint and every cell would run to the cap.
+
+So the check was made against the manifests the runs themselves wrote.
+`pb3g2_off_seed1` against `fd2s_off_seed1`, every field except the per-run
+outcome ones:
+
+| field | pb3g2 (dense) | fd2s (dense2) |
+| --- | --- | --- |
+| `tx_power_dbm` | 30.0 | 30.0 |
+| `duration_s` | 5400 | 5400 |
+| `record` | 0 | 0 |
+| `sha256_explo_planner_node` | `b05e162ca74df23b` | `b05e162ca74df23b` |
+| `EXPLOIT` / `RECONNECT_MIN_SHARE_VOX` / `PURSUIT_BUDGET_MAX` | 0 / 550000 / 2400 | 0 / 550000 / 2400 |
+| `done_unknown_fraction` | 0.60 | **0.30** — the smoke's floor probe; `launch_pb4d.sh` carries 0.60 |
+| `comms_trees_loaded` | **278** | **441** |
+
+Three differences in the whole file: the output directory, the floor probe's
+criterion, and the trees. `launch_pb4d.sh` was read against this and carries
+`--done-unknown 0.60`, so pb4d differs from pb3g2 in **exactly one variable**.
+
+**The exposure now has a number.** `comms_trees_loaded` is deterministic per
+world — 278 in all 120 pb3g2 cells, 441 in both finished fd2s cells, invariant
+across seed and arm. The SDFs corroborate it and say something more: 325 and
+488 `<model>` entries, so **47 non-tree models in each**, identical. The comms
+emulator loads every tree and only trees, and the two worlds are the same world
+with 163 trees added.
+
+    441 / 278  =  1.586x
+
+That is the right quantity rather than a convenient one. §"comms link is
+occlusion-gated" established that **0 %** of dropouts occurred with clear
+line-of-sight, which is why tx power was rejected as a lever and density chosen
+instead. The occluder count *is* the dose, and it has moved 1.59x.
+
+It also puts a number under §29.48's mediator argument. That argument — gate
+behaviour is downstream of density, so equalising it would remove part of the
+causal effect — rested on "a denser forest", which is a description. It now
+rests on 278 → 441 with everything else in the manifest byte-identical,
+including the frozen binary that makes pb4d's completion times comparable with
+pb3g2's at all.
+
+**What this does not establish.** That 1.59x more trees produces proportionally
+more or longer outages is the hypothesis, not a corollary; the smoke's crossing
+time (1838 s against pb3g2's 679 s median, s = 2.71 at n=1) is the only
+evidence so far that the world is harder at all, and it is one cell. And the
+check is a comparison of two manifests, so it certifies the configuration, not
+the trajectory: two runs can share every recorded field and still diverge, as
+§"sim is nondeterministic run-to-run" measured at 1803 s against 856 s on the
+same seed.
