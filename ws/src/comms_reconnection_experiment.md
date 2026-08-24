@@ -11628,3 +11628,281 @@ before touching it.
 translation from "76 % of one thread" to "half the wall-clock" assumes the
 render thread stays the gate right up until it stops being one, which is exactly
 the assumption §30.16's own "next bottleneck" paragraph doubts.
+
+### 30.17 Building the retro-index patch: three failures that would each have been silent
+
+§30.16 proposed the fix and predicted its size. Implementing it turned up three
+separate ways the exercise could have produced a confident, wrong number, and
+one of them invalidates §30.16's own stated endpoint. All three share a shape:
+the failure does not raise anything, it just changes what you are measuring.
+
+**The patch.** `Ogre2LaserRetroMaterialSwitcher` is declared entirely inside
+`Ogre2GpuRays.cc` — it is translation-unit-local, so it has no ABI surface and
+can be changed freely. Before the per-`Item` loop in `cameraPreRenderScene` the
+patch walks the visual store once and builds an `unordered_map<unsigned int,
+VisualPtr>`; the loop then does a hash lookup instead of `Scene::VisualById()`.
+That turns O(items × visuals) into O(items + visuals) per scan. Three details
+are deliberate:
+
+- The index is rebuilt **every frame**, not cached across frames. Visuals can be
+  created and destroyed at runtime, and a stale index would be a correctness bug
+  rather than a performance one. Rebuilding is one linear pass, which is what
+  the old code paid *per item*.
+- `Store::GetByIndex` was **not** used to enumerate. It is `std::advance` on a
+  `std::map` iterator, so building the index through the public API would itself
+  be quadratic — the same trap the patch exists to remove.
+- Reaching the store needs `Ogre2Scene::Visuals()`, which is `protected`. That
+  is one `friend` declaration in `Ogre2Scene.hh`. A friend declaration adds no
+  data member, changes no layout and touches no vtable, so it is compile-time
+  only and carries **no ABI impact**. Adding a lookup member to `BaseStore` —
+  the other obvious design — was rejected for exactly the opposite reason.
+- If the `dynamic_pointer_cast` to the concrete store ever fails, the loop falls
+  back to the original `VisualById` call unchanged, so the patch cannot break a
+  scene it does not recognise.
+
+**Failure 1: the overlay silently did not take.** §30.16 says the plugin has no
+runtime escape hatch, and that turns out to understate the problem —
+`IGN_RENDERING_PLUGIN_PATH` exists but **loses**. `RenderEngineManager::
+LoadEnginePlugin` calls `SetPluginPathEnv`, then pushes the compile-time
+`IGN_RENDERING_PLUGIN_PATH` default, then the preset paths; gz-common's
+`PluginPaths()` appends the *environment* paths lazily on first query — i.e.
+after the default is already on the list. The default therefore always wins.
+This was not reasoned out in advance; it was caught by reading
+`/proc/<pid>/maps` of a live run, which showed the **system** `.so` mapped while
+the environment variable was set. Had that not been checked, the measurement
+would have compared stock against stock and reported "the patch does nothing".
+
+`LD_LIBRARY_PATH` does not help (dlopen is given an absolute path) and
+`LD_PRELOAD` is worse: glibc matches an already-loaded object by its requested
+path or SONAME, and an absolute path to the system file matches neither a
+preloaded copy's path nor its soname, so a **second copy of the render engine**
+would be loaded into the process. The mechanism that does work is to make the
+system path itself serve different bytes, inside a private mount namespace:
+`unshare -rm` maps the invoking uid to 0 namespace-locally, which permits
+`mount --bind` without sudo, and the substitution is visible only to that
+process tree and disappears when it exits. No dpkg-owned file is mutated and
+there is nothing to remember to undo. The wrapper verifies the mount took
+(`cmp`) and refuses to run if it did not — a bind mount that fails would
+otherwise degrade exactly into failure 1.
+
+The stock arm goes through the same wrapper with `--stock`, which binds the
+system library **over itself**. Both arms are therefore unshared, bind-mounted
+and namespaced identically, and the only difference between them is which bytes
+sit behind the plugin path. Without that control, any saving could be attributed
+to the namespace rather than to the patch.
+
+**Failure 2: the patched plugin has its own build prefix compiled in.**
+`Ogre2RenderEngine` resolves its Hlms shader templates from
+`IGN_RENDERING_RESOURCE_PATH` if set, otherwise from a compile-time macro — and
+for a locally built library that macro is the local install prefix, which was
+never installed to. The result is `Unable to create the rendering window:
+FileNotFoundException … contains no valid template shader files`. What makes
+this dangerous is the failure *mode*: gazebo keeps running, physics keeps
+stepping, the lidars simply never produce, and the harness sits in "waiting for
+atlas odom" until it times out. **Two runs were lost to it before the sim log
+was read.** A run that produces no lidar data would have looked like a fast run
+if the endpoint had been anything other than a completed cell. The wrapper now
+exports `IGN_RENDERING_RESOURCE_PATH=/usr/share/ignition/ignition-rendering6` —
+which is what the stock library has compiled in, confirmed with `strings`, so it
+is a no-op for the control arm — and hard-checks that
+`$IGN_RENDERING_RESOURCE_PATH/ogre2/media/Hlms/Unlit/GLSL` exists before
+launching. It is set for **both** arms so it can never become the difference
+between them.
+
+**Failure 3 — and this one corrects §30.16: RTF cannot show this win.**
+`flatforestv2.sdf` pins `<max_step_size>0.01</max_step_size>` and
+`<real_time_factor>1.0</real_time_factor>`. A single shard on a quiet machine
+therefore runs *at the cap*: measured from the harness heartbeats, t_sim
+68 → 130 → 191 → 253 in ~61 wall seconds each, RTF ≈ 1.00. Removing render work
+from a run that is already being throttled to real time cannot make it finish
+sooner — the saved time is handed back to the sleep that enforces the cap.
+
+Two claims in this document are wrong as written and are retracted here:
+
+- §30.16's "**Expected effect is roughly halving per-cell wall-clock**". A lone
+  cell is at the cap, so the saving cannot appear as per-cell wall-clock at all.
+  It can only appear as **concurrency headroom**: more shards running at RTF 1.0
+  before the box oversubscribes. Campaign wall-clock still falls, because a
+  campaign is shards × cells, but the mechanism and the arithmetic are different
+  and a per-cell timing test would have reported a **false negative**.
+- §30.16's closing suggestion, and §30.14's acceptance test, that the lidar cap
+  "should record **RTF alongside map bit-identity**". Single-shard RTF is
+  clipped and will read 1.0 either way. The right instrument is CPU-seconds per
+  simulated second, which is unclipped, and which is the quantity that actually
+  decides how many shards fit. (Stock three-wide RTF is 0.53–0.56, i.e. the box
+  is oversubscribed there and *that* configuration is where a saving shows up as
+  RTF.)
+
+**The self-check, and why it needed a fault injection.** The patch carries an
+env-gated verifier: with `IGN_VERIFY_RETRO_INDEX` set, every index hit is
+compared against the original linear scan *within the same frame* — which is
+what makes it trustworthy, since the simulator is nondeterministic run to run
+and a cross-run comparison would prove nothing. The first version only logged
+mismatches, and that is the failure catalogued under "checks that stopped
+checking": zero mismatch lines reads **identically** whether the comparison ran
+a million times and always agreed, or the environment variable never reached the
+process and the branch was never entered. So the verifier now also emits a
+periodic count — positive evidence it ran, with a denominator — and
+`IGN_VERIFY_RETRO_INDEX=fault` perturbs every 10,000th *probe* (asking the slow
+path for `id + 1`) so the detector is proven able to fire. Only the probe is
+perturbed; the value actually rendered is untouched.
+
+Both runs were done, in this order:
+
+| run | lookups verified | mismatches | reading |
+|---|---|---|---|
+| `IGN_VERIFY_RETRO_INDEX=fault` | 780,054 | 78 | 1 in 10,001 against an injected 1 in 10,000 — the detector fires, at the rate it was told to |
+| `IGN_VERIFY_RETRO_INDEX=1` | 5,140,152 | **0** | the index returns what the linear scan returns |
+
+The fault run's message text is the other half of the calibration: `index gave
+Oak tree_69::link::branch, linear scan gave <null>` — the perturbed probe asked
+for an id that does not exist, so the slow path returned null while the index
+returned the true visual. That is precisely the injected fault and not some
+other disagreement. **The second row means nothing without the first**, which is
+the whole point of building it that way.
+
+**What is still not established.** The patch is correct; whether it is *worth
+it* is a separate measurement, and the paragraph above deliberately claims
+nothing about speed. Because §30.16's per-cell wall-clock endpoint is retracted
+here, the size of the win has to be re-measured as CPU-seconds per simulated
+second, stock against patched, both namespaced.
+
+### 30.18 The poll fix is in — and it moves the endpoint, so it is not free after all
+
+§30.16 called the 15-second poll "free … with zero validity cost". The first
+half held; the second half did not, and the difference matters for how the
+banked `tr1` cells may be used.
+
+**What was changed.** `run_explo_sim_rviz.sh` had a single loop cadence doing
+two jobs: cheap liveness and DONE checks, and a `sim_clock` read that costs a
+~0.33 s `ros2` process spawn. Both ran every 15 wall seconds, so tightening the
+loop for the first would have multiplied the second by 7.5×. The loop is now
+two-cadence — `POLL_S` (default 2) for the cheap checks, `CLOCK_EVERY_S`
+(default 15) for the clock spawn — with the clock forced to the fast cadence
+only on the DONE edge and inside the grace window, which are the two places
+where clock quantisation actually costs wall-clock. `all_done` was hoisted above
+the clock read so the edge is detected without one, and the budget gate uses
+`$SECONDS`, a bash builtin, so it costs no fork. Steady-state overhead is
+therefore unchanged while both end-of-run boundaries tighten from ≤15 s to
+≤2 s. `bash -n` clean; every new variable is `set -u`-safe.
+
+**The part §30.16 got wrong.** Closing a run up to 13 seconds earlier does not
+only shorten the wall-clock — it also removes up to ~7 sim-seconds of *positive
+bias* from `run_end_t_sim`, which is the completion-time endpoint. The old
+quantisation was a small upward offset on every cell. It applied to both arms
+and so cannot have created the `off` < `hybrid` ordering, but it is not nothing:
+cells run after this change are **not strictly comparable** to the 40 banked
+`tr1` cells, and pooling the two would mix a biased estimator with an unbiased
+one.
+
+The practical consequence is a fork, and it should be taken deliberately rather
+than discovered later: **either finish `tr1` on the old binary, or take the
+speedups and restart the arm.** Not both. The same applies to any gz-rendering
+overlay — a cell run under the patched plugin is a different measurement
+apparatus from one run under the stock plugin, even if the maps are
+bit-identical, because the harness timing changes around it.
+
+### 30.19 The completion criterion, rewritten — and the trade it was hiding
+
+**The old endpoint moved with the treatment.** A run ended when the *harness*
+saw both planners report DONE, and a planner could only report DONE from the top
+of `doPlan`. `hybrid` robots spend real time in `PURSUE` and `RETURN_NAV`, and
+in those states the check simply did not run. So a `hybrid` robot could have
+finished exploring and go on being counted as exploring for as long as its
+manoeuvre lasted, while an `off` robot — which has no manoeuvre — was checked
+promptly. Much of `hybrid`'s measured 107 s deficit was detection latency, not
+robot behaviour. That is the failure mode an endpoint is least allowed to have:
+the quantity being measured was a function of the arm being measured.
+
+Two repairs were on the table. **(A)** keep the criterion and shrink the blind
+spot — cheap, but it leaves a criterion whose meaning still depends on which
+states a robot happens to occupy. **(B)** replace the criterion with one defined
+purely on the robot's own knowledge, so that no state, gate, or partner can
+delay it. B was chosen and mandated:
+
+> Each robot computes the unknown fraction inside the ROI from its own dscovox
+> fused map. It is finished the first tick that value is ≤ 0.64. Latched — it
+> does not un-finish. Checked every tick, in every state, including mid-chase.
+> No confirmation streak. No rendezvous gate. The run ends when both robots have
+> independently hit it.
+
+Implemented in `b669525` as `done_criterion=latch`. The old `streak` criterion is
+kept, not deleted, so the banked campaigns stay reproducible; `DONE_UNKNOWN`'s
+default moved 0.55 → 0.64 to match what `tr1` actually ran at.
+
+**The verification refuses to pass on a sample that cannot exercise it.**
+`verify_latch.py` measures the gap between the tick a robot *qualifies* (its
+logged `unknown_fraction` first reaches the threshold) and the tick it
+*declares*. Under the latch that gap is 5.0 s — exactly one metrics sampling
+period, which is the floor, not a good score — or 0.0 s when the `doPlan` check
+catches it first. The check earns its keep by biting: run against the old binary
+it fails on **80 of 80** robots, median gap 65.0 s against an 11.0 s budget. A
+check that passes on both binaries would have been measuring nothing.
+
+Rule 3 is the one that cannot be proven by construction, only observed, because
+it needs a robot to actually saturate mid-manoeuvre. Across `tl1`'s 118 robots
+it happened **16 times**: latched from inside `PURSUE`, `RETURN_NAV` or
+`RETURN_SYNC`, which was structurally impossible before. Until such a case
+appeared the checker reported NOT EXERCISED rather than a pass.
+
+**A trap worth recording: the crossing row lies about its own state.** The latch
+is tested in two places — the end of `metricsTick`, and the top of `doPlan`.
+When `doPlan` wins it recomputes the fraction fresh *between* 5.0 s metric
+samples, so the CSV row that records the crossing is stamped after the
+transition and reads `DONE`. Reading `state` from that row therefore hides
+exactly the manoeuvre crossings the tally exists to count. The correct read
+walks back to the last row whose state is neither `DONE` nor `LOG_STEP`. Taking
+the row at face value did not produce a wrong-looking number — it produced a
+right-looking one that was undercounting.
+
+**The result: `tl1`, 60 cells, 30 per arm, both endpoints together.**
+
+| | completion time (median) | converged, end % < 0.10 |
+|---|---|---|
+| `tr1` hybrid (streak endpoint) | 704 s | 19/19 (100 %) |
+| `tr1` off (streak endpoint) | 597 s | 12/21 (57 %) |
+| **`tl1` hybrid (latch)** | **449 s** | **24/30 (80 %)** |
+| **`tl1` off (latch)** | **554 s** | **22/30 (73 %)** |
+
+Within `tl1`: geometric-mean ratio **0.786**, i.e. `hybrid` takes **21.4 % less
+time**, permutation **p = 0.0023** (the deterministic Monte-Carlo branch of the
+same null, 2 000 000 draws — C(60,30) cannot be enumerated). The tail-robust
+view agrees: P(a random `hybrid` cell is slower than a random `off` cell) =
+0.271. Convergence within `tl1` is a **null**, Fisher p = 0.38.
+
+**So the sign flipped, and the honest description is a trade, not a win.** On
+the old endpoint `hybrid` was 107 s *slower*; on the latch it is 105 s faster.
+That is the endpoint changing, not the planner. And the reason is visible in the
+second column: a saturated robot now goes straight to DONE instead of first
+driving back to its partner, so `hybrid`'s **terminal** chase is gone — and the
+delivery advantage went with it. The terminal chase was buying the convergence.
+Neither number may be reported without the other.
+
+**The convergence figure was nearly reported wrong, twice.** Every cell writes a
+`map_agree` line carrying both an `end %` and a `drained | still open` flag, and
+the flag is the obvious thing to count. It is also the wrong thing: `drained`
+means the share backlog cleared, which a cell can do while still holding
+residual disagreement above 0.10 %. The project's existing instrument defines
+convergence as `end % < 0.10`, and on the same `tr1` data the two definitions
+disagree badly — `off` is 19/21 by the flag and **12/21** by the definition. The
+flag erases most of `off`'s deficit and would have turned a real difference into
+a null. The guard is mechanical and should be reused: **run the new parser over
+the old campaign and require it to reproduce the banked table before quoting a
+new number next to an old one.** Doing that also caught a third error — a figure
+of "off 15/21" being carried in working notes, which matches neither definition
+and is simply wrong.
+
+A related instrument bug from the same family: the four-arm table *silently
+skipped* cells whose `map_agree` line it failed to parse, so the time column and
+the convergence column could describe different samples with nothing in the
+output to say so. It now names them and refuses. Its regex is also anchored on
+`map_agree atlas=` rather than searching the file for `end … %, peak … %`,
+because an unanchored search can match a different gate's line and report a
+plausible wrong value, which is worse than reporting nothing.
+
+**`tr1` is not comparable and its two rows above are direction only.** They are a
+different endpoint, on a binary that also carries the §30.18 poll fix, at a
+different n. The within-campaign contrast is the clean one. `tl2` is in flight to
+close the 2 × 2 — `rendezvous`-only and `pursuit`-only against the two corners
+`tl1` already holds — so that "which half of hybrid does the work" has a measured
+answer rather than an inferred one. Nothing below 30 cells per arm is a result.
