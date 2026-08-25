@@ -12260,3 +12260,172 @@ deterministic seed, **run once, at 60/60**.
 Absolute completion times are **not** comparable across the two worlds — same
 endpoint definition, different world, and now a different cap. The within-world
 ratio is the comparable quantity, and it is the one the prediction is about.
+
+### 30.22 `td1` halted; and the one failure turns out not to be reproducible
+
+#### 30.22.1 The campaign was stopped by instruction, 12 minutes in
+
+`td1` ran for about twelve minutes and was halted on the user's instruction.
+**It completed 0 of 60 cells** — a dense2 cell takes ~59 min, so no cell had
+reached its first `run_end_reason`. §30.21 is therefore a pre-registration that
+has not yet been executed, and nothing in it should be read as describing a
+result. It stays on the record unchanged: a pre-registration that is revised
+after the halt is not a pre-registration.
+
+Three partial directories remain (`td1_off_seed1`, `td1_hybrid_seed1`,
+`td1_off_seed16`). Both the campaign driver and `td1_readout.py` key on
+`run_end_reason`, which none of them has, so neither will read them as cells;
+the driver clears a partial directory before re-running its name. The campaign
+is resumable as written.
+
+Stopping it exposed two things worth recording, both about the instruments
+rather than the experiment.
+
+**A liveness check that could not fail.** The census used to confirm the stop
+ran `pgrep -x explo_planner_node`. `/proc/<pid>/comm` truncates at 15
+characters, so the planner's `comm` is `explo_planner_n` and an exact match
+against the full name can never fire. The script printed
+`TOTAL sim-like processes still alive: 0` — and would have printed exactly that
+with every planner on the machine still running. This is the §29.x family
+again: a check that cannot fail is not a check, and this one had been reporting
+a reassuring number for as long as it existed. It also under-counted a cell at
+~6 processes; the true figure, from `/proc` environ, is **41**.
+
+The replacement (`census.py`) scans `/proc` and groups by the `IGN_PARTITION`
+in each process's own environ. That has neither failure mode: it does not care
+what a process is called, and the partition is inherited by gazebo, the bridge
+and the planners alike — which is why `run_explo_sim_rviz.sh` reads it from
+environ rather than argv in the first place.
+
+**`SIGINT` to the campaign process group is not sufficient.** One `ign gazebo`
+had been re-parented into its own process group and survived the signal aimed
+at the two workers. It had to be killed separately, found only by the corrected
+census. Two idle `ros2` CLI daemons on domains 51 and 52 also outlived the run
+and were cleaned up so a restart begins with no stale discovery state.
+
+#### 30.22.2 What actually happened in `tl2_pursuit_seed15`
+
+The one cell in 120 that never latched was filed under candidate starvation and
+the §21.3 escape hatch. **That was wrong, and the cell's own CSV says so.**
+
+Locating the plateau from the data rather than from memory of it — the longest
+run of steps holding `unknown_fraction` within 0.002 — gives t = 885 → 3055 s,
+2170 s, 444 steps, `unknown_fraction` 0.7112 throughout:
+
+```
+                          pre-plateau    in plateau    ratio
+  selected_info_gain          117.318        33.687    0.287
+  selected_utility             35.884         6.793    0.189
+  selected_path_cost            0.972         0.623    0.641
+  frontier_voxels          640264.341    885848.378    1.384
+  REALISED voxels/step       5560.918         0.828    0.000
+  rejected_by_minpos                              inert at 0
+  rejected_by_unreachable                         inert at 0
+  state:  NAVIGATE 91%, PLAN 6%, LOG_STEP 2%      phase: explore 100%
+```
+
+Starvation predicts a shrinking candidate set and a forecast collapsing to the
+floor. **The candidate set grew by 38 %** — 886 k frontier voxels — and the
+planner still expected 29 % of its earlier payoff per goal. What collapsed was
+the realisation: a factor of ~6700 against the forecast's 3.5. The robot spent
+91 % of the plateau in NAVIGATE, driving 193 m at 0.089 m/s to collect 367
+voxels out of 1.05 M.
+
+That is an **EIG prediction gap**, not starvation, and the two want opposite
+fixes. An escape hatch triggered by candidate exhaustion would never have fired
+here: by its own measure the planner was doing fine.
+
+#### 30.22.3 Testing the diagnosis instead of asserting it
+
+Frontier growth is unremarkable on its own — maps grow frontier as they open
+up. If every cell does it, the observation explains nothing. So the same two
+quantities were computed for **all 240 robot-runs in `tl1` + `tl2`**, using
+fixed thirds of each run rather than seed 15's own plateau boundaries (a
+window tuned on seed 15 and then applied everywhere finds its own answer):
+
+```
+  quantity              median       p90         max   seed15 atlas
+  forecast               0.709     1.075         2.7          0.329
+  realised               0.413     0.805         1.5          0.000
+  gap                    1.547     3.891      4609.0       4608.976
+```
+
+Healthy runs decay honestly: forecast falls to 0.71, realisation to 0.41, gap
+1.5. Seed 15's gap is **4609 — rank 239/240, and no other run within a factor
+of two of it.** The floor placed on the realised ratio to keep the statistic
+finite never bound; any floored run would have shown a gap near 10⁶, and the
+maximum is seed 15's own value.
+
+#### 30.22.4 A hunch raised, tested, and rejected
+
+Replicate C's atlas passed through 0.7137 → 0.7114 → 0.7103 and paused there
+before breaking through — and 0.7112 is exactly where the original froze. The
+obvious inference is a hard spot in seed 15's world: a pocket the robot cannot
+resolve from nearby, where the freeze is a failed escape rather than a random
+event. That distinction decides whether a fix can target anything.
+
+It does not survive. Dwell time in the 0.705–0.720 band, normalised against
+the same run's own median band, for seed 15 versus other pursuit seeds:
+
+```
+  seed 15 ratios: median 1.50  max 100.69  (n=8)
+  other seeds:    median 0.76  max 4.80  (n=20)
+```
+
+Seed 15's median is elevated only because the n = 8 includes the frozen run
+itself — the very event being explained. Excluding that circular point, its
+remaining seven runs have a median ratio of **1.00** against 0.76 elsewhere:
+no difference. `tl2_pursuit_seed17/atlas` sat 120 s in the same band at ratio
+4.80 and finished normally. **0.711 is not a trap.** No fix should aim at it.
+
+#### 30.22.5 The replication: 0 of 3
+
+Three replicates, conditions copied verbatim from the failed cell's manifest
+(dense — not dense2 — `duration 3000`, `tx 30.0`, `RECORD=2`, latch 0.64) and
+planner binary `8a0dd03a88512f94` **verified byte-identical** before launch, so
+this is a replicate rather than a re-run against changed code.
+
+```
+  tl2_pursuit_seed15  (original)   censored_at_T   t_sim 3006   CLEAN
+  tp15a_pursuit_seed15             all_done        t_sim  329   CLEAN
+  tp15b_pursuit_seed15             all_done        t_sim  517   CLEAN
+  tp15c_pursuit_seed15             all_done        t_sim  698   CLEAN
+```
+
+None reproduced. Worth noting what the replicates are *not*: slow. Their
+median of 517 s beats the pursuit arm's own median of 591 s. Seed 15 is an
+ordinary seed that produced one extraordinary run — the 9× spread on a fixed
+seed is the run-to-run nondeterminism already on record (1803 s vs 856 s
+elsewhere), not a property of this world.
+
+The test was stated as asymmetric before it ran and must be read that way. A
+reproduction would have been strong: at a 1/120 base rate, seeing one in three
+runs is ~2.5 % likely by chance. **Non-reproduction is weak** — 0/3 only bounds
+the per-run freeze probability at this seed below ~0.63 with 95 % confidence.
+It does not show the freeze is rare, only that it is not deterministic here.
+
+So the intended prize is gone. A reproducible failure would have been a
+regression test for any EIG fix; a 1-in-120 stochastic tail event is not, and
+building a targeted fix against a case that cannot be re-run on demand means
+the fix cannot be verified. Any work on the prediction gap now needs a
+different handle — the §30.22.3 gap statistic computed across a whole campaign
+is one, since it is a population measure that does not depend on catching the
+tail.
+
+What stands: the mechanism is identified and is an extreme outlier against 240
+runs; the starvation hypothesis is dead for this cell; near-field ray
+multi-counting remains the concrete suspect, since it would inflate predicted
+gain exactly for goals whose rays terminate on nearby trunks — the geometry
+that produces frontier which driving to cannot resolve.
+
+#### 30.22.6 Three cells at a time works
+
+Incidental but useful: the three replicates ran concurrently on partitions
+`tp15a/b/c` and domains 53/54/55, and the corrected census confirmed clean
+isolation — 41 processes each, none unset, no cross-assignment. Per-cell RTF
+was 0.674 / 0.631 / 0.613 with bring-up included.
+
+That is **not** comparable to the 0.534 solo and 0.473/0.437 two-up figures in
+§30.21.4, which were measured on dense2 (488 models) while these are dense
+(325). It does establish that the concurrency contract holds at three, which
+§30.21.4 had only demonstrated at two.
