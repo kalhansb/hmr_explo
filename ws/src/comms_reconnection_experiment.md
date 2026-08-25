@@ -12101,3 +12101,162 @@ real loss and is being taken deliberately rather than by deleting banked data.
 And `flatforest_dense2` has never been run, so a single smoke cell validates the
 world before ~17 h is committed to it; the driver is resumable and skips the
 smoke cell on the full launch.
+
+
+### 30.21 `td1`: validating the world, the dose, and two cells at a time
+
+Written before any `td1` outcome exists. The point of a pre-registration is lost
+if it is written after the numbers are in, and three of the decisions below
+(the cap, the concurrency, the excluded smoke cell) would each be easy to
+rationalise afterwards in whichever direction the result went.
+
+#### 30.21.1 The smoke cell asked one question and answered a different one
+
+`flatforest_dense2` had never been run, so one cell went first rather than
+committing a day to an unvalidated world. It passed — `all_done`, t_sim 1383 s,
+wall 2589 s — which settles the question it was launched to answer: **the 0.64
+latch threshold is reachable at this density.** That was not obvious. Fifty
+percent more trunks means more permanently shadowed volume, and had the
+achievable floor sat above 0.64, every cell would have censored at the cap and
+the campaign would have returned a table of ties.
+
+The curve shape is the part worth recording:
+
+```
+  t=100  0.8947    t=700  0.6924    t=1200  0.6792
+  t=300  0.8202    t=800  0.6891    t=1300  0.6660
+  t=500  0.7808    t=900  0.6884    t=1400  0.6399
+```
+
+A **500-second plateau at ~0.688** (t = 700 → 1200 moves 0.013), then a late
+drop that crosses 0.64 in the run's final ~100 s. Dense, for comparison, falls
+0.854 → 0.638 in 400 s with no comparable plateau. So dense2's endpoint is not
+merely later, it is reached from a flatter approach — which is the mechanical
+reason to expect a longer tail, and the reason the cap needed revisiting.
+
+Both robots' `unknown_fraction` traces are identical to four decimal places
+throughout, i.e. the fused map was shared continuously for this cell.
+
+#### 30.21.2 Checking the dose moved — before spending, not after
+
+§29.19 retracted a result because two worlds that were supposed to differ in
+occlusion could not be told apart in the link column, and the difference that
+had been attributed to the world turned out to be the measurement. That
+retraction is cheap to repeat and expensive to discover late, so the same check
+ran here first.
+
+The dose variable is `trees_on_link` — trunks intersecting the segment between
+the two robots — and it is read **conditioned on separation**, because a pair
+40 m apart has more trees between them than a pair 5 m apart in any world. An
+unconditioned mean would mostly measure how far apart the robots wandered, which
+is downstream of the policy under test.
+
+```
+  separation      dense n   trees  dense2 n   trees   ratio
+  5-10 m             5053    0.04       168    0.77   17.48
+  10-15 m            9259    0.22       434    0.68    3.14
+  15-20 m           14622    0.56       634    1.14    2.04
+  20-30 m           39572    1.40      1680    1.69    1.20
+  30-50 m           94335    2.76      2279    4.08    1.48
+  50+ m            215298    5.65      1795    7.44    1.32
+```
+
+Higher in every populated bucket; 1.2–1.5 × at the separations where the link
+actually lives. (The 17 × in 5–10 m is a ratio off a near-zero base on 168 rows
+and carries no weight.) **This world pair is distinguishable in the link column
+where the §29.19 pair was not**, so the density step is a real dose on the
+mechanism-relevant variable and the campaign is worth its cost.
+
+`connected` fraction is deliberately not the headline: it is downstream of both
+the world and the policy, and the treatment moves the robots, so comparing it
+across worlds mixes dose with response. The single dense2 cell sits at 0.569
+against a dense spread of 0.114–0.992 — which distinguishes nothing, and is
+recorded here only so it cannot later be mistaken for evidence.
+
+#### 30.21.3 The cap: 3000 → 4500, and why the direction of the bias decides it
+
+Scaling dense's observed maxima by the 3.1 × sim-time factor puts `hybrid`'s
+tail near 2900 s and `off`'s near 3960 s. Under the old 3000 s cap, `off` — the
+slower arm — would censor repeatedly while `hybrid` largely would not.
+
+Censoring compresses the censored arm toward the cap, so it would make `off`
+look **faster** than it is, shrinking hybrid's measured advantage. That biases
+the campaign **toward falsifying the pre-registered prediction**. Running a
+falsifiable prediction on an instrument tilted toward falsifying it is not
+conservatism, it is a rigged test in the direction that happens to look modest.
+
+4500 s costs wall-clock only on the cells that actually need it — a cell ends
+when both robots latch, not at the cap. Cells that still censor are kept at
+min(T, cap) per §29.10 with the bias direction stated, exactly as
+`tl2_pursuit_seed15` was.
+
+#### 30.21.4 Two cells at a time, and the two ways that goes wrong silently
+
+At ~59 min per cell, 60 sequential cells is ~30 h of a 20-core machine running
+one 6-process sim. `run_explo_sim_rviz.sh:650-697` already implements the
+concurrency contract, and its comments record that both failure modes were
+observed for real rather than theorised:
+
+- **`IGN_PARTITION`** scopes `teardown()` and the bring-up guards to a cell's own
+  processes, read from `/proc/<pid>/environ` because the partition is inherited
+  by gazebo and the bridge and never appears in argv. Without it, worker A's
+  teardown `SIGKILL`s worker B's gazebo mid-run — surfacing as a random mid-run
+  death in an unrelated cell.
+- **`ROS_DOMAIN_ID`** isolates DDS. Two workers on one domain would see each
+  other's `/clock` and peer traffic — silently fusing the two experiments rather
+  than failing, which is far worse than a crash.
+
+Configuration: worker A `td1a`/51, worker B `td1b`/52, 30 cells each, staggered
+90 s so their bring-up and teardown phases do not collide for the whole run.
+Neither domain is 42, so ad-hoc `ROS_DOMAIN_ID=42 ros2 topic` inspection cannot
+join a live campaign sim by accident.
+
+**Arms are interleaved within each worker** (`off:1,hybrid:1,off:2,hybrid:2,…`),
+never split across them. Giving worker A the `off` arm and worker B the `hybrid`
+arm would have been the obvious partition and would have confounded arm with
+worker — and, because a worker that finishes early leaves the other running
+alone, confounded arm with machine load as well. Interleaving also means the
+solo period at the end of the campaign contains both arms.
+
+**Isolation was verified rather than assumed**: a census of every running
+`explo_planner_node` and `ign gazebo` process, read from each process's own
+environ, returned 6 on `td1a`/51 and 6 on `td1b`/52, none unset. `run_manifest.txt`
+records `ros_domain_id` and `ign_partition` per cell (`run_explo_sim_rviz.sh:1099`,
+`:1104`), so the readout carries a calibration that **every** `td1` cell must
+declare one of those two pairs — a cell that ran on the wrong domain is then a
+loud failure instead of a quiet contaminant.
+
+Measured penalty, same definition as the solo baseline (t_sim / total wall,
+bring-up included): solo 0.534, concurrent 0.473 and 0.437. Aggregate
+throughput ~1.7 ×, and those two figures are early-cell measurements still
+carrying fixed bring-up cost, so steady state is better. A third worker was
+rejected: the cell lists are already partitioned between A and B, so a third
+would have to draw from them, and two workers on one cell name share one output
+directory and corrupt it.
+
+#### 30.21.5 The smoke cell is not in the sample
+
+`td1_hybrid_seed1` ran solo, at a 3000 s cap, before the design was revised. It
+has been moved aside on disk (`smokeonly_hybrid_seed1`) rather than deleted, and
+the full campaign re-runs that cell under the same conditions as the other 59.
+It finished at 1383 s so the cap never bound it, and it would have been
+defensible to keep — but it is one cell of 60, its 43 minutes are cheap, and a
+sample where one cell ran under different load and a different cap is a sample
+that needs a footnote in every table it appears in.
+
+#### 30.21.6 The prediction, restated
+
+Unchanged by any of the above. Arms `off` and `hybrid`, 30 seeds each,
+`flatforest_dense2`, latch at 0.64, `tx 30.0`, `duration 4500`, `RECORD=0`,
+one binary. Exact/MC permutation on log completion time via `permtest.exact_p`,
+deterministic seed, **run once, at 60/60**.
+
+> If hybrid's 21.4 % advantage comes from repairing occlusion-driven
+> disconnection, then at ~1.4 × the trunks per link the advantage should be **at
+> least as large: geo-ratio ≤ 0.786**. If it shrinks toward 1.0 or reverses, the
+> mechanism story is wrong and `tl1`/`tl2` measured something else wearing its
+> clothes.
+
+Absolute completion times are **not** comparable across the two worlds — same
+endpoint definition, different world, and now a different cap. The within-world
+ratio is the comparable quantity, and it is the one the prediction is about.
