@@ -11906,3 +11906,198 @@ different n. The within-campaign contrast is the clean one. `tl2` is in flight t
 close the 2 × 2 — `rendezvous`-only and `pursuit`-only against the two corners
 `tl1` already holds — so that "which half of hybrid does the work" has a measured
 answer rather than an inferred one. Nothing below 30 cells per arm is a result.
+
+
+### 30.20 The 2 × 2 closes: neither half of hybrid works alone
+
+`tl2` finished 60/60 at 05:34:49 with zero invalid cells, giving four arms of
+exactly 30 under one criterion (`latch`), one threshold (0.64), one scenario
+(`flatforest_dense`, 110 × 110) and one binary (`8a0dd03a`). `four_arm_table.py`
+refuses to pool unless all four of those agree across all 120 cells, and it
+checked they did.
+
+```
+COMPLETION TIME (sim seconds)
+  arm          rdv  pur   n   median  geomean     min     max
+  off           no   no  30      554      603     363    1277
+  rendezvous   YES   no  30      490      536     334    2578
+  pursuit       no  YES  30      591      609     326    3006
+  hybrid       YES  YES  30      449      474     339     936
+```
+
+**The confirmatory contrast, reproduced.** `hybrid` vs `off` is geo-ratio 0.786,
+median-ratio 0.810, p = 0.0023. This is not a second test — it is the §30.19
+number recomputed from the pooled file as a regression check on the instrument,
+and `tl2_readout.py`'s calibration (h) fails the whole run if it drifts by more
+than 0.0005. It is deliberately excluded from the multiplicity family below: a
+pre-registered result must not be penalised for questions asked after it landed.
+
+**The decomposition is exploratory.** These five contrasts were chosen after
+`tl1`'s result was seen, so they are Holm-adjusted across the family and they
+generate hypotheses rather than confirm them. `P(slower)` is the probability
+that a cell drawn at random from the first arm is slower than one from the
+second; 0.500 means interchangeable.
+
+```
+  contrast                    geo-ratio  med-ratio  P(slower)    raw p   Holm p
+  rendezvous vs off               0.890      0.884      0.371   0.2341   0.7023
+  pursuit vs off                  1.011      1.066      0.492   0.9204   0.9204
+  hybrid vs rendezvous            0.883      0.916      0.417   0.1691   0.6763
+  hybrid vs pursuit               0.778      0.760      0.322   0.0094   0.0471
+  pursuit vs rendezvous           1.136      1.206      0.596   0.2739   0.7023
+```
+
+**Pursuit alone does nothing.** 1.011 ×, raw p 0.92, `P(slower)` 0.492 — as
+close to "the arm label carries no information" as this design can print. That
+is not a weak effect measured badly; the point estimate itself is on the null.
+Rendezvous alone recovers about half the effect (0.890 ×) but cannot be
+separated from noise at n = 30. Together they reach 0.786 ×.
+
+**The interaction is super-additive: 0.874 ×.** Adding rendezvous is worth
+0.890 × when pursuit is off and 0.778 × when it is on. No p-value is quoted —
+the permutation null for an interaction is not the two-arm null, and this
+campaign was not powered for one. Point estimate only. The mechanical reading is
+that the rendezvous barrier is what converts a meeting into shared map, and
+pursuit is what produces a meeting when the partner has drifted out of range;
+each is a precondition the other cannot supply.
+
+**What this costs to settle properly.** 30 cells/arm was sized for the ~21 %
+effect. The decomposition effects are roughly half that, and power scales with
+the square of the effect, so resolving `rendezvous` vs `off` needs on the order
+of **120 cells per arm**. Re-running the decomposition at 30 and expecting an
+answer would be spending a day to reproduce the same ambiguity.
+
+**Convergence is a null in all four arms.**
+
+```
+  off          22/30  ( 73%)   median end% 0.00
+  rendezvous   21/30  ( 70%)   median end% 0.01
+  pursuit      20/30  ( 67%)   median end% 0.01
+  hybrid       24/30  ( 80%)   median end% 0.00
+  hybrid vs off  Fisher one-sided p 0.3805
+```
+
+This is the §30.19 trade seen from four sides rather than two. Under the old
+streak-plus-rendezvous endpoint, `hybrid` delivered the complete map 19/19
+against `off`'s 12/21; under the latch the gap is 24/30 against 22/30 and the
+one-sided Fisher is 0.38. The terminal chase was buying the convergence, the
+latch removed it, and the removal is visible in the arms that have a chase
+(`pursuit` 67 %, `hybrid` 80 %) as much as in the ones that do not. The
+criterion the user mandated measures speed, and it should not be quoted as
+evidence about delivery.
+
+**Twice I nearly over-read an under-powered arm.** At n = 14, `pursuit`'s median
+`end%` was 0.18 against everything else's 0.00, which looked like a difference
+in kind. At n = 22 it was 0.01, and at n = 30 the arms are 0.00/0.01/0.01/0.00.
+The medians traded places three separate times (n = 9, 14, 22). That is the
+whole argument for the 30-cell floor stated as an observation instead of as a
+power calculation.
+
+#### 30.20.1 The one censored cell, and a failure mode with every counter at zero
+
+119/120 cells ended `all_done`. `tl2_pursuit_seed15` hit the 3000 s cap. It is
+**kept at min(T, cap) per §29.10** — dropping it would select on a
+post-treatment outcome. Keeping it biases the `pursuit` arm downward in the
+completion-time comparison, which can shrink a real deficit but cannot
+manufacture one, and `pursuit` is the arm that came out flat.
+
+The diagnosis matters more than the cell. Its `atlas` robot's
+`unknown_fraction` froze at 0.7112 — above the 0.64 latch — and stayed there for
+2170 s **while still driving**: distance 169.8 → 363.0 m, buying **+367 observed
+voxels out of 1 045 377**. `frontier_voxels` held near 885 800 throughout, so it
+never ran out of candidates.
+
+What was zero is the tell:
+
+- `rejected_by_unreachable` = 0 — so this is not the §21.3 starvation signature
+  and not the §29 map-domain bug, both of which show up here.
+- `rejected_by_minpos` = 0 — the coordination filter never touched it.
+- **PURSUE 0.0 %** of steps (NAVIGATE 91.2 %, PLAN 5.9 %, LOG_STEP 2.5 %,
+  INTEGRATE 0.5 %) — so on a `pursuit`-arm cell, the treatment is not implicated.
+
+Every counter built to catch "the planner cannot find anywhere to go" reads
+healthy, because the planner *did* find somewhere to go — the chosen vantages
+simply observed nothing new. **The diagnostic is metres driven per voxel gained
+over a window, against a flat `unknown_fraction`; the rejection columns cannot
+see this.** Base rate is 1/120 robot-runs. That is rare enough that it must never
+be offered as an explanation for an arm-level difference, and — the same lesson
+as §29's `unreach`→0 — rare enough that one clean campaign could not demonstrate
+a fix for it either. It is a concrete instance for the deferred §21.3 escape
+work, not a reason to start that work now.
+
+#### 30.20.2 The criterion held, and one of my probes did not
+
+Everything the sample can exercise about the six-point spec passes on `tl2`:
+
+- **Gap from crossing to DONE: median 5.0 s**, one planner tick. The same
+  checker run against the pre-latch binary flags 80/80 robots with a median of
+  65.0 s, so it is a check that can still fail.
+- **0/120 robots finished the run sitting in DONE-but-not-latched.**
+- **Rule 3 confirmed**: robots latch inside `PURSUE`/`RETURN_NAV`/`RETURN_SYNC`,
+  the states the old top-of-`PLAN` check could not see.
+- Per-cell finish spreads run 0.0–1107.7 s, i.e. the run really does wait for
+  the second robot rather than ending on the first.
+
+Two instrument lessons, both mine:
+
+**A running minimum is not a crossing.** `seed15_probe.py` tracked the minimum
+`unknown_fraction` per robot and reported where it occurred. `bestla`'s value
+drifts down by ~0.0001 per row *forever after DONE*, so the running minimum
+landed at t = 3050 s and the probe reported a robot that "declared DONE at 970 s
+but doesn't reach threshold until 3050 s" — a spec violation, reported to the
+user as one. Printing the actual neighbourhood shows `t = 965.1, 0.6383,
+NAVIGATE` then `t = 970.1, 0.6364, DONE`: a 5.0 s gap, exactly to spec. For a
+threshold question, **find the first row that crosses and stop; never summarise
+a monotone-ish series by its extremum.** This is the same shape as the §30.19
+crossing-row trap (reading `state` from a row that already says DONE).
+
+**A verdict that cannot be attributed is half an instrument.**
+`verify_latch.py` prints its failure lines with an empty cell-name field, so
+four reported failures could not be traced to cells from the output at all. They
+were resolved by reasoning from a different direction (a robot that never
+reaches threshold cannot latch, so its run cannot end `all_done` — and 119/120
+did) and then confirmed against the CSVs. The defect is still unfixed and is
+logged as such; it cost an investigation step that a format string would have
+saved.
+
+Also fixed here: `four_arm_table.py` was **silently dropping** cells whose
+`map_agree` line it failed to match, so its two columns could describe different
+samples with nothing in the output saying so — it fired once, on `pursuit`, 9
+cells and 8 convergences. The regex is now anchored on `map_agree atlas=` (the
+loose version could match a *different* gate's line and report a confidently
+wrong `end%`, which is worse than a miss), and unmatched cells are now **named,
+not dropped**. Same family as §30.19's silent-skip and the standing rule: a
+check that cannot fail is not a check.
+
+#### 30.20.3 Pre-registration: `td1`, the same contrast at higher tree density
+
+The `tl1`/`tl2` result is a 21.4 % completion-time advantage attributed to
+repairing occlusion-driven disconnection. That attribution makes a prediction
+that can be wrong, and the cheapest place to break it is the tree density,
+because the link is occlusion-gated rather than range-gated.
+
+- **Arms**: `off`, `hybrid`, 30 seeds each — the confirmatory contrast only. The
+  decomposition arms are not re-run; at these effect sizes they would cost a day
+  to reproduce the same ambiguity.
+- **World**: `flatforest_dense2`, 110 × 110, 488 models / 5206 trunk references,
+  against `flatforest_dense`'s 325 / 3250 — roughly 50 % more trees at identical
+  extent and identical spawn poses (0,0) and (0,3), so nothing but occlusion
+  changes.
+- **Endpoint**: unchanged. Latch at 0.64, both robots, `duration 3000`,
+  `tx 30.0`.
+- **Prediction, stated before any dense2 cell was analysed**: if the mechanism is
+  occlusion repair, the advantage should be **at least as large in the denser
+  world — geo-ratio ≤ 0.786**. If it shrinks toward 1.0 or reverses, the
+  mechanism story is wrong and `tl1` is measuring something else wearing its
+  clothes.
+- **Test**: exact/MC permutation on log completion time, `permtest.exact_p`,
+  deterministic seed, run **once**, at 60/60.
+
+Two operational notes. `RECORD=0` for this campaign: the rosbag is 337 MB of a
+339 MB cell, and every input the endpoint needs — planner CSVs, `comms_gates.txt`,
+`run_manifest.txt`, `link_states.csv` — is written live and independent of the
+bag. This buys the disk for 60 cells and forfeits post-hoc replay, which is a
+real loss and is being taken deliberately rather than by deleting banked data.
+And `flatforest_dense2` has never been run, so a single smoke cell validates the
+world before ~17 h is committed to it; the driver is resumable and skips the
+smoke cell on the full launch.
