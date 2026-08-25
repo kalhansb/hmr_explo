@@ -12509,3 +12509,146 @@ relaunch on one negative probe," and here the probe was honest and I was simply
 impatient. The fix is procedural: launch workers one call at a time and confirm
 each one's first log line before starting the next, rather than firing blind
 staggered launches and inferring their fate from a file's absence.
+
+## 31 Queued: three robots, one UGV and two UAVs
+
+**Status: queued by instruction on 2026-08-26, not started.** `td1` is in
+flight and the planner binary must not be rebuilt while it runs (§30.21.6's
+one-binary calibration depends on it). Nothing in this section is to be acted
+on until `td1` reports 60/60. This is a scope note and a survey of what the
+change actually costs — not a pre-registration. The pre-registration comes
+after the survey questions below have answers.
+
+### 31.1 Why heterogeneous, and why it is a different question
+
+Everything from `pb3g2` through `td1` measures one thing: two ground vehicles
+whose radio fails on trunk geometry, and whether rendezvous and pursuit recover
+it. §27 established that severity belongs to the environment rather than to
+transmit power — outage *duration* is set by how fast a robot walks out of a
+tree shadow, so a 20 dB cut moves triggerable outages only +35 %.
+
+An aerial vehicle changes the geometry rather than the margin, which is the one
+lever that argument leaves open. `flatforest_dense2` puts 6.21 trunks in the
+Fresnel corridor of a 50 m ground-to-ground link. A UAV above the stand has few
+or none in its corridor, so it is a candidate **relay**, and the hypothesis
+becomes:
+
+> Does an aerial relay make rendezvous and pursuit unnecessary — and if it
+> does not, does it change *which* half of hybrid is doing the work?
+
+That is deliberately not "the 2 × 2 again with a third robot." Reusing the
+`td1` contrast under a changed team composition would answer neither question
+cleanly, because the treatment (rendezvous + pursuit) and the new factor (an
+aerial relay) both act on the same mechanism — link availability. Whatever is
+pre-registered has to name which of the two it is isolating.
+
+### 31.2 What already exists
+
+Three things are further along than expected and should not be rebuilt:
+
+- **The robot registry already carries UAVs.** `_robot_registry.py` defines
+  `rama` and `ravana` on `X4_UAV_Config_RAISE/model.sdf` and `firefly` on
+  `X4_UAV_Config_2/model.sdf`, all typed `uav`, all carrying `pose_v` and
+  `uav_cmd_vel`. The `uav_cmd_vel` feature routes `{ns}/cmd_vel` to
+  `{ns}/uav/cmd_vel` on the Gazebo side, so the bridge generation for a mixed
+  team already composes correctly from `build_bridge_config`.
+- **`simple_nav_3d` has a real UAV mode.** `planners/uav_planner.cpp` and
+  `controllers/uav_controller.cpp` are selected through `planner_factory` /
+  `controller_factory`, and the launch file already takes `mode:=ugv|uav`. The
+  harness passes `mode:=ugv` today at two fixed call sites.
+- **The comms model is already N-way.** `hmr_comms_relay_node.cpp` builds a
+  link for **every ordered pair** drawn from its `robot_names` parameter
+  (lines 50–52), so three robots yields six directed links with no code change.
+  This is the piece that would have been most expensive to retrofit, and it is
+  free.
+
+### 31.3 What blocks it — the honest list
+
+**(a) The X4 has no lidar, and every campaign since `tl1` is lidar-only.**
+Both X4 SDFs carry `rgbd_camera`, `imu`, `magnetometer` and `air_pressure`;
+`RAISE` adds a `segmentation_camera`. Neither has a lidar. So the choice is to
+add one to the X4 model, or to let the UAVs map from RGBD — and the second
+option changes the sensor model mid-line, which makes the new numbers
+non-comparable to `tl1`/`tl2`/`td1` for reasons that have nothing to do with
+team composition. If a lidar is added, its range and FOV become new free
+parameters that need the same treatment §30.14 gave the ground lidar.
+
+**(b) `explo_planner` has no UAV mode at all. This is the real work item.**
+The only altitude-aware code in the planner is *ground*-height reasoning:
+`candidate_generator.cpp:45` keeps candidates inside a window around the
+robot's current altitude so that nearby slopes stay admissible, and
+`explo_planner_node.cpp:6033` / `:6070` stand the information ray at the
+robot's own altitude when the column is unmapped. A vehicle that climbs would
+have its candidate set drawn from the wrong height band and its expected
+information gain computed against a ray at the wrong height. Nothing about this
+is a configuration change; it is a planner feature, and it lands squarely in
+the middle of the EIG machinery that §30.22 already showed has a prediction
+gap. Doing both at once would make the next failure undiagnosable.
+
+**(c) The pair is hard-coded through the harness and every readout.**
+`run_explo_sim_rviz.sh:88` is literally `ROBOTS="atlas bestla"`, with a comment
+at line 94 stating that the topic wiring below assumes them; the two nav
+launches at lines 924 and 931 are separate blocks with `peers:=` cross-wired by
+hand. `atlas`/`bestla` appear 33 times in `explo_planner/sim/` alone, plus
+`sim_tf_publisher.py`, `comms_gates.py`, `comms_metrics.py`, `coverage_floor.py`
+and every analysis script. Three robots means every gate and metric that says
+"atlas vs bestla" becomes "over all robots" or "over all pairs."
+
+**(d) Two metrics are *defined* pairwise and need a team-level definition
+before they mean anything.** Map disagreement (§ the 0.10 % convergence rule)
+is a two-map comparison; with three maps it is three pairs, and "converged"
+could reasonably mean all-pairs, worst-pair, or against a team union. Link
+state is the same: `link_states.csv` is a per-pair record, and "disconnected
+55.5 % of run time" has no three-robot meaning until someone chooses between
+"no link to anyone" and "not fully connected." Choosing after seeing the data
+is exactly the failure [[checks-that-stopped-checking]] is about.
+
+**(e) The completion criterion changes meaning.** The latch is "each robot
+independently reaches unknown ≤ 0.64 on its own fused map; run ends when
+**both** have." With three robots the literal extension is *all three* — a
+strictly stricter endpoint — and a UAV with a different sensor and a different
+vantage will not converge at the same rate as the UGV. Whether the endpoint
+stays "all", or becomes "the UGV plus at least one UAV", or becomes a
+team-union criterion, decides what is being measured. It must be fixed before
+any cell runs, and it means **the new campaign cannot be compared to `td1` on
+completion time** — different endpoint, same trap as `tr1` in §30.19.
+
+**(f) Cost.** A 2-robot cell is 39–42 processes and holds ~0.40 RTF with three
+workers up. A 3-robot cell adds a planner, a mapper, a nav stack and a bridge
+share — call it +50 % of the per-cell load. Either the worker count drops from
+three to two, or wall clock per campaign rises by roughly half. At 30 cells per
+arm that is the difference between a day and two.
+
+### 31.4 The order this has to happen in
+
+Serially, because (b) and (a) both touch the information model and a combined
+change is undiagnosable:
+
+1. `td1` finishes and is read out. No rebuild before then.
+2. Decide (d) and (e) **on paper** — the team-level definitions of convergence,
+   link state and the completion criterion — and write them down before any
+   code changes. These are definitional choices, not empirical ones, and making
+   them early is free.
+3. Give the X4 a lidar (a), and calibrate its range and FOV the way §30.14
+   calibrated the ground lidar. Verify a single UAV maps at all, solo.
+4. Give `explo_planner` a UAV candidate/EIG mode (b). This is the large one.
+   Verify against a solo UAV before any team runs.
+5. Generalise the harness and the readouts off the hard-coded pair (c).
+6. Re-measure the unknown-fraction floor for the mixed team on `dense2`, as a
+   blocking gate. A UAV sees over trunks, so the floor will move — and §27's
+   warning applies unchanged: if the floor lands above the criterion nothing
+   terminates and completion time measures the cap instead of the policy.
+7. Smoke, then pre-register, then run.
+
+Steps 3 and 4 each need their own smoke and their own solo verification. The
+thing to resist is running a three-robot team as the *first* test of a new
+planner mode, because then a null has three candidate explanations and no way
+to separate them.
+
+### 31.5 What is deliberately not decided here
+
+The arm structure. Whether the UAVs get the rendezvous/pursuit treatment at
+all, whether the interesting contrast is relay-vs-no-relay or hybrid-vs-off
+under a relay, and how many arms that implies, all depend on the answers to
+§31.4 step 2. Naming arms now would be pre-registering a design whose endpoint
+is not yet defined, which is worse than not pre-registering at all.
