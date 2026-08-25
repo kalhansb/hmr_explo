@@ -12429,3 +12429,83 @@ That is **not** comparable to the 0.534 solo and 0.473/0.437 two-up figures in
 §30.21.4, which were measured on dense2 (488 models) while these are dense
 (325). It does establish that the concurrency contract holds at three, which
 §30.21.4 had only demonstrated at two.
+
+#### 30.22.7 `td1` relaunched, three workers wide — and a duplicate driver
+
+The campaign is running again as of 18:26 on 2026-08-25: `td1a`/51 with seeds
+1–10, `td1b`/52 with 11–20, `td1c`/53 with 21–30, each worker interleaving
+`off:N,hybrid:N`. Everything the pre-registration fixes is unchanged — dense2,
+latch at 0.64, `tx 30.0`, `duration 4500`, `RECORD=0`, one binary — and the one
+test at 60/60 is still §30.21.6's.
+
+**The revision, and why it is not a rewrite of the pre-registration.** §30.21.4
+rejected a third worker for a single stated reason: the cell lists were already
+partitioned between A and B, so a third would have to draw from them, and two
+workers addressing one cell name share one output directory. That is an
+objection to re-partitioning a *running* campaign. `td1` completed 0 of 60 cells
+before it was halted, so there was no running partition to disturb — the list is
+simply cut three ways instead of two, before any outcome exists. The evidence
+§30.21.4 lacked now exists too: §30.22.6 measured 3-up isolation for real. What
+the revision does **not** touch is the reason arms are interleaved within each
+worker rather than split across them, which is the part that protects the
+contrast from being confounded with worker or with machine load.
+
+Isolation on this launch, from each process's own environ:
+
+```
+  td1a/51   40 procs   2x explo_planner_n, 2x dscovox_mapping, 1x ruby (gazebo)
+  td1b/52   41 procs   2x explo_planner_n, 2x dscovox_mapping, 1x ruby (gazebo)
+  td1c/53   39 procs   2x explo_planner_n, 2x dscovox_mapping, 1x ruby (gazebo)
+```
+
+No process carries an unset domain and no partition holds another's cell. Early
+per-cell RTF is 0.39–0.51 against the 0.534 solo baseline, so aggregate
+throughput is ~2.5 × — but those are first-cells figures still carrying
+bring-up, quoted for scale only, not as a steady-state measurement.
+
+**Then I started a second worker B on top of the first.** Two minutes after
+launch, `td1b.driver.log` did not exist, so I concluded worker B had failed to
+start and launched it again. It had not failed: its 90-second stagger had not
+yet fired, and it began normally 8 seconds after I looked. For 22 seconds two
+drivers held the same 20-cell list — precisely the hazard §30.21.4 named.
+
+The harness caught it without help. Each of the duplicate's three attempts died
+in ≤1 s (`rc=1`, `wall=0s`/`1s`) because `run_explo_sim_rviz.sh`'s bring-up
+guards found the partition already occupied, and `run_campaign.sh`'s
+three-consecutive-failure rule aborted it at 18:28:54. The legitimate worker ran
+through all of it untouched: `td1_off_seed11` was mid-bring-up throughout and is
+still running.
+
+Two pieces of damage, both bounded:
+
+- **Three spurious `FAIL` rows** in `campaign_index.csv` (`off:11`, `hybrid:11`,
+  `off:12`, all `rc=1`, `end_reason=none`). The index is append-only and is left
+  as it is; editing an experiment's log to make it read better is not a repair.
+  They cannot reach the sample because `td1_readout.py` enumerates *directories*
+  carrying a `run_end_reason` manifest and never reads the index.
+- **One `rm -rf` against a live cell's directory.** The duplicate ran
+  `clearing partial td1_off_seed11` at 18:28:32-33, while the real run was in
+  bring-up. It landed before anything durable was written — that cell's `urdf`
+  and viz params are timestamped 18:28:40, after — so the directory is whole.
+
+"Cannot reach the sample" and "landed before anything was written" are
+arguments, though, and the standing rule in §29.x is that an argument is not a
+check. So the readout gained calibration **(g)**: every cell's planner CSVs must
+begin near `t_sim` 0 and never step backwards, which is the trace a directory
+cleared under a live run would leave. Its threshold is measured rather than
+guessed — `first_tsim.py` over all 240 known-good `tl1`+`tl2` robot-runs gives
+26.4–35.2 s (median 29.0), that being planner bring-up, so the bar sits at 120 s,
+3.4 × above the healthy maximum. The first draft used 30 s and fired on 35
+healthy CSVs; a check that cries wolf is no more use than one that cannot fire,
+which is why (g) also carries a self-test on four hand-made series and refuses
+to run if its own verdict function stops agreeing with them. Exercised against
+`tl1` — a complete but deliberately wrong sample — (a), (b), (c) and (g) pass,
+(d) and (e) fire, and the script refuses to report.
+
+**The mistake itself is the second instance of one already on the record.** A
+single negative liveness probe is not evidence a process is dead; the rule
+written after a probe in an `&&` chain reported a live driver as GONE was "never
+relaunch on one negative probe," and here the probe was honest and I was simply
+impatient. The fix is procedural: launch workers one call at a time and confirm
+each one's first log line before starting the next, rather than firing blind
+staggered launches and inferring their fate from a file's absence.
