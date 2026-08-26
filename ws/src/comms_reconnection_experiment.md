@@ -12510,6 +12510,93 @@ impatient. The fix is procedural: launch workers one call at a time and confirm
 each one's first log line before starting the next, rather than firing blind
 staggered launches and inferring their fate from a file's absence.
 
+### 30.23 `td1` stopped at 41/60 — reported as incomplete
+
+The campaign was stopped by instruction on 2026-08-26 with 41 usable cells of
+the 60 registered: **`off` n = 21, `hybrid` n = 20**, every one `all_done`,
+none censored. Five further cells were killed mid-run
+(`off_seed8`, `off_seed17`, `hybrid_seed17`, `hybrid_seed28`, `off_seed29`);
+they carry no `run_end_reason`, so `td1_readout.py` — which enumerates
+directories on that key — excludes them without being told to. Their
+directories are left in place.
+
+**The pre-registered test was not run, and the readout says so itself.** Asked
+to report on the truncated sample, `td1_readout.py` refuses:
+
+```
+CALIBRATION (41 cells)
+  a) permtest known-answer -> p=0.3333 by enumeration   ok
+  b) arm sizes {'off': 21, 'hybrid': 20}, want 30 each   INCOMPLETE
+  c) one criterion (latch), threshold (0.64), cap (4500s), scenario, binary   ok
+  d) scenario is the dense2 world   ok
+  e) all cells on the 3 expected workers, all present   ok
+  f) worker td1c is arm-imbalanced {'off': 8, 'hybrid': 7}   MISMATCH
+  g) every planner CSV starts near t_sim 0 and is monotone   ok
+
+CALIBRATION FAILED -- refusing to report.
+```
+
+Gate (b) is the floor from §29.x — 30 per arm is where a completion-time
+contrast becomes a result — and gate (f) fires because stopping mid-block left
+one worker unbalanced, which is the confound interleaving exists to prevent.
+Both are doing exactly what they were written to do. The permutation test was
+not computed and no p-value for `dense2` exists.
+
+**What the 41 cells describe, and nothing more:**
+
+| arm | n | median | geomean | min | max |
+|---|---|---|---|---|---|
+| off | 21 | 1578 | 1528 | 785 | 2780 |
+| hybrid | 20 | 1494 | **1531** | 865 | 3364 |
+
+Geometric means of 1528 and 1531 — indistinguishable. On `flatforest_dense`
+the same contrast was 603 against 474. Per-seed outcomes here go both ways
+(hybrid much faster on seeds 3, 7 and 11; much slower on 12, 13, 14 and 15),
+which is what [[sim-run-to-run-nondeterminism]]'s 9.1× single-seed spread
+predicts and is not evidence about either arm.
+
+**The stopping rule was not pre-planned, and the stop followed a look at the
+data.** A descriptive table at 40 cells was printed, it showed the two arms on
+top of each other, and the campaign was stopped shortly after. That ordering
+has to be stated rather than buried: this is optional stopping. It does not
+inflate a false-positive rate here, because the stop was on a null-looking
+interim rather than on a significant one, but it does mean the sample is not
+the one that was registered and no inferential claim may be attached to it.
+The honest statement is: **`dense2` is untested.** The `dense` result at
+0.786×, p 0.0023 stands on its own 60 cells and is unaffected.
+
+If the question is taken up again, the registered design is unchanged and the
+41 cells are re-usable — same binary, same criterion, same cap — so completing
+it means running the 19 missing cells, not restarting.
+
+**An instrument defect found while reading the refusal.** Gate (c) printed
+nothing at all on the first run. Its pass line was guarded by `if ok:`, the
+*global* accumulator, so any earlier failure — here (b) — suppressed it. The
+check had in fact run and passed; only its report was missing. A gate that
+prints nothing is indistinguishable from one that never executed, which is the
+whole subject of §29.x's "checks that stopped checking." Fixed with a local
+`c_ok` flag, and the corrected run prints the (c) line above.
+
+**Stopping the campaign took three passes, and the first two looked like they
+had worked.** `kill -INT` on the three driver process groups took each cell
+from ~40 processes down to 10 — and every driver survived and started its
+*next* cell. After `kill -KILL` on the drivers and one sweep of the visible
+pids, the census went **up**, 24 → 56: the launch trees already spawned kept
+bringing up `robot_state_publisher`, `dscovox_mapping`, `simple_nav_*` and the
+comms sim with no parent. The working order is drivers first, then sweep by
+`IGN_PARTITION` from `/proc/*/environ` — never by name, since `/proc/<pid>/comm`
+truncates at 15 characters — repeating until the census reads zero.
+
+**The binary is archived before any rebuild.**
+`install/explo_planner/lib/explo_planner/explo_planner_node` is a symlink into
+`build/explo_planner/explo_planner_node`, so a `colcon build` would have
+overwritten the exact bytes behind `tl1`, `tl2` and `td1`, and no other copy
+existed. Two of the five recorded git hashes are `-dirty`, so the commit ids
+alone do not reconstruct it. The binary and the whole install space are now at
+`~/hmr_binaries/8a0dd03a_tl1_tl2_td1/` (230 MB) with a README stating what ran
+on it and how to restore it. This is what makes the §30.11 rebuild safe to
+start.
+
 ## 31 Queued: three robots, one UGV and two UAVs
 
 **Status: queued by instruction on 2026-08-26, not started.** `td1` is in
