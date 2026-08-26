@@ -12682,6 +12682,135 @@ with a trigger that watches the radio instead of the mailbox. That is the
 binary is archived at `~/hmr_binaries/8a0dd03a_tl1_tl2_td1/`, so the bytes
 behind every number above survive the build that changes them.
 
+### 30.25 The fix: the mid-run trigger now watches the radio, not the mailbox
+
+§30.11 named the defect and §30.24 sized it: between 16 % (`pb3g2`) and 42 %
+(`tl1`) of mid-run reconnect manoeuvres were spent chasing a partner that was
+already reachable. This section is the repair, the reasoning behind the parts
+of it that are not obvious, and the run that shows it works.
+
+**The defect in one line.** The trigger's decision variable was
+`missing_for = now - team_last_complete_time_` — the age of the newest *intent
+beacon* on record. That clock runs on inbound silence, and inbound silence has
+three causes, only one of which is a broken radio: the link really is down, or
+the peer is inside a PLAN loop (the beacon is published only when
+`have_active_intent_` and the state is not PLAN, and PLAN loops of up to ~180 s
+have been measured), or its executor is starved. The other two make the planner
+abandon exploration to drive at a peer it could have talked to the whole time.
+
+**The fix.** The comms emulator already publishes the ground truth of the link
+on `/hmr_comms_sim/link_states` at `link_rate_hz` = 5 Hz, one 9-column row per
+pair, `connected` in the last column. The planner now subscribes, finds the rows
+involving itself via the latched `/hmr_comms_sim/robot_index`, and gates the
+mid-run trigger on how long the *radio* has been down:
+
+- link up → stand down, log once per 30 s, do not fire;
+- link down → fire when the **down-duration** clears `midrunGateSec`, not when
+  the record age does.
+
+Off by default (`LINK_GATE=0`), so every banked campaign stays comparable, and
+recorded in `run_manifest.txt` as `link_gate` / `link_gate_topic` /
+`link_gate_index_topic` / `link_gate_stale_sec`. That last point is not
+bookkeeping: two of the last campaign's git hashes were logged `-dirty`, and a
+`-dirty` hash cannot answer "was the gate on in this cell?".
+
+**Where the oracle line sits.** Reading a robot's own `connected` bit is
+deployable in kind — real mesh radios expose per-neighbour link indication from
+MAC-layer keepalives, and a robot knows whether its own link is up without
+being told where anybody is. Reading `distance_m`, `trees_on_link`,
+`path_loss_db` or `snr_db` as a *signal*, or reading rows for pairs that do not
+involve self, would be peer position through the back door. So would using any
+of it to predict when a link will come back or to steer the chase. The
+subscription therefore consumes exactly two fields: `path_loss_db` as a
+validity mask and `connected` as the state.
+
+**Four decisions that are not obvious.**
+
+*The queue is KeepLast(1), against the reviewing agent's advice.* The
+recommendation was a deep queue (≥64) so no transition is missed.
+`Float64MultiArray` has no header, so a backlog delivered after an executor
+stall is stamped at *receipt*: the whole history arrives compressed into a
+moment and the down-duration reads as ~0, which would **suppress legitimate
+fires** — the opposite of the intent. KeepLast(1) plus a remembered
+`link_up_last_seen_` leaves a residual error that is honest and one-sided: a
+stall that hides an up→down edge makes the outage read too *long*, so the
+trigger can fire on a genuine outage younger than the gate. It can never fire on
+a link that is up, which is the 16–42 % this change exists to delete.
+
+*`missing_for` still feeds `midrunGateSec`, on purpose.* The gate length is
+derived from the estimated unshared-map backlog, and that backlog accrues from
+the last time the pair actually **exchanged** anything — last contact, not last
+radio contact. Only the comparison changed, not the threshold.
+
+*`link_down_sec` is logged beside `peer_record_age_sec`, never instead of it.*
+§30.11 is precisely the finding that the two clocks disagree, so collapsing them
+into one column would destroy the measurement that motivated the change. It also
+gives the fix a positive control: **a gated run in which the two columns agree
+everywhere is evidence the gate is doing nothing.**
+
+*Three robots make the index callback refuse, loudly.* With N ≠ 2, "connected to
+at least one peer" and "the team is complete" stop being the same statement, and
+the gate has no defensible meaning without deciding which one it enforces. The
+callback WARNs once and keeps the legacy clock rather than guessing. **This is a
+known blocker for §31** and must be resolved there before the gate is used with
+1 UGV + 2 UAVs.
+
+**The `off` arm is untouched by construction.** `RECONNECT_MODE=off` sets
+`rendezvous_enabled:=false`, and the whole mid-run block is inside
+`if (rendezvous_enabled_)`. The change cannot reach the control arm, so it
+cannot manufacture a between-arm difference.
+
+#### Verification: `lgv1_gated`
+
+One cell, `hybrid`, `TX_POWER=30.0`, `SEED=1`, `MIDRUN_SILENCE=30`. The gate was
+dropped from the campaign's 240 s to 30 s **so the check could fail**: `tl1`
+averaged 0.63 mid-run fires per cell, so an ordinary short run can easily fire
+zero times and "pass" vacuously. Ended `coverage-latched` at t_sim ≈ 486 s
+(atlas 14 steps, bestla 16) — and atlas latched *in state PURSUE*, incidentally
+confirming the Path B criterion is evaluated in every state rather than only at
+the top of PLAN.
+
+Both robots armed: `Link gate: armed as robot index 0 of [atlas, bestla]` and
+`index 1`. Link up in 56.3 % of 2418 samples, 14 outages, longest 67.0 s.
+
+The offline check (`verify_link_gate.py`, joining the event log against
+`link_states.csv`) tests two halves, because either alone is worthless — a
+trigger broken permanently shut scores a *perfect* "no wasted fires". It also
+calibrates against two synthetic fires with known answers drawn from the run's
+own trace, one on a known-up sample and one deep inside a real outage, and
+refuses to report unless both come back correct. Both did.
+
+| | result |
+|---|---|
+| Fires on a live link | **0 of 2** |
+| Fires on a genuine, gate-length outage | **2 of 2** |
+| Stand-downs on a link that was really up | **3 of 3** |
+| Stand-downs on a link that was down (false suppression) | **0** |
+
+The two fires, with both clocks side by side:
+
+| robot | t_sim | `link_down_sec` | `peer_record_age_sec` | divergence |
+|---|---|---|---|---|
+| atlas | 399.1 | 41.1 s | 61.8 s | 20.7 s |
+| bestla | 401.9 | 43.8 s | 66.3 s | 22.5 s |
+
+The columns disagree by ~21 s — about `coord_claim_ttl_sec` plus a beacon gap —
+so the positive control is satisfied: the gate is demonstrably doing something,
+and under the old code both fires would have been dispatched ~21 s early.
+
+**What this run does and does not establish.** It establishes that the gate
+fires on real outages, stands down on live links, and that its two clocks
+diverge as §30.11 predicted. It does **not** measure the effect on completion
+time: n = 1 cell, and the stand-down log line is `RCLCPP_INFO_THROTTLE`d at 30 s,
+so the three logged stand-downs are a *lower bound* on suppressions, not a
+count. Of those three, only one (bestla, record silent 45 s ≥ the 30 s gate) was
+a manoeuvre the old code would actually have launched; the other two were never
+eligible. One prevented wasted fire against two real ones is consistent with the
+16–42 % of §30.24, but with n = 3 it is an illustration, not a rate.
+
+Sizing the ceiling needs a paired campaign, gate on versus off, at the campaign
+settings — not this diagnostic.
+
 ## 31 Queued: three robots, one UGV and two UAVs
 
 **Status: queued by instruction on 2026-08-26, not started.** `td1` is in
