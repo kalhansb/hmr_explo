@@ -12684,6 +12684,15 @@ behind every number above survive the build that changes them.
 
 ### 30.25 The fix: the mid-run trigger now watches the radio, not the mailbox
 
+> **SUPERSEDED IN PART BY §30.26.** The mechanism, the oracle boundary, the
+> KeepLast(1) reasoning and the N != 2 refusal below all stand. The *rule* does
+> not: this section gates the trigger on how long the radio has been
+> continuously down, which on the banked `tl1` traces would have dropped 17 of
+> 19 mid-run fires and switched pursuit off rather than corrected it. The
+> shipped rule keeps `missing_for` as the trigger clock and uses the link state
+> only as a veto. Read §30.26 before acting on anything here.
+
+
 §30.11 named the defect and §30.24 sized it: between 16 % (`pb3g2`) and 42 %
 (`tl1`) of mid-run reconnect manoeuvres were spent chasing a partner that was
 already reachable. This section is the repair, the reasoning behind the parts
@@ -12810,6 +12819,109 @@ eligible. One prevented wasted fire against two real ones is consistent with the
 
 Sizing the ceiling needs a paired campaign, gate on versus off, at the campaign
 settings — not this diagnostic.
+
+### 30.26 Correction: the link gate is a veto, not a clock
+
+§30.25 shipped the trigger fix as a **clock replacement** — fire when the radio
+has been continuously down for `midrunGateSec`, instead of when the peer record
+has been silent that long. It passed its own verification (`lgv1_gated`) and was
+committed. It was wrong, and the verification could not have caught it, because
+the verification asked whether the code did what it said rather than whether
+what it said was the right thing to do.
+
+**How it was caught.** Before spending a multi-hour paired campaign on the
+change, the gated arm's fire count was predicted offline from the banked `tl1`
+link traces (`outage_budget.py`). The campaign gate is 240 s, so a duration-timed
+trigger needs a 240 s *continuous* outage. Across `tl1`'s 30 hybrid cells:
+
+| outage duration | across 286 outages, 30 cells |
+|---|---|
+| p50 | 12.0 s |
+| p90 | 75.4 s |
+| p99 | 190.2 s |
+| max | 264.4 s |
+| **≥ 240 s (the gate)** | **1 of 286** |
+
+One outage in 286 ever reaches the gate — and those same 30 cells dispatched
+**19** mid-run fires. The two numbers cannot both describe the same trigger.
+
+**Why the quantities are not interchangeable.** Record age accumulates *across*
+outages: the intent beacon is conditional (it needs `have_active_intent_` and a
+state other than PLAN), so inbound silence spans the up-periods between outages
+and keeps counting. Continuous outage resets at every flicker of the link. They
+are different measurements of different things, and §30.25 applied to the second
+a threshold that had only ever been tuned for the first. Replaying every banked
+`tl1` mid-run dispatch against its cell's link trace (`rule_compare.py`):
+
+| rule | keeps | drops |
+|---|---|---|
+| **VETO** — record age ≥ gate **and** radio down now | 15 / 19 | 4 |
+| **DURATION** — radio continuously down ≥ gate | 2 / 19 | **17** |
+
+The duration rule does not correct the trigger, it switches mid-run pursuit
+off. That matters more than it looks: §30.19's 2×2 established that hybrid needs
+both halves — pursuit alone is 1.011 × (nothing), rendezvous alone is half the
+effect and not significant, and only together do they give 0.786 ×
+super-additively. A "fix" that silently deletes one half would have been
+measured as a large effect and attributed to the wrong cause.
+
+**The corrected rule.** The gate no longer supplies a clock. `missing_for`
+triggers exactly as it always did, at exactly its tuned threshold, and the link
+state only **vetoes**: if the radio is up (or has been down for less than
+`reconnect_confirm_sec`, the existing debounce), stand down. That drops 4 of 19
+— precisely the fires that went out to a peer already on the radio, and nothing
+else.
+
+**What the veto deliberately cannot fix.** §30.24 priced the waste at 42 %
+(8/19), of which the veto addresses 21 % (4/19). The other four fired into a
+*genuine* outage that happened to end within the ~14.6 s it takes to start
+moving. Suppressing those requires predicting when a link will return, which is
+peer state no robot has a deployable way to know (§30.25's oracle boundary), so
+they are left in. The honest claim is that the fix removes the half of the waste
+that is removable without an oracle.
+
+#### Re-verification: `lgv2_veto`
+
+Same protocol as `lgv1_gated`, binary `6e46e63df38c4d74`, `link_gate=1` recorded
+in the manifest, gate again dropped to 30 s so fires are frequent enough for the
+check to be able to fail. Ended `all_done` at t_sim 618. Link up in 71.8 % of
+3324 samples, 17 outages, longest 40.2 s. The checker was itself corrected first
+— it had been testing the duration rule, and left unchanged it would have
+flagged the correct code as broken.
+
+| | result |
+|---|---|
+| Fires on a live link | **0 of 2** |
+| Fires with the radio down past the debounce and record age past the gate | **2 of 2** |
+| Stand-downs whose stated reason matched the trace | **1 of 1** |
+| False suppressions | **0** |
+
+The two fires, and why they are the point:
+
+| robot | t_sim | `link_down_sec` | `peer_record_age_sec` |
+|---|---|---|---|
+| atlas | 489.4 | **16.8 s** | 80.4 s |
+| bestla | 459.9 | 34.3 s | 50.9 s |
+
+atlas fired with the radio down 16.8 s — *below* the 30 s gate. Under §30.25's
+duration rule that chase would have been suppressed, and it was a legitimate
+chase: the record had been silent 80 s and the radio was genuinely down. This
+single row is the difference between the two designs, observed in a live run
+rather than argued from the banked traces.
+
+Both columns still diverge (80.4 vs 16.8, 50.9 vs 34.3), so the positive control
+of §30.25 survives the correction: the gate is demonstrably doing something.
+
+**The general lesson, recorded because it has bitten this project before.** The
+`lgv1_gated` verification was well built — it calibrated on known answers, it
+checked both directions, it could fail, and it passed honestly. It still let a
+wrong design through, because every check in it was conditioned on the design
+being the right one. What caught the error was asking a different question
+entirely — *how often would this fire on data I already have?* — before paying
+for the campaign. A change to a trigger has a predicted firing rate, and that
+prediction is cheap, offline, and available before any new run is launched. It
+belongs in the pre-flight of every future trigger change, next to the
+known-answer calibration rather than instead of it.
 
 ## 31 Queued: three robots, one UGV and two UAVs
 
