@@ -12597,6 +12597,91 @@ alone do not reconstruct it. The binary and the whole install space are now at
 on it and how to restore it. This is what makes the §30.11 rebuild safe to
 start.
 
+
+### 30.24 The wasted-fire fraction on `tl1`: same defect, a fifth as much of it
+
+§30.11 diagnosed the reconnect trigger on `pb3g2` and left a loose end: the
+41 % figure was measured on the campaign where every treatment *lost* to doing
+nothing, and it had never been read on `tl1` — the campaign that produced the
+headline **0.786 ×, p 0.0023**. A defect that large sitting under the headline
+result is worth pricing before anything is claimed about it, so `wasted_fire.py`
+was pointed at `tl1`'s hybrid arm. The script was written and calibrated in
+§30.11 for exactly this reading, before the result existed, and it calibrates on
+every run: `episodes()` reproduced `atten_sweep.outages()` exactly, 547 episodes
+over 30 cells, before it reported anything.
+
+```
+=== pb3g2 hybrid: 30 cells, 68 mid-run fires ===
+  fired while the link was UP  :  11 (16 %) -- stale peer record, not an outage
+  fired during a real outage   :  57 (84 %)
+  of those, silence REMAINING when the chase began  n=57
+    p10    8.4   median   22.9   p90   44.1   max   78.2
+  link back within the 14.6 s it takes to start moving: 17/57 (30 %)
+  -> bought nothing, either way: 28/68 (41 %) of all mid-run fires
+
+=== tl1 hybrid: 30 cells, 19 mid-run fires ===
+  fired while the link was UP  :   4 (21 %) -- stale peer record, not an outage
+  fired during a real outage   :  15 (79 %)
+  of those, silence REMAINING when the chase began  n=15
+    p10    8.6   median   44.4   p90   66.6   max   77.2
+  link back within the 14.6 s it takes to start moving:  4/15 (27 %)
+  -> bought nothing, either way: 8/19 (42 %) of all mid-run fires
+```
+
+**The trigger is exactly as wrong on `tl1`: 42 % against 41 %.** It is the same
+code reading the same clock, so this is the expected result and it is worth
+stating that it came out expected — a wasted fraction that had *moved* between
+campaigns would have meant the diagnosis was picking up something other than the
+trigger.
+
+**What changed is how often it fires, and per cell that is not a fair
+comparison.** 19 fires against 68 over 30 cells each, but `tl1`'s cells are
+shorter (median 449 s against 777 s), so fires-per-cell conflates a lower
+misfire rate with simply having less time in which to misfire. Priced against
+each campaign's own summed sim-time exposure from `run_end_t_sim`
+(`fire_rate.py`):
+
+| | cells | exposure | fires | per cell-hour |
+|---|---|---|---|---|
+| `pb3g2` hybrid | 30 | 25 715 s (7.14 h) | 68 | **9.52** |
+| `tl1` hybrid | 30 | 14 701 s (4.08 h) | 19 | **4.65** |
+
+**2.05 × the misfire rate on `pb3g2` after normalising for duration**, so this
+is a real difference in trigger behaviour and not an artefact of run length.
+In absolute terms hybrid on `tl1` carried **8 wasted chases across 30 cells**,
+against `pb3g2`'s 28.
+
+**And the fires that did land were worth roughly twice as much.** Median silence
+still remaining when the chase began: **44.4 s on `tl1` against 22.9 s on
+`pb3g2`**, against the same ~14.6 s of planning latency before the robot moves.
+On `pb3g2` the median useful fire left 8 s of margin over the latency; on `tl1`
+it leaves 30 s. Same trigger, but on `tl1` it is firing into outages deep enough
+that arriving late still arrives inside the outage.
+
+**This is a floor on the headline, not a threat to it.** The 0.786 × was earned
+with the defect fully attached — 8 chases in that arm were pure loss and are
+already inside the number. The defect also cannot be *why* hybrid won: a wasted
+chase is distance debited from exploration, so it pushes the ratio toward 1.0,
+not away from it. And it cannot contaminate the contrast, because `off` has no
+trigger and never chases; the control arm is untouched by every line above.
+
+**The two campaigns now have one mechanism instead of two stories.** On `pb3g2`
+the misfires were frequent (9.52/h) and the real outages were shallow (22.9 s
+remaining), and every treatment arm lost to doing nothing. On `tl1` the misfires
+were half as frequent and the outages twice as deep, and hybrid won by 21.4 %.
+Same broken clock in both; the difference in outcome tracks how much the broken
+clock cost in each. A mechanism that explains a sign flip across two campaigns
+is worth more than either campaign's number alone — though it is worth being
+precise that this is one mechanism found *consistent* with both directions, not
+a controlled demonstration that it caused either. `pb3g2` and `tl1` differ in
+world, endpoint, cap and binary generation as well as in fire rate.
+
+**What is still unmeasured is the ceiling.** Nothing here says what hybrid does
+with a trigger that watches the radio instead of the mailbox. That is the
+§30.11 rebuild, which is now unblocked: `td1` is stopped and the `8a0dd03a`
+binary is archived at `~/hmr_binaries/8a0dd03a_tl1_tl2_td1/`, so the bytes
+behind every number above survive the build that changes them.
+
 ## 31 Queued: three robots, one UGV and two UAVs
 
 **Status: queued by instruction on 2026-08-26, not started.** `td1` is in
