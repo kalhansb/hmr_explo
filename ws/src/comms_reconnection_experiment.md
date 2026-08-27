@@ -12923,6 +12923,206 @@ prediction is cheap, offline, and available before any new run is launched. It
 belongs in the pre-flight of every future trigger change, next to the
 known-answer calibration rather than instead of it.
 
+### 30.27 The confound that was underneath all of it: arm versus session
+
+`gt2` put the §30.26 veto in front of the trigger and came out **1.203 × slower
+than `tl1`, p = 0.042** — a 20 % penalty for a change whose entire purpose was to
+delete waste. §30.24 had already priced the waste at 8 chases in 30 cells, so the
+arithmetic never worked: removing 8 wasted chases cannot cost 20 %. Something
+other than the veto was in that number.
+
+`rp1` was launched to answer a different question — is `tl1_hybrid`'s 474 s real
+or a lucky 30? — and it answers this one instead, because of what it *is*.
+
+#### `rp1` is an accidental null calibration
+
+`rp1` re-ran `tl1_hybrid`'s configuration unchanged. Its true difference from
+`tl1_hybrid` is therefore **zero by construction**, and whatever it reports is not
+an effect: it is this design's measurement floor.
+
+| | n | geomean | median | vs `tl1_off` | perm p |
+|---|---|---|---|---|---|
+| `tl1_off` no reconnect | 30 | 603 s | 554 | 1.000 × | — |
+| `tl2_pursuit` chase only | 30 | 609 s | 591 | 1.011 × | 0.920 |
+| `tl2_rendezvous` rdv only | 30 | 536 s | 490 | 0.890 × | 0.234 |
+| `tl1_hybrid` both, gate off (**A**) | 30 | 474 s | 449 | **0.786 ×** | **0.0024** |
+| `rp1_hybrid` both, gate off (**C**) | 30 | 513 s | 482 | 0.851 × | 0.057 |
+| `gt2_hybrid` both, gate ON (**B**) | 30 | 570 s | 515 | 0.946 × | 0.582 |
+
+**A against C — same config, different session — is 1.082 ×, p = 0.287.** Against
+that floor the gate comparison stops being a result:
+
+| comparison | ratio | p |
+|---|---|---|
+| C vs A — **true value is 0** | 1.082 × | 0.287 |
+| B vs A — the headline claim | 1.203 × | 0.042 |
+| B vs C — the same claim, other control | 1.111 × | 0.293 |
+| B vs A+C pooled | 1.156 × | 0.058 |
+
+The answer depends on which identical-configuration control you happen to pick.
+That is the definition of a confounded contrast, and **the correct conclusion
+about the link gate from `gt2` is that this campaign cannot measure it.**
+
+#### Which comparisons were session-controlled, and why some were
+
+`started_utc` is in every manifest, so this is answerable rather than arguable.
+Overlapping start/end times are not sufficient — two arms can overlap only at the
+edges — so the test is the fraction of each arm's cells starting inside the other
+arm's active window, plus the median per-seed start gap (`session_structure.py`):
+
+| pair | interleaved | median per-seed gap | verdict |
+|---|---|---|---|
+| `tl1_hybrid` vs `tl1_off` | 29/30 | 10 min | **CONCURRENT — controlled** |
+| `tl2_pursuit` vs `tl2_rendezvous` | 29/30 | 11 min | **CONCURRENT — controlled** |
+| `tl2_*` vs `tl1_off` | — | ~800 min | SEQUENTIAL — confounded |
+| `gt2`, `rp1` vs anything | — | 3600–4400 min | SEQUENTIAL — confounded |
+
+**Nobody designed that, and that is the point worth recording.**
+`run_campaign.sh` builds its cell list *seed-major* (`hybrid:1, off:1, hybrid:2,
+off:2 …`), so passing two arms to **one invocation** interleaves them at one-cell
+granularity. `tl1` got a randomised-design's protection purely as a side effect of
+being launched as one command; every later campaign ran one arm per command and
+silently gave it up. A machine that is slow at 03:00 is slow for both arms only if
+both arms are running at 03:00.
+
+#### What survives
+
+**The headline does, and it is the only load-bearing number here.**
+`tl1_hybrid` vs `tl1_off`, concurrent: **0.786 ×, 95 % CI [0.681, 0.910],
+p = 0.0022** — 129 s off a 603 s job. It is a shift of the whole distribution, not
+a couple of rescued disasters:
+
+| percentile | 10 | 25 | 50 | 75 | 90 | max |
+|---|---|---|---|---|---|---|
+| ratio | 0.851 | 0.857 | 0.810 | 0.762 | 0.707 | 0.733 |
+
+#### What does not survive: §30.x's "super-additive" decomposition — a retraction
+
+The 2×2 read `pursuit` alone at 1.011 ×, `rendezvous` alone at 0.890 ×, and
+inferred a super-additive interaction of 0.874 ×. **Both singleton legs reach
+`off` only across an 800-minute session boundary**, and the floor across such a
+boundary is 1.082 × — larger than `rendezvous`' entire apparent effect. The
+interaction was computed across exactly that gap and is withdrawn.
+
+The one ablation contrast that *was* concurrent is `tl2_pursuit` vs
+`tl2_rendezvous`: **0.881 ×, CI [0.705, 1.098], p = 0.273.** So "which half does
+the work" is **undetermined**, which is a weaker and more honest statement than
+"neither alone."
+
+#### Provenance audit: what actually changed between the sessions
+
+Read from the manifests, all four arms, 69–73 keys each. Three differences, and
+**55 keys identical everywhere** — scenario, world, tx 30.0, cap 3000 s,
+`done_unknown_fraction` 0.64, `done_criterion` latch, every reconnect/rendezvous/
+pursuit parameter, and the `hmr_sim` / `scovox` / `simple_nav_3d` hashes.
+
+1. **The binary.** A ran `8a0dd03a88512f94` (`b669525`); B and C ran
+   `b779b8c11142bca7` (`8cdba50`) — the four link-gate commits, +427/−15.
+2. **Four keys exist only in B/C**: `link_gate`, `link_gate_topic`,
+   `link_gate_index_topic`, `link_gate_stale_sec`.
+3. **`git_explo_planner` varies *within* `tl1`** — `ad86967-dirty.04af9b10` on
+   seeds 1–2, `b669525` on seeds 3–30. This is the alarming-looking one and it is
+   benign: `sha256` and `mtime` are **constant across all 30 cells**, and
+   `run_explo_sim_rviz.sh:1243-1247` stamps both per cell at run start. The dirty
+   tree was committed mid-campaign. It also converts §30.x's arm-equivalence
+   *argument* into an observation — one binary, labelled first as the dirty tree
+   and then as `b669525`, so they are the same content.
+
+**A trap inside that check.** `mtime` is stamped in local time (`+0100`) while
+`started_utc` is UTC, which makes the binary look ~1 h newer than most of the runs
+that used it — i.e. makes a per-cell observation look like a post-hoc stamp, and
+therefore makes a genuine constancy result look like a constant-by-construction
+artefact. It is neither; it is a timezone.
+
+**Does the rebuild invalidate C as a replicate of A?** Traced in source, since the
+floor rests on it: `comms_link_states_topic` defaults to `""`
+(`explo_planner_node.cpp:1944`); with `LINK_GATE=0` the launcher passes no such
+parameter at all (`run_explo_sim_rviz.sh:1284`); the subscription is created only
+when non-empty (`:2508`); `linkGateReady()` returns false on its first line when
+empty (`:4343`); both veto sites sit inside `if (linkGateReady(...))` (`:3425`,
+`:5146`); and **the only deleted lines in the entire delta** are the original
+dispatch block, re-emitted verbatim inside `if (!link_veto)`. The harness diff is
+pure addition behind `LINK_GATE=1`. So C took A's code path.
+
+Same source path is still not the same machine code — B/C were recompiled, so
+inlining and layout differ and can perturb scheduling in a nondeterministic sim.
+**1.082 × is therefore "session + rebuild", an upper bound on session drift rather
+than a measurement of it.**
+
+#### A second defect, found while pricing the first: the barren barrier
+
+Distinct from §30.24's wasted fire. Here a robot dispatches a mid-run reconnect
+toward a partner that has **already latched done**. The parked partner never
+attends, the chaser burns the full 240 s barrier, and — the part that makes it
+expensive — while parked its own map stops growing, so its own latch cannot fire
+either. Signature: `reconnect_end` with `outcome="abandoned"`,
+`reason="midrun-barrier-expired"`.
+
+| arm | runs | chases | aimed at a done partner | burned the full barrier | time lost |
+|---|---|---|---|---|---|
+| `tl1_hybrid` | 30 | 19 | 4 | 0 | 0 s |
+| `rp1_hybrid` | 30 | 27 | 6 | 0 | 0 s |
+| `gt2_hybrid` | 30 | 25 | 11 | **3** | **1440 s** |
+
+Fisher exact (enumerated, calibrated on the tea-tasting table to its published
+0.4857 first): per cell **3/30 vs 0/55, p = 0.0411**; per episode 3/25 vs 0/41,
+p = 0.0503. **But the two-stage decomposition weakens it, and that is reported
+because it weakens it**: stage 1 (chase aimed at a done partner) 11/25 vs 10/46,
+p = 0.061; stage 2 (futile chase then burns the barrier) 3/11 vs 0/10, p = 0.214.
+With zero events in 55 control cells the Rule-of-Three bound on the control rate
+is ≤ 0.055/cell, which overlaps `gt2`'s 0.100. **Honest statement: concentrated in
+`gt2`, not established as caused by `gt2`.**
+
+#### The exclusion that was asked for, and the calibration that reads it
+
+Dropping `gt2`'s three barrier-expiry cells (seeds 1/8/16) is a **post-treatment
+exclusion**: a barrier expiry is an outcome of the run, so if the gate causes
+expiries then deleting them deletes the treatment's own harm and biases toward
+"no effect" by construction. It was run anyway, next to two variants that make it
+readable:
+
+| variant | B geomean | B vs A | B vs C | B vs `off` |
+|---|---|---|---|---|
+| (0) nothing dropped | 570 s | 1.203 × | 1.111 × | 0.946 × |
+| (1) drop 1/8/16 from B only — *as asked* | 517 s | 1.091 × | 1.008 × | 0.858 × |
+| (2) drop 1/8/16 from every arm — symmetric | 517 s | 1.124 × | 1.021 × | 0.858 × |
+| (3) drop **each arm's own** 3 slowest — the calibration | 515 s | 1.149 × | 1.068 × | 0.854 × |
+
+Row (3) is the one that matters: chopping any arm's worst three recovers most of
+the same movement, so **roughly half of what (1) appears to show is simply that
+tails exist**, not that barriers do. Seed 8 is also censored at the 3000 s cap
+rather than measured, so dropping it discards the single most informative
+observation about how bad the tail gets.
+
+#### What this costs to fix, and the run that fixes it
+
+Power, permutation-based, with the mandatory null calibration wired in as an abort
+gate (it passed at 0.063 against α = 0.05 — §30.x's "power sims need a null
+calibration" lesson made mechanical):
+
+| true ratio | n=20 | n=30 | n=40 | n=60 | n=80 |
+|---|---|---|---|---|---|
+| 1.20 × | 0.50 | 0.69 | 0.79 | 0.94 | 0.99 |
+| 1.10 × | — | 0.25 | — | 0.43 | 0.53 |
+
+So 30/arm was never going to settle a gate effect near the 1.08–1.11 × range, and
+no amount of re-reading `gt2` will change that.
+
+`rr1` is therefore launched as a **paired, session-controlled replication of the
+one contrast that matters**: `--arms hybrid,off` in a *single* invocation, 30
+seeds, `LINK_GATE=0`, both arms on one binary. It removes the session confound and
+the rebuild confound simultaneously, and it re-tests 0.786 × in a session that has
+never seen it. The `off` arm is deliberately re-run rather than reused from `tl1`:
+`off` never dispatches so it is almost certainly unaffected by the rebuild, but
+"almost certainly" is an argument and a fresh arm is a measurement.
+
+**The lesson to carry.** Every campaign after `tl1` ran one arm per invocation and
+none of them recorded that as a design decision, because it did not feel like one.
+The cheapest possible guard is the one `rp1` supplied by accident: **put an
+identical-configuration arm in the design and look at what it reports.** A
+same-config ratio is a direct read of the floor under every other ratio in the
+table, and it costs one arm.
+
 ## 31 Queued: three robots, one UGV and two UAVs
 
 **Status: queued by instruction on 2026-08-26, not started.** `td1` is in
