@@ -252,7 +252,10 @@ echo "----- explo_planner: PLAN cycles -----"
 dc_scovox exec -T scovox bash -lc '
   grep -aE "planner ready|Waiting to start|selected goal|candidates rejected|Navigation (succeeded|failed)|DONE" /tmp/explo.log | tail -15
   echo "plan_steps=$(grep -ac "selected goal" /tmp/explo.log 2>/dev/null)"
-  echo "all_rejected_ticks=$(grep -ac "candidates rejected" /tmp/explo.log 2>/dev/null)"
+  # NOT a tick count any more: that WARN is throttled to one line per 5 s, so
+  # this is a count of log lines, roughly 1/50 of the ticks. The tick count is
+  # in the "%d consecutive rejected ticks" field of the lines above.
+  echo "all_rejected_log_lines=$(grep -ac "candidates rejected" /tmp/explo.log 2>/dev/null)"
   echo "per-step metrics CSV: /tmp/exploration_fused_bag.csv (in scovox container)"
 ' || true
 

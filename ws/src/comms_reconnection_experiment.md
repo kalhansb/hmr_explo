@@ -14140,20 +14140,39 @@ is declared as a new generation rather than a patch to generation 5.
 6. *`pose_health` events on the loss and recovery edges.* A stale TF was a
    throttled WARN and nothing in the JSONL, so the duration of a pose outage
    was not recoverable from the events at all.
-7. **The behavioural one.** `UgvController::compute_command` returns early on
-   an empty path, and that return sits *above* the `recovery_active_` check.
-   A recovery interrupted by its goal being withdrawn or replaced therefore
-   left `recovery_active_` true with no `recovery EXIT:` line — indistinguishable
-   in a grep from a recovery that never terminated, which is the one failure
-   mode check E exists to detect. It would report a fault that did not happen
-   while masking the one that did. The fix emits a `PATH CLEARED` exit *and*
-   clears the flag, and clearing it is a control change: the recovery's backup
-   distance and turn direction were chosen for the obstacle blocking the
-   **old** goal, and carrying that state into the next goal turns the robot
-   toward a hazard nothing has re-measured. Rare, arm-symmetric, and strictly
-   in the direction of correctness — but not nothing, and
-   [[binary-generations-and-the-link-gate]] is the reason it gets a generation
-   boundary instead of a footnote.
+7. **The behavioural one.** A recovery interrupted by its goal going away did
+   not end; it *suspended*. The controller node stops calling
+   `compute_command` while the global path is empty, so `recovery_active_`
+   stayed true across the gap and the next non-empty path resumed the old
+   recovery — driving to an **absolute** yaw computed once from the obstacle
+   that blocked the *previous* goal, measuring backup distance from a pose the
+   robot may already have left, and owning the command stream for up to the
+   tick cap while doing it. It also produced a `-> recovery:` entry with no
+   `recovery EXIT:`, which in a grep is indistinguishable from a recovery that
+   never terminated — the one failure mode check E exists to detect, so it
+   reported a fault that had not happened while masking the one that had.
+
+   The fix adds `ControllerBase::on_path_cleared()`, called by the node on
+   every empty-path tick; `UgvController` overrides it to end the recovery and
+   emit a `PATH CLEARED` exit. Ending it rather than resuming it is the
+   control change.
+
+   This is not the corner case it first looks like. A nav-budget expiry is one
+   of the likeliest ways for a goal to be withdrawn, and a robot in recovery
+   is precisely a robot whose goal is about to time out — so the withdrawal is
+   a *common* exit from recovery, not a rare one. Arm-symmetric and strictly
+   toward correctness, but [[binary-generations-and-the-link-gate]] is the
+   reason it gets a generation boundary rather than a footnote.
+
+   **This item was wrong on its first attempt and the review caught it.** The
+   teardown was originally written into `compute_command`'s own empty-path
+   guard — which the node never reaches, because it tests `poses.empty()`
+   *before* dispatching. The code was unreachable, `colcon test` had nothing
+   covering it, and this section had already been committed asserting a
+   behavioural change that the built binary did not contain. That is
+   [[checks-that-stopped-checking]] in its purest form: a fix that reads as if
+   it works. It is recorded here rather than quietly rewritten because a
+   pre-registration that edits away its own errors is not one.
 
 A provenance defect found in the same audit is fixed by procedure rather than
 code. `EXPLO_PLANNER_GIT_REV` is computed at **CMake configure time**, so an
@@ -14163,11 +14182,13 @@ produce cells must be preceded by a forced reconfigure, and the baked rev
 checked against the manifest before launch. That check was run for this
 generation and the binary reads `5fc340a`, matching.
 
-**Identity of the generation.** Parent `8e39920`, `explo_planner` `5fc340a`,
-`simple_nav_3d` `50ce6d2`, `scovox` `078d3f7` (unchanged); planner binary
-sha256 `8e54c116272c45da`. As in §32.11 the *trio of git hashes* is the
+**Identity of the generation.** Parent `8e39920`, `explo_planner` `73c2358`,
+`simple_nav_3d` `c9f83a7`, `scovox` `078d3f7` (unchanged); planner binary
+sha256 `e8a6a26961b5e8c4`. As in §32.11 the *trio of git hashes* is the
 identifier, not the binary sha — change 7, the only behavioural one, lives
-entirely in `simple_nav_3d` and would not move the planner sha at all.
+entirely in `simple_nav_3d` and would not move the planner sha at all. (These
+are the post-review hashes. `explo_planner 5fc340a` / `simple_nav_3d 50ce6d2`,
+declared here before the review ran, never produced a cell.)
 
 **What carries over from §32.11, unchanged.** Every endpoint, test, and sizing
 decision: primary `t_mission`, secondary `t_explore`, exact permutation test
@@ -14188,3 +14209,21 @@ the equality *easier* to satisfy — so the check's teeth are now entirely in
 the aggregate-entries clause: zero `-> recovery:` entries across the whole
 pilot is UNRESOLVED, not a pass. That clause is unchanged and is the one that
 matters, because generation 4 produced exactly zero.
+
+Two properties of the gate, surfaced by the review and written down because
+neither is obvious from the check text:
+
+- **Check A can now fail for a reason it could not before.** Broadening
+  starvation to any missing input means the state "goal pending, map ready, no
+  odom yet" now increments the counter where it previously reset it every
+  tick. `has_odom_` is a latch that is never cleared once the first odom
+  arrives, and bring-up already gates on `planning_map`, which is far
+  downstream of odom — so the exposure is a first goal issued more than 20 s
+  before the first odom message, which should not happen. If `planner
+  starving:` does appear, read the `odom=%d map=%d` field before concluding it
+  is the generation-5 map defect recurring.
+- **Checks A and E are prose, not code.** Nothing in the repo greps those four
+  tokens; `comms_gates.py` does not read the nav logs at all. They are
+  performed by hand against the pilot. Recorded because a check nobody runs
+  and a check that passes vacuously fail the same way
+  ([[checks-that-stopped-checking]]).
