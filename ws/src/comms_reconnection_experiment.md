@@ -13913,12 +13913,32 @@ introduce and the one thing this change must not do quietly.
 | B: homing ladder | `test_home_trail`, 14/14 — the retrace and escape pickers never return home itself, the watchdog metric follows the trail rather than the straight line and decreases monotonically as the robot walks it in, and the nav budget's distance is *the same function* as the watchdog's | `MISSION-RETURN WATCHDOG ARMED` at every homing start; `logHomeWatchdog` rows carry kind/mode/response/escapes |
 | C: blacklist | `test_failed_goal_blacklist`, 20/20 — including a both-sided replay of the seed18 gaps (suppressed at the *shipped* TTL, expired at generation 4's 60 s), a separate test that the 626 s gap needs *retirement*, and four on the amnesty ordering | `failed_goal_ttl_sec`, `failed_goal_retire_after` and `failed_goal_radius_m` echoed into `run_manifest.txt`; the harness refuses to launch a cell whose TTL is below the budget |
 | D: honest logging | grep: no remaining string claims a cancel took effect | — |
-| E: controller recovery reachable | none — this is a control loop against a live costmap, not a pure function | `-> recovery:` entries **> 0** and `recovery EXIT:` count **equal** to them, per robot-run. Generation 4's count was 0 |
+| E: controller recovery reachable | none — this is a control loop against a live costmap, not a pure function | `recovery EXIT:` count **equal** to `-> recovery:` entries, per robot-run; and entries **> 0 in aggregate across the pilot**. Generation 4's aggregate was 0. See the caveat below — this check has two different failure modes and only one of them is a per-run question |
 
 The seed18 replay is deliberately **two-sided**. A one-sided "TTL 240
 suppresses it" would also pass on a build that suppressed everything
 forever, and a guard that cannot fail is not a guard
 ([[checks-that-stopped-checking]]).
+
+> **Caveat on check E, written before the pilot ran.** An earlier draft of
+> this row asked for `-> recovery:` entries > 0 *per robot-run*, and that is
+> wrong in both directions. A healthy run that never meets a dead-end
+> legitimately has zero entries, so per-run it would fail good cells; and
+> read loosely across a campaign, "0 entries" is exactly what an *unreachable*
+> trigger produces — the generation-4 result. Zero is therefore not evidence
+> either way, and must not be recorded as a PASS. The split:
+>
+> - **Per robot-run: `entries == exits`.** Always meaningful, including at
+>   0 == 0. An unpaired entry is a recovery that never ended, which is the
+>   one failure mode raising the threshold could plausibly introduce.
+> - **Aggregate over the pilot: `entries > 0`.** This is the reachability
+>   claim. If the whole pilot ends at zero, check E is **UNRESOLVED, not
+>   passed** — the 0.15 → 0.4 raise would be untested, and the honest move is
+>   to say so and force the trigger deliberately (drive a UGV at a wall in a
+>   scratch cell) rather than let a silent zero ride into a 60-cell campaign.
+>
+> This is the [[checks-that-stopped-checking]] pattern caught one step before
+> it applied to the guard written to catch it.
 
 **Every new guard was calibrated against the defect it exists for**, which is
 the only way to know a test is not already inert. Reverting each fix in a
@@ -14063,7 +14083,9 @@ nothing ([[sim-run-to-run-nondeterminism]]).
 read against the 13-check gate. Six checks are hard stops. Two are new in
 this generation and exist to catch a fix that shipped inert: `global plan
 ok:` present **and** `planner starving:` absent in every robot-log (fix A),
-and `-> recovery:` entries greater than zero and equal to `recovery EXIT:`
-counts per robot-run (fix E, where generation 4's count was 0). A pilot that
-passes every old check and fails these two means the campaign would have
-re-run generation 4's failure modes under a new tag.
+and for fix E, `recovery EXIT:` equal to `-> recovery:` per robot-run with
+entries greater than zero *in aggregate over the pilot* (§32.10's caveat —
+zero entries is not a pass, it is the unresolved case, and it is what
+generation 4 produced). A pilot that passes every old check and fails these
+two means the campaign would have re-run generation 4's failure modes under
+a new tag.
