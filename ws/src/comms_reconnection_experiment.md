@@ -14097,3 +14097,94 @@ zero entries is not a pass, it is the unresolved case, and it is what
 generation 4 produced). A pilot that passes every old check and fails these
 two means the campaign would have re-run generation 4's failure modes under
 a new tag.
+
+### 32.12 Generation 6: the logging audit, and why it is a new generation
+
+`g5smoke` ran clean on generation 5 — both cells `all_done`, all four robots
+`coverage-latched` and `arrived` — and a logging audit of those two cells then
+found that the clean readout was partly a property of the *logs*, not of the
+run. Seven gaps were fixed. Six are log-only. One is not, and that is why this
+is declared as a new generation rather than a patch to generation 5.
+
+**What changed.**
+
+1. *Harness wall-clock deadman.* The wait loop had no wall-clock deadline at
+   all. Every end condition — duration cap, step-stall hang gate, all-DONE
+   grace — is keyed on **sim** time, and the only wall-clock test is process
+   liveness, which a deadlocked Gazebo passes: the processes stay up,
+   `sim_clock` keeps returning the same non-empty number, the duration cap is
+   never reached, and the 60-sim-second heartbeat that drives the hang gate
+   never ticks either. The loop then polls in silence forever. Sequentially,
+   that does not cost one cell; it costs the night — the driver is still
+   inside cell 7 at breakfast and cells 8–60 never start. `CLOCK_DEADMAN_S`
+   (default 420 s, deliberately generous: sim time legitimately stalls for
+   tens of seconds on a heavy lidar frame) `die`s on a frozen clock, which the
+   campaign driver already handles as a cell failure with a
+   three-consecutive-failure abort. A bounded retry on unreadable `/clock`
+   closes the same hole one level down.
+2. *Nav starvation broadened.* The starvation counter only counted a missing
+   **map**. A goal pending with no odom is the identical no-op and emitted no
+   line whatsoever. It now covers any missing input and names which one. The
+   `planner starving:` token is unchanged, so check A still matches.
+3. *`navigator stopped publishing` raised to WARN.* It was `RCLCPP_INFO`, and
+   the campaign runs this node at WARN, so an anomalous mid-goal teardown was
+   never written to the per-cell nav log. Routine clears stay INFO.
+4. *All-rejected WARN throttled.* Unthrottled at 10 Hz, ~600 lines a minute,
+   which buries every other line in the planner log — the failure mode is that
+   the log becomes unreadable exactly when something is going wrong. Throttled
+   to 5 s with a consecutive-tick counter, so the *duration* of a planning
+   stall survives the throttle, plus a recovery line when planning resumes.
+5. *`budget_sec` and `pose_stale` on the nav-failure WARN and event.* Elapsed
+   time alone cannot say whether a goal timed out or failed early, and a nav
+   failure with a stale pose has a different cause than one with a fresh pose.
+6. *`pose_health` events on the loss and recovery edges.* A stale TF was a
+   throttled WARN and nothing in the JSONL, so the duration of a pose outage
+   was not recoverable from the events at all.
+7. **The behavioural one.** `UgvController::compute_command` returns early on
+   an empty path, and that return sits *above* the `recovery_active_` check.
+   A recovery interrupted by its goal being withdrawn or replaced therefore
+   left `recovery_active_` true with no `recovery EXIT:` line — indistinguishable
+   in a grep from a recovery that never terminated, which is the one failure
+   mode check E exists to detect. It would report a fault that did not happen
+   while masking the one that did. The fix emits a `PATH CLEARED` exit *and*
+   clears the flag, and clearing it is a control change: the recovery's backup
+   distance and turn direction were chosen for the obstacle blocking the
+   **old** goal, and carrying that state into the next goal turns the robot
+   toward a hazard nothing has re-measured. Rare, arm-symmetric, and strictly
+   in the direction of correctness — but not nothing, and
+   [[binary-generations-and-the-link-gate]] is the reason it gets a generation
+   boundary instead of a footnote.
+
+A provenance defect found in the same audit is fixed by procedure rather than
+code. `EXPLO_PLANNER_GIT_REV` is computed at **CMake configure time**, so an
+incremental rebuild bakes a stale hash: the `g5smoke` JSONL claimed
+`230ee45-dirty` while its own manifest said `4b90141`. Any build that will
+produce cells must be preceded by a forced reconfigure, and the baked rev
+checked against the manifest before launch. That check was run for this
+generation and the binary reads `5fc340a`, matching.
+
+**Identity of the generation.** Parent `8e39920`, `explo_planner` `5fc340a`,
+`simple_nav_3d` `50ce6d2`, `scovox` `078d3f7` (unchanged); planner binary
+sha256 `8e54c116272c45da`. As in §32.11 the *trio of git hashes* is the
+identifier, not the binary sha — change 7, the only behavioural one, lives
+entirely in `simple_nav_3d` and would not move the planner sha at all.
+
+**What carries over from §32.11, unchanged.** Every endpoint, test, and sizing
+decision: primary `t_mission`, secondary `t_explore`, exact permutation test
+on `off` vs `hybrid`, 30 cells/arm in one seed-major `run_campaign.sh`
+invocation, `RECORD=0`, the four-label censoring vocabulary and its single
+censoring class, and the 13-check gate including both generation-5 checks. The
+retractions of §32.4 stand as written.
+
+**What this excludes.** `g5smoke`'s two cells are generation 5 and do not
+enter this campaign's analysis, by the same rule that excluded `mr0` from
+`g5r1` — the antecedent "same binary" is false. They keep their standing as a
+smoke test of the code the audit was performed on; they are not data.
+
+**Gate, restated for the change that touched it.** Check E counts
+`recovery EXIT:` against `-> recovery:` per robot-run. Change 7 adds a third
+exit site (`PATH CLEARED`, alongside `TIMEOUT` and turn-complete), which makes
+the equality *easier* to satisfy — so the check's teeth are now entirely in
+the aggregate-entries clause: zero `-> recovery:` entries across the whole
+pilot is UNRESOLVED, not a pass. That clause is unchanged and is the one that
+matters, because generation 4 produced exactly zero.
