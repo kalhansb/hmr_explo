@@ -14326,3 +14326,178 @@ agree to 3 dp with the `ROI unknown fraction %.3f` field of the matching
 `Exploration complete [latch]` line in `planner_<robot>.log`. This is the check
 that would have caught the defect above, and it is written down because it did
 not exist while the run that produced the defect was being scored.
+
+## 32.14 Generation 8 — the measurement generation
+
+Generation 8 is declared before campaign `g8r1` runs a single cell. It is not a
+behavioural generation in the sense the earlier ones were: no planning rule, no
+threshold and no dispatch policy changed. What changed is that a large number of
+things the previous generations were *recording about themselves* were wrong, and
+those recordings are what every result is scored from. A generation stamp is
+warranted anyway, because the void it creates is real: the event-log schema went
+from 2 to 3 across a field-incompatible rename, and a reader that treats a
+generation-7 cell as a generation-8 cell now reports it wrongly rather than
+refusing it. Under the never-pool rule that is sufficient on its own.
+
+**Why this is a new generation.** Three of the changes are field-incompatible:
+`PeerEvent::last_contact_age_sec` is gone, `RunEndEvent::metrics_rows` is now
+`metrics_timer_rows`, and the `home_watchdog` `kind` vocabulary gained
+`frozen-in-escape`. The rename is the dangerous shape, because a lenient reader
+does not fail on it — it defaults the missing key to 0 and reports every run as
+having written no metrics rows at all. Both generation 6 and generation 7 stamped
+schema 2, so the stamp had already failed once across exactly this kind of change.
+It is stamped 3 here and, for the first time, *enforced*: `event_log.py` reads the
+version it has always written and refuses anything below `MIN_SCHEMA`.
+
+**Change list.** Four commits, in order.
+
+`3d4306c` — eight measurement fixes in the planner. The `failGoal` inequality was
+logged with the wrong operand order; `test_delta_m` and `test_threshold_m` were
+absent from `home_watchdog` rows, so a fire could not be checked against the
+quantity that fired it; the frozen detector did not capture its delta; the
+`transitionTo` outcome was not recorded; the `peer_lost`/`peer_seen` payload
+fields were swapped; `metrics_rows` was renamed to `metrics_timer_rows`;
+`noteCoverageDecisionSample` was added; and `refreshDispatchContext` was reordered
+so the context a decision is logged against is the context it was made under.
+
+`1966069` — the fixes from the first two review rounds. `recordExplorationComplete`
+now prints the gate-disarming line from one funnel rather than from each ending,
+so the step-budget ending no longer hands off to homing with the harness hang gate
+still armed. An unsequenced-argument evaluation at the coverage-budget sample was
+split — g++ evaluated the bare source pointer before the call that fills it, at
+both `-O0` and `-O2`, so the sample carried the *previous* decision's source. A
+frozen detector firing during an escape leg now writes its own row
+(`kind=frozen-in-escape`, deliberately not `escape-frozen`, because that token is
+already the `response` on the escape-end row emitted immediately after, and one
+abort writing the same string into two columns of two consecutive rows makes any
+token-based reader count it twice). `HANG_HB` went from 10 to 40: the old 600
+sim-s threshold sat *below* the worst legitimate case, since a mid-run manoeuvre
+may spend `PURSUIT_BUDGET_MAX`=600 chasing, `RECONNECT_NAV_MAX`=600 driving and
+`MIDRUN_MAX_WAIT`=240 waiting while advancing no explore step, and
+`doProximityHold` refunds held time to the pursuit clock on top. Only hybrid
+dispatches manoeuvres, so every false abort would have been drawn from one arm on
+the primary endpoint. The manifest now records `sha256_shared_params` and
+`done_action_in_params`.
+
+`3545fb8` — the analysis path. Three readers had a failure mode indistinguishable
+from a clean result. `modes_compare.py`'s `declared_of()` collapsed "import
+failed", "will not parse", "no event log" and "nothing declared" into a single
+`None`, so the completion cross-check printed nothing when it never ran — byte-
+identical output to running and agreeing. `comms_metrics.py` had a bare
+`except: pass` that made an unreadable event log look exactly like censoring in
+the columns whose own header documents "blank = censored". `event_log.py` lost the
+arm on excluded cells, so the exclusion count could not answer whether exclusions
+were arm-balanced, which is the one question it exists to answer. In the harness,
+a run reaching the horizon while the DONE drain grace was still counting down was
+labelled `censored_at_T` although every planner had declared *inside* the horizon;
+this is arm-asymmetric in direction, since the slower arm finishes nearer the
+horizon and collects more of them. Base rate was 1 in 725 banked rows and the
+primary endpoint is immune to it (`event_log.py` reads events, never this string),
+so it is a manifest fix, not a re-score.
+
+`322b6fc` — the gate identity, below.
+
+**Identity of the generation.**
+
+| field | value |
+| --- | --- |
+| `explo_planner` | `322b6fc` (clean; baked `EXPLO_PLANNER_GIT_REV` matches HEAD) |
+| `simple_nav_3d` | `c9f83a7` |
+| `scovox` | `078d3f7` |
+| planner binary sha256 (first 16) | `cf1f4f299fedf67c` |
+| `colcon test` | 248 tests, 0 errors, 0 failures, 0 skipped |
+| event-log schema | 3 |
+
+`EXPLO_PLANNER_GIT_REV` is computed at CMake *configure* time, so any build that
+produces cells must pass `--cmake-force-configure` and then be verified with
+`strings install/explo_planner/lib/explo_planner/explo_planner_node`. Two interim
+identities were measured during the generation and are superseded, recorded here
+only so a stray note quoting them can be placed: `1966069` /
+`03f9625b2414be48`, and `3545fb8` / `625b584ffa28a0b7`.
+
+**The gate identity has no fixed point.** The two build-dependent fields could not
+be literals in `gate_g8.py`, and not for want of filling them in. The manifest's
+`git_explo_planner` is `git rev-parse HEAD` at run time and the JSONL's `git_rev`
+is baked at configure time; both name the commit the campaign was built from, and
+`gate_g8.py` is *in* that commit. Writing the hash into the file changes the tree,
+which changes the commit, which changes the hash. The binary's sha256 has the same
+problem, since the rev string is compiled into it. The previous `FILL_ME` could
+therefore never have been filled correctly — any value committed there would have
+been stale the moment it was committed. They are now declared out of band in
+`$GATE_ROOT/<TAG>.identity.txt`, written once at launch and outside git, with
+`GATE_EXPECT_<key>` environment overrides for the calibration harness. The
+property that matters is preserved: the gate is told what to expect by something
+it does not compute, and it still refuses to score when nothing is declared, now
+naming which keys are missing and where to put them. For `g8r1` that file is
+`/home/kalhan/hmr_campaign/g8r1.identity.txt`, written before the first cell ran,
+declaring `git_explo_planner=322b6fc` and
+`sha256_explo_planner_node=cf1f4f299fedf67c`.
+
+**Added gate checks (18b, 18c).** 18b: the declared identity must be present and
+must match. Verified non-vacuous out of band — a wrong rev in the file is caught
+(`git_explo_planner=3d4306c expected deadbee`, rc=1), so the file's *content* is
+believed, not merely its existence. 18c: `done_action` must be `idle`, read from
+the `run_start` params (what the node loaded) rather than from the manifest (what
+the YAML on disk said). Those two differ exactly when the node fell back to its
+compiled `shutdown` default, under which the planner exits at DONE and never
+homes — meaning no `mission_end` at all, which would silently convert every cell
+in the campaign to an exploration-only cell. The calibration fixture had no
+`done_action`, so 18c fired on the *clean* cell first. The fixture was wrong, not
+the check; the fixture was fixed and a negative case added. A check whose happy
+path is not represented in the calibration looks like a real hard failure on the
+first live campaign, and the temptation then is to delete the check.
+
+**The calibration now validates the real file.** `run_gate` previously rewrote
+`gate_g8.py`'s source to patch the identity literals, which meant the calibration
+validated a *copy*. It injects through the environment instead, so what is
+calibrated is byte-for-byte what will score the campaign. A case for the identity
+*file* path was added specifically: the env path is the harness's own shortcut,
+the file path is what the campaign will use, and a branch that only ever runs in
+production is a branch nobody has tested.
+
+**How censored `t_mission` is analysed — pre-registered here, before `g8r1`.**
+Two endpoints are declared: `t_explore` (both robots' distributed dscovox unknown
+fraction independently ≤ 0.640) and `t_mission` (the later of the two homing
+arrivals). `t_mission` is the endpoint of interest, because time to *finish the
+mission* is the realistically valuable quantity. But it is the one exposed to
+censoring, and censoring here is exposure, not severity: in the generation-7 bank
+5 of the 6 imperfect cells were hybrid, and hybrid's homing legs were *shorter*,
+so the asymmetry came from trap exposure during homing rather than from hybrid
+being slower. The rule, fixed now so it cannot be chosen after seeing the numbers:
+
+1. Both endpoints are reported for every cell, with censoring counts per arm.
+2. Censored cells are **withheld, never imputed** and never replaced by the
+   horizon. No adjustment is made on any post-treatment covariate.
+3. If censoring is balanced across arms (difference ≤ 2 cells of 30), the exact
+   permutation test on `t_mission` over the complete cells is the primary
+   inference, with `t_explore` reported alongside.
+4. If censoring is unbalanced, the exact permutation test on `t_explore` — which
+   is immune to homing-phase censoring — becomes the primary inference, and
+   `t_mission` is reported descriptively with its counts and explicitly labelled
+   as not supporting a between-arm test. Reporting a `t_mission` p-value computed
+   over a set whose membership the treatment influenced would be exactly the
+   post-treatment conditioning this document forbids elsewhere.
+
+The test is the exact permutation test in every branch. The bootstrap is not used.
+
+**What carries over, unchanged.** The scenario, seeds, arms, duration,
+`run_campaign.sh` invocation, `RECORD=0`, the censoring vocabulary, and every
+property of the gate recorded at the end of §32.12. The generation-6 change list
+stands, plus generation 7's field fix. Arms remain exactly two — `off` and
+`hybrid`, where "hybrid" means hybrid with the coast, per the no-compound-
+experiments rule; the coast is not a third arm and is not separately estimated in
+this campaign.
+
+**Two commit messages in this generation state figures that do not reproduce.**
+They are recorded here rather than corrected by rewriting history. `3d4306c`'s
+body says the watchdog `metric_m` stood "4.1x to 162x" above the firing delta
+"on the seven banked g6pilot fires". Direct re-measurement: seven fires exist, but
+only **two** of them log a delta at all — the other five are retrace-mode fires,
+which the writer omits the fields on. The two ratios are 4.11x and ~123x, and the
+second is only bounded to 105.5x–147.7x by the 2-dp rounding of its source. The
+case for logging the field was therefore made on two data points, which is still
+a case, but not the one the commit message describes. `1966069`'s body inherits
+the same range. The in-tree comments in `experiment_log.hpp` and
+`explo_planner_node.cpp` were corrected to the measured values in `3545fb8`; the
+commit bodies were not, because rewriting them would change the very hashes this
+section pins.
