@@ -13939,6 +13939,14 @@ forever, and a guard that cannot fail is not a guard
 >
 > This is the [[checks-that-stopped-checking]] pattern caught one step before
 > it applied to the guard written to catch it.
+>
+> One tolerance on the per-run half, also written before the pilot ran: a cell
+> torn down (duration cap, harness kill) while a recovery is in progress ends
+> that robot-log at entries == exits + 1 with the unpaired entry *last*. That
+> is the teardown, not a stuck recovery. The check therefore tolerates exactly
+> one unpaired entry per robot-log **iff** it is the final `-> recovery:` line
+> with no `recovery EXIT:` after it; an unpaired entry anywhere earlier, or
+> more than one, fails the check as before.
 
 **Every new guard was calibrated against the defect it exists for**, which is
 the only way to know a test is not already inert. Reverting each fix in a
