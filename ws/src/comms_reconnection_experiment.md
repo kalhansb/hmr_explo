@@ -13945,3 +13945,125 @@ to silently relabel a campaign that forgot a flag — `--record` now defaults to
 0, and the resume guard that compared one manifest key now compares five
 (mission return, scenario, duration, done-criterion, done-unknown), treating
 an absent key as a mismatch.
+
+### 32.11 Pre-registration for `g5r1`, and what it retracts from §32.4
+
+Committed before any `g5` cell runs, on generation-5 code with a clean tree.
+
+**Identity of the generation.** Parent `2d66e70`, `explo_planner` `4b90141`,
+`simple_nav_3d` `823b1f2`, `scovox` `078d3f7`; planner binary sha256
+`59a90463a5623428`. The *trio of git hashes* is the identifier, not the
+binary sha — that field covers `explo_planner` alone, and two of the five
+fixes (A and E) live entirely in `simple_nav_3d`. A generation-5 build with a
+reverted nav fix would carry the same planner sha as this one. The manifest
+records all four, and any analysis that wants to know what ran must read the
+repo hashes ([[cell-provenance-in-manifest]]).
+
+#### What is retracted from §32.4
+
+Four clauses of the `mr1` pre-registration do not survive the generation
+change. They are named individually because a pre-registration that quietly
+loses clauses is not a pre-registration.
+
+1. **The `mr0smoke`/`mr0pilot` pooling rule is void.** It was explicitly
+   conditioned on those cells being *the same binary*, "`sha256
+   02d897b6b28f42ef` in all manifests". Generation 5 is a different binary,
+   so the antecedent is false and the rule does not fire. Those 8 cells do
+   not enter the `g5r1` analysis. This is not a judgement about their
+   quality; the rule's own escape clause ("a code/config change between it
+   and `mr1`") is what excludes them, working exactly as written.
+2. **The censoring rule is replaced**, not amended. §32.4 said `t_mission` is
+   "withheld and counted, never imputed" when any robot's result is not
+   `arrived` — correct, and kept — but it gave no vocabulary for *why* a cell
+   was withheld, so §32.9's forensics had to reconstruct the reason from
+   position traces after the fact. The replacement is below.
+3. **"Two arms, same binary, differing in the reconnection setting" is
+   withdrawn as stated.** The arms differ in *two* settings: `RECONNECT_MODE`
+   and `DONE_SEEK`. Since 2026-08-27 "hybrid" means hybrid *with* the coast,
+   and under mission return the homing leg replaces the coast, so hybrid runs
+   `DONE_SEEK=0`. That is part of the definition of the treatment rather than
+   a stray config difference, but a sentence claiming a single-setting
+   contrast is false and is not the sentence this campaign should be read
+   against.
+4. **Generation 4's nav-failure counts (24 vs 5) do not bound generation 5.**
+   They were measured on a binary with an inert global planner, a homing
+   watchdog that could not fire, a TTL shorter than one nav attempt and an
+   unreachable controller recovery. All four are fixed. Those counts may not
+   be carried forward as an expectation, a prior, or a bound on the new
+   campaign's exposure; they are re-measured from scratch. The *asymmetry*
+   they reported is likewise not assumed to persist.
+
+#### Generation 5 is a multi-change generation, and is declared as one
+
+Five defects were fixed at once. This campaign therefore **cannot attribute
+any effect to any single fix**, and it is not designed to. The generation
+exists to remove treatment-irrelevant failure modes from *both* arms so the
+arm contrast is measured against less noise; the arm contrast remains the
+only quantity estimated. Anyone reading a generation-4-to-generation-5
+difference as the effect of, say, the blacklist TTL is reading something this
+design cannot support.
+
+**The corridor mask is declared explicitly**, because "the global planner now
+plans" understates fix A. The local planner's masking branch is guarded by
+`is_local_role_ && has_global_path_`, and `has_global_path_` was false for
+the entire history of the project. Three behaviours therefore activate for
+the first time in `g5r1`, together: slicing the global path to the local
+window, taking the local A\* target from that slice's exit point instead of
+from the goal, and masking the local map to a 2.0 m half-width corridor
+around it. Both arms, every cell. Fix A is a change to how the UGV drives,
+not merely to whether a path exists.
+
+#### Censoring vocabulary (recorded at the time, never inferred later)
+
+Every mission-return outcome carries a `result` and an `end_reason`, emitted
+at the moment of the decision:
+
+| `result` | `end_reason` | Meaning |
+|---|---|---|
+| `arrived` | `mission-home` | inside `mission_home_tol_m` of home — the only non-censoring outcome |
+| `timeout` | `home-timeout` | the 600 s `mission_return_max_sec` cap |
+| `budget` | `home-gave-up` | the return nav budget was spent without arriving |
+| `no-progress` | `home-gave-up` | the watchdog ladder exhausted its three escapes |
+
+**All four non-`arrived` results are ONE censoring class for the primary
+endpoint.** The sub-labels are recorded for diagnosis and are *not* used to
+subset, split, weight or exclude anything in the primary analysis. Two
+reasons, both of which have already bitten this project:
+
+- Exposure to these endings is not arm-symmetric (§32.9). Conditioning the
+  analysis on an ending the treatment helps cause is adjusting on a
+  post-treatment covariate — the error [[treatment-caused-harm-stays-in]]
+  exists to forbid, and it does not stop being that error because the label
+  is now honest.
+- The labels are not commensurable in time even *within* one class. A
+  `no-progress` park is reached in 105 s when the chassis is frozen and in
+  330 s when the robot is moving without closing (§32.10 B), and a
+  `timeout` park takes 600 s. Which bound fired changes the recorded
+  mission-end time by minutes and is not a treatment effect.
+
+Cells where a robot parks still contribute their *exploration* endpoint if
+`exploration_complete` latched with `coverage-latched` before the return
+began — the two endpoints are stamped independently and in that order, which
+is the whole reason §32.4 defined them separately.
+
+#### Unchanged from §32.4, and re-affirmed
+
+Primary endpoint `t_mission` (latest `mission_complete` across the team,
+defined only when every robot is `arrived`); secondary `t_explore` (latest
+`exploration_complete` with reason `coverage-latched`). Exact permutation
+test on the `off` vs `hybrid` contrast, never a bootstrap
+([[metric-power-and-fairness]]). 30 cells/arm, one `run_campaign.sh`
+invocation so arm cannot confound with session ([[one-invocation-means-session-control]]),
+seed-major so arms interleave, `RECORD=0`. Redundancy is not a between-arm
+metric and is not reported as one. Fresh seeds, disjoint from 1–34, for
+provenance only — the sim is nondeterministic per seed, so overlap would pair
+nothing ([[sim-run-to-run-nondeterminism]]).
+
+**Gate before the campaign.** Smoke (1 cell/arm), then a 6-cell pilot, both
+read against the 13-check gate. Six checks are hard stops. Two are new in
+this generation and exist to catch a fix that shipped inert: `global plan
+ok:` present **and** `planner starving:` absent in every robot-log (fix A),
+and `-> recovery:` entries greater than zero and equal to `recovery EXIT:`
+counts per robot-run (fix E, where generation 4's count was 0). A pilot that
+passes every old check and fails these two means the campaign would have
+re-run generation 4's failure modes under a new tag.
