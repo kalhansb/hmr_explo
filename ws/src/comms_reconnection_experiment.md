@@ -13265,3 +13265,345 @@ all, whether the interesting contrast is relay-vs-no-relay or hybrid-vs-off
 under a relay, and how many arms that implies, all depend on the answers to
 §31.4 step 2. Naming arms now would be pre-registering a design whose endpoint
 is not yet defined, which is worse than not pre-registering at all.
+
+## 32. Mission return: making the ending symmetric, and pre-registering `mr1`
+
+**Status: implemented 2026-08-27, pre-registered here, not yet run.**
+
+### 32.1 The asymmetry that forced this
+
+Every campaign so far ends a run when both planners read DONE, and the two
+arms reach DONE by *different obligations*. `off` parks wherever its
+exploration exhausted — possibly disconnected, possibly with the two map
+copies never reconciled. The treated arms run terminal manoeuvres that try to
+regroup, wait at barriers, and can burn hundreds of seconds doing it. So the
+arms were not being scored on the same mission: `off` was allowed to declare
+victory disconnected while hybrid paid for a reunion nobody charged to `off`.
+A second, independent defect pointed the same direction: a terminal
+rendezvous that never meets has no exit of its own — the barrier cap is what
+saves it, and "the cap saved it" is not an ending, it is a censoring.
+
+The fix is a *shared mission definition*: after exploration ends — however it
+ends — every robot drives back to its own start pose. Both arms inherit the
+same final obligation, all runs end connected by construction (the spawns are
+3 m apart, well inside comms range), and the open-ended terminal waits are
+replaced by one bounded, arm-invariant leg.
+
+### 32.2 The design, and the two decisions that shaped it
+
+A new planner state `RETURN_HOME`, entered at ANY terminal ending — coverage
+latch, step budget, or a barrier that gave up — whenever
+`mission_return_enabled` is set and a home pose was captured. It is entered
+in BOTH arms, from the same code path.
+
+Two decisions were put to the operator and are recorded as bindings:
+
+1. **A finished robot goes home immediately at its own finish** (the
+   alternative — wait until both robots have latched — was declined). The
+   accepted consequence: a homing robot can hand its map to the
+   still-exploring partner en route, in both arms. That is part of the
+   mission definition now, not a confound; and it is one reason the
+   exploration-finish endpoint under mission return is a NEW endpoint (§32.4).
+2. **Homing replaces the post-latch coast.** The coast (§30.20's `done_seek`)
+   was a heuristic approximation of "go where reconnection is likely" for a
+   robot that finished mid-manoeuvre; the homing leg IS that behaviour with a
+   guaranteed fixed point, so the coast's gate is simply never reached when
+   mission return is on (the planner logs a WARN if both are enabled — the
+   coast is inert, not broken). This is a sanctioned exception to the
+   2026-08-27 rule "hybrid means hybrid with the coast": *for mission-return
+   runs only*, hybrid means the mid-run reconnection machinery — the
+   dispatches, chases and holds DURING exploration are untouched, and they
+   are the entire treatment.
+
+Mechanics, for the reader who has to re-derive behaviour from logs: the home
+pose is the first TF pose the planner ever sees, latched once and never
+revised (`have_home_`, deliberately separate from the revertible TF-health
+flag). The leg is bounded three ways — arrival within `mission_home_tol_m`
+(1.0 m; the reconnect tolerance of 4 m would accept the *partner's* home 3 m
+away), a hard cap `mission_return_max_sec` (600 s), and the standard nav
+budget / no-progress watchdogs with two goal-republish retries. Every exit is
+named: end reasons `mission-home`, `home-timeout`, `home-gave-up`. The run
+still ends in every case — mission return adds no censoring modes.
+
+### 32.3 What the logs now say (schema v2)
+
+The event stream gains `mission_complete` (at most once per robot: result
+`arrived`/`timeout`/`budget`/`no-progress`, the routing reason, home and
+final coordinates, homing duration and distance), and `run_end` gains the
+final geometry and the mission result so a run killed mid-homing is
+distinguishable from an arrival. The manifest records
+`mission_return_enabled`, and `run_campaign.sh` refuses to resume a tag
+across a flip of that flag — a completed cell from the other side of the
+switch is a different experiment wearing the same directory name.
+`MISSION_RETURN` defaults to 1 in the campaign driver (the new standard) and
+to 0 in the bare harness (so banked reproductions stay bit-honest).
+
+### 32.4 Pre-registered endpoints for `mr1`
+
+Committed before any `mr1` cell runs:
+
+- **Primary: mission end time** — `t_mission` in `event_log.py`: the latest
+  `mission_complete` stamp across the team, defined only when every robot's
+  result is `arrived`; otherwise withheld and counted, never imputed.
+- **Secondary: exploration finish time** — `t_explore`: the latest
+  `exploration_complete` with reason `coverage-latched` across the team. The
+  reason filter is what keeps the endpoint arm-invariant: a step-budget
+  ending still goes home but was not a finish.
+
+Both are NEW endpoints under the new tag. Nothing from `mr1` pools with any
+banked number — not even exploration finish, which looks like the old metric
+but is measured in a world where a homing partner can deliver a map mid-run.
+The test is the exact permutation test on the arm contrast `off` vs `hybrid`
+(two arms only, one `run_campaign.sh` invocation, same binary, RECORD=0).
+30 cells/arm is the floor (§30.9's power table); the pilot sizes it.
+
+**Pooling rule for `mr0smoke` and `mr0pilot` (committed 2026-08-28, before
+any `mr1` cell ran).** The smoke and pilot cells are the same experiment as
+`mr1` — same binary (`sha256 02d897b6b28f42ef` in all manifests), same
+scenario/duration/tx/latch/`MISSION_RETURN=1`, arms balanced within each
+invocation — so they enter the primary analysis, under these terms:
+
+- **Blocked, not mixed.** Each `run_campaign.sh` invocation is a session
+  block (the box drifts ~8% between invocations; §29). The permutation test
+  permutes arm labels *within* blocks only. Every block is arm-balanced, so
+  session effects cancel exactly; nothing is "corrected for" after the fact.
+- **All-or-none, outcome-blind.** A block enters whole or not at all: every
+  completed cell in it, no per-cell selection. A block is excluded only for
+  a mechanical reason fixed in advance — gate verdict not CLEAN, or a
+  code/config change between it and `mr1`. Censored cells stay in as
+  censored (withheld and counted), exactly as inside `mr1`.
+- **Stated caveat.** This rule postdates seeing the smoke outcome (and part
+  of the pilot). It is outcome-blind and the added cells are 8 of ~68, so
+  they cannot drive the headline; still, the `mr1`-only unblocked test is
+  reported alongside the pooled blocked test as a robustness check, and any
+  disagreement between them is reported, not adjudicated away.
+- **Validated sampler.** The within-block permutation sampler is validated
+  against a known exact enumeration on a small case before first use
+  (§30.20's rule; the LCG low-bits lesson).
+
+### 32.5 Order of operations
+
+1. Build, conda-stripped; verify the MISSION-RETURN announce line appears in
+   BOTH directions (on and off) — the §"checks that stopped checking" rule:
+   a guard you cannot see firing is a guard you cannot trust.
+2. Smoke: 1 cell/arm with `MISSION_RETURN=1`. Verify per robot: exploration
+   latch → `RETURN_HOME` → `mission_complete result=arrived` → DONE; the
+   manifest reads `all_done`; `t_mission` and `t_explore` both populate; and
+   the `off` cell shows the same ending shape with zero mid-run dispatches.
+3. Pilot ~6 cells with position logging, to read homing duration and check
+   nobody times out; size the campaign from its variance.
+4. `mr1` proper: `--arms hybrid,off --mission-return 1`, fresh tag, one
+   invocation, seeds decided at launch and recorded in the campaign log.
+   Seeds are fresh (disjoint from 1–4) purely for provenance — the sim is
+   nondeterministic per seed, so overlap would not pair anything anyway.
+   Cell order is seed-major (driver default), so arms interleave
+   cell-by-cell and an interruption leaves complete paired blocks.
+
+### 32.6 Pilot readout (mr0pilot, 2026-08-28) and the sizing decision
+
+All 6 cells `all_done`, gates CLEAN, census 0. 15 of 16 homing legs (smoke
+included) arrived 0.87–0.99 m from home in 37–172 s (mean 94 s) against the
+600 s cap — comfortable margin. `t_mission` pooled CV ≈ 0.16 (n=7), in line
+with or better than the banked completion-time variance behind the §30.9
+power table, so the operator's rule — "if the power is okay keep 30 runs" —
+resolves to **30 seeds/arm**.
+
+The one failed leg is the finding worth recording. `mr0pilot_hybrid_seed4`
+bestla: latched 34.5 m from home, crept ~3 m net (8 m cumulative — wiggling,
+not driving) in 89 s, then sat still through both retries; parked by the
+no-progress watchdog 31.4 m out, `mission_complete result=no-progress`,
+`t_mission` withheld for the cell. Diagnosis: the nav stack's global planner
+never plans (§28's 66/66 finding — it bounds every result, this one
+included), so a 34 m homing leg through dense trees is greedy local
+navigation and can trap in a local minimum. The watchdog and the censoring
+rule did their jobs; the run still ended `all_done`.
+
+Noted but not acted on: the brake goal and the home goal reach the navigator
+~0.2 ms apart with `abandonNavGoal`'s async cancel-all still in flight — the
+"deferred publish" is not actually deferring a tick. A cancel processed
+after the home goal would kill it silently, which is an unproven alternative
+explanation for the post-retry stillness. Not fixed pre-`mr1`: a rebuild
+voids the §32.4 pooling blocks, the observed rate is 1/16 legs, and `mr1`'s
+120 legs measure the true rate either way. Revisit if `mr1`'s censoring
+comes in high or arm-skewed.
+
+Expected cost at that rate: ~12 % of cells lose `t_mission` (~7 of 60);
+pooled effective n stays ≈ 30/arm. `t_explore` is immune (latched before
+homing). Censoring counts are reported per arm in the analysis, as §32.4
+requires.
+
+### 32.7 Homing fix (2026-08-28) — and the pooling rule firing on itself
+
+The operator stopped `mr1` at cell 1 (partial cell deleted; no index row,
+nothing banked) and asked for the §32.6 failure to be fixed. Two changes,
+both confined to the RETURN_HOME path — the mid-run reconnection machinery,
+i.e. the treatment, is untouched:
+
+1. **Wall-clock publish gate.** The "deferred one tick" publish after
+   `abandonNavGoal` was empirically 0.2–0.4 ms — a backlogged executor
+   fires queued tick callbacks back-to-back, so tick-count deferral defers
+   nothing. The publish is now gated on `home_pub_not_before_` = cancel
+   time + 0.3 s (sim time, ~3 ticks), armed at entry and at every retry.
+
+   **CORRECTION (2026-08-28, after the mr1 33-cell forensics): the race
+   this was built to close cannot occur in this stack, so mechanism 1
+   fixed nothing.** `abandonNavGoal`'s cancel client targets a nav2-style
+   `/<robot>/navigate_to_pose` action that the simple_nav stack does not
+   expose. Every abandon in every run logs `cancel client ... unavailable
+   — the brake goal is the only stop command`, verified at 8/8, 8/8 and
+   9/9 abandons in a smoke, a hybrid and an off cell, with zero successful
+   cancels anywhere in mr1. There is no async cancel-all in flight, so no
+   fresh goal was ever swallowed by one; stopping happens only because the
+   brake goal (a goal at the robot's own pose) is instantly "reached", and
+   the home goal that follows is plain goal replacement. The gate is
+   retained because it is harmless and it makes the publish order legible
+   in the logs, but **it must not be described as the fix**, and every
+   "cancelling and resending" / "cancelled + braking" log line in this
+   codebase is misleading: nothing is cancelled. The pilot's §32.6 failure
+   therefore had one cause, not two — the local-minimum trap.
+2. **Breadcrumb retrace fallback.** The nav global planner never plans
+   (§28), so a long direct home goal is greedy local navigation and can
+   trap in a local minimum — the actual §32.6 failure. The planner now
+   records the robot's outbound trail (own positions, ≥2 m spacing, from
+   home capture until homing starts; first crumb is home). Retry 1 still
+   resends the direct goal (tests whether the race was the killer); retry
+   2 switches to retracing the trail from the crumb nearest the robot,
+   crumb by crumb (3 m advance radius, plain goal replacement, no cancels
+   to race), with the nav budget recomputed over the remaining trail
+   length. Every metre of the trail was traversed once, so unexplored
+   geometry cannot block it. A stall *during* retrace still parks with
+   `no-progress` — the cap, budget, and result taxonomy are unchanged.
+
+Consequence for §32.4: the pooling rule's mechanical exclusion fired — a
+code change now sits between `mr0smoke`/`mr0pilot` and `mr1`, so those
+blocks are OUT of the primary analysis (they remain as diagnostics). `mr1`
+relaunches fresh on the fixed binary as a single session: the plain exact
+permutation test, no blocking needed. 30 seeds/arm stands — the pilot's
+variance reading (CV ≈ 0.16) is about run-to-run spread, which the homing
+fix does not inflate; if anything, converting no-progress parks into
+arrivals removes censoring, which only helps power. The smoke under the
+new binary must show the publish-gate delay (≥0.3 s between "heading home"
+and "home goal published" in the planner log) — the §"checks that stopped
+checking" rule again: a fix you cannot see engaging is a fix you cannot
+trust.
+
+### 32.8 Mid-campaign observation (mr1, 20-cell checkpoint): the orbit hole
+
+`mr1_hybrid_seed11` atlas: homing leg ended `timeout` — 48.67 m out at
+goal publish, 48.75 m out at the 600 s cap, 30.35 m of cumulative motion
+in between. The no-progress watchdog compares *cumulative distance
+travelled* per window against `progress_min_distance_m_`; a robot orbiting
+inside a local minimum moves enough to reset the window forever while
+netting zero approach, so the retry ladder — and therefore the §32.7
+retrace — never engages. The pilot's failure (frozen solid) is caught by
+movement-detection; the orbiting variant is not. Both smoke arms and 19/20
+mr1 cells homed cleanly, publish-gate delay 0.32–0.60 s in all 40 legs,
+retrace dormant.
+
+Decision: **no mid-campaign code change** — it would split mr1 across
+binary generations and void the single-session control. Censoring at this
+checkpoint is 1/20 (5 %), inside the ~12 % pre-registered projection, and
+the homing code is arm-invariant. Queued post-mr1 fix (if the rate holds
+up): make the homing watchdog approach-based (net decrease of dist-to-home
+per window) instead of movement-based, keeping the movement check as the
+frozen-robot fallback. Censored cells are withheld-and-counted per arm in
+the primary analysis, as §32.4 already requires.
+
+**33-cell update — three censored cells, all hybrid.** The picture is
+richer than the orbit hole alone:
+
+| cell | robot | result | what happened |
+|---|---|---|---|
+| `hybrid_seed11` | atlas | `timeout` | orbit hole: moved 30.4 m, closed 0 m, cap fired |
+| `hybrid_seed16` | bestla | `no-progress` | immobile (4.9 m in 152 s); **retrace engaged** at retry 2/2 from crumb 59/60, 1.24 m away — and the robot still did not move |
+| `hybrid_seed18` | atlas | (never latched) | run hit the 3000 s duration cap; `t_explore` censored too |
+
+`seed16` is the informative one: the retrace mechanism fired exactly as
+designed and could not help, because the robot was not in a local-minimum
+trap — it was physically immobilised (or nav was not executing). So §32.7's
+retrace addresses a real failure class but not this one; the queued
+approach-based watchdog would catch `seed11` and would not have saved
+`seed16`. Do not oversell the fix: it removed the pilot's failure mode, and
+two distinct residual modes remain.
+
+**Censoring is one-sided so far: hybrid 3/17 cells (1 also censored on
+`t_explore`), off 0/16.** Fisher exact on those counts is p ≈ 0.23 — not a
+signal yet, and the homing code is arm-invariant, but the direction is what
+matters for the analysis: hybrid's *longest* runs are the ones going
+missing (seed18 hit the duration cap outright), so a complete-case
+comparison is biased **in hybrid's favour**. Per
+[[treatment-caused-harm-stays-in]] these cells are not excluded. The
+analysis must therefore report, alongside the pre-registered exact
+permutation test on observed values, a worst-case bound with every censored
+cell set to its cap (3000 s for `t_explore`, cap+3000 s for `t_mission`) —
+if the two disagree in sign, the complete-case number is not reportable as
+the headline.
+
+### 32.9 Why the censored cells are hybrid (forensics, 34-cell snapshot)
+
+A dedicated read-only forensic pass over the three censored cells and all
+completed cells of both arms. Findings, verified unless labelled otherwise:
+
+**Proximate causes.** `seed11` atlas is the orbit hole confirmed
+quantitatively: net displacement **0.19 m in 600 s** while
+`distance_traveled` climbed 158→188 m with 0.5–1.7 m of motion in *every*
+20 s window — so the movement-based watchdog never fired, by construction.
+`seed16` bestla dithered inside a ~1.5 m box; nav accepted every goal
+(including the 1.24 m retrace crumb) and `nav_bestla.log` contains no
+WARN/ERROR/abort/recovery line at all, so this is not goal rejection or a
+logged controller failure. Wedged-chassis vs local-planner dead-end is
+*not* separable from the recorded data (no cmd_vel/odom trace); the ~1.5–3
+m of net relocation argues for the latter. `seed18` atlas was **starved,
+not stuck**: unknown_fraction plateaued at 0.7392 for ~1160 s despite >100
+m of travel, moved only on peer merges, and ended at 0.6606 — **0.021
+short of the 0.64 latch, permanently** — after burning 1440 s on eight
+180 s budget failures alternating between two goals and ~900 s on
+rendezvous overhead.
+
+**A fixed terrain trap, not a seed artifact.** The same SW-pocket goal
+coordinates `(-27.67,-27.67)` / `(-37.70,-42.70)` fail across seeds 11 and
+18 and both robots; all 35 manifests are the same world
+(`comms_trees_loaded=278`). `seed16`'s trap is a *different* site (~(25,-16)),
+so there are at least two. Off-arm cells hit the same pocket and pay the
+same tax (off seed12 atlas: 2 failures there → t_explore 750 s, the off
+maximum). **The hazard is arm-invariant terrain.**
+
+**The obvious arm mechanism is REFUTED.** Hybrid does *not* start homing
+from further out — hybrid median homing start 28.5 m vs off 35.0 m, median
+duration 73.5 s vs 87.1 s, because rendezvous pulls robots toward central
+meeting points before they latch. The longest completed homing leg in the
+campaign (53.0 m) was an **off** cell, and it arrived.
+
+**What is actually elevated: exposure.** Nav budget failures **24 (hybrid)
+vs 5 (off)** over 17 cells each, cell-level permutation p = 0.018 (null
+calibrated at 0.502, per [[power-sim-needs-null-calibration]]); still 14 vs
+5, p = 0.035, with seed18 dropped entirely. Rendezvous dispatches 0.5/leg
+vs exactly 0. Mechanism (verified in seed16, hypothesis elsewhere):
+rendezvous commands long cross-map legs *precisely when the peer has been
+silent*, i.e. from far-apart positions, executed by greedy local
+navigation through forest. The 3–0 censoring split alone is **not**
+significant (hypergeometric p = 0.114), so on counts alone bad luck cannot
+be excluded; the nav-failure excess and the failure timing relative to
+dispatches make an arm-linked elevation the better-supported reading.
+Magnitude is not estimable from three events.
+
+**Censoring is informative and one-sided.** `seed18` was the worst run in
+the campaign on every metric before it was censored (partner's t_explore
+1869 s = campaign max; atlas's true value is unbounded, not merely late).
+`seed11` was already at the 79th percentile of hybrid legs. `seed16` is the
+exception — 27th percentile, an abrupt trap — but its t_mission would be
+infinite, which is mission failure rather than truncation. Meanwhile
+hybrid's *completers* are flattered by shorter rendezvous-positioned homing
+legs. Both distortions push a complete-case comparison the same way, in
+hybrid's favour. Per [[treatment-caused-harm-stays-in]] these cells enter
+as censored-at-cap, never as missing-at-random.
+
+**Two latent issues found, both arm-symmetric and non-metric-corrupting:**
+the goal blacklist TTL (`visited_goal_ttl_sec=180`) equals the nav budget,
+so a failed goal is re-selectable the instant its own failure window ends
+(seed18's eight failures were two goals alternating); and the latch is
+partly a *merge-timing* endpoint — in seeds 11/16/18 the sub-0.64 crossing
+coincided with a peer map merge arriving (seed11 crossed 0.655→0.632 while
+sitting stationary in the trap). Both are by-design behaviours present in
+both arms, but `t_explore` must be interpreted as "time until the robot's
+*distributed* map converged", not as raw exploration speed.
