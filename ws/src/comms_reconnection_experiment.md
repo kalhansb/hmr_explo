@@ -14227,3 +14227,102 @@ neither is obvious from the check text:
   performed by hand against the pilot. Recorded because a check nobody runs
   and a check that passes vacuously fail the same way
   ([[checks-that-stopped-checking]]).
+
+### 32.13 Generation 7: the g6 pilot, and the one thing it caught
+
+`g6pilot` (seeds 101–106 × {`hybrid`, `off`}, 12 cells, 2026-08-28 17:59–20:40)
+ran the generation-6 binary against the 13-check gate. It is reported here in
+full, including the finding that ended the generation, because the pilot's
+purpose was to find exactly this class of thing before 60 cells were committed
+to it.
+
+**What the pilot passed.** 12/12 cells `rc=0 all_done`; 12/12
+`run_gates_verdict=CLEAN`; 24/24 robots `exploration_complete`
+reason `coverage-latched`; provenance consistent in every cell (manifest
+`git_explo_planner=73c2358`, JSONL `params.git_rev=73c2358`, no `-dirty`) —
+which closes the generation-5 provenance skew that motivated change 6; arm
+identity read from `params.reconnect_mode_requested` / `params.rendezvous_enabled`
+and correct in all 12; zero pose-loss episodes; zero deadman fires; zero
+`died mid-run`; zero `planner starving:`; `global plan ok:` present in every
+robot-run. `t_sim` 488–884, wall 635–1104 s. `nav_goal_failed` 14 (`hybrid`)
+vs 17 (`off`).
+
+**Censoring: 1 robot-run of 24 (4.2%).** `g6pilot_hybrid_seed103/bestla` ended
+`no-progress`, parked 4.00 m from home after 469.1 s and 77.39 m of homing,
+having spent both watchdog retries, the retrace, and all three escapes — every
+one of those steps present in the log, which is what generation 5's homing work
+was for. Its `exploration_complete` had already latched at unknown 0.6399, so
+the secondary endpoint survives; only `t_mission` is censored. Against `mr1`'s
+3/36 = 8.3% this is not an escalation, and the four-label vocabulary of §32.11
+handles it as written.
+
+**Check E is UNRESOLVED, and was accepted as such.** Zero `-> recovery:`
+entries across all 12 cells. The absence was calibrated rather than trusted: no
+`ugv_ctrl` line of *any* kind appears in any pilot nav log, but
+`nav_bestla.log:3173` carries `[simple_nav_controller_node-6] [INFO] …
+signal_handler(SIGINT/SIGTERM)`, which proves that process's fd 2 is captured
+into that file. All five `fprintf` sites in `ugv_controller.cpp` are inside
+recovery, so no routine positive control for the channel exists — but the
+channel is demonstrably live, so the absence is real and means the HARD STOP
+trigger never fired, not that the logging is broken. Recorded as UNRESOLVED,
+not as a pass ([[checks-that-stopped-checking]]).
+
+**The finding that ended the generation.** `g6pilot_off_seed104/atlas` stamped
+its `exploration_complete` event with `"unknown_fraction": 0.660104` — *above*
+the 0.640 criterion the event claims to have fired on. The planner log for the
+same instant reads `ROI unknown fraction 0.638 <= 0.640 (source=scovox) … at
+t_sim=603.9`. So the decision was right and the record was wrong.
+
+The cause is a cache that one of two hooks does not refresh.
+`maybeLatchCoverageDone` is called from two places: the metrics tick passes
+`last_unknown_fraction_`, which `fillCommonMetrics` refreshed on that same tick
+(the comment there is explicit that the row and the decision "can never
+disagree" — and for that hook it is true); the `doPlan` hook measures fresh via
+`coverageUnknownFraction()` and leaves the cache alone.
+`recordExplorationComplete` then stamps the event from the cache. A latch that
+fires from `doPlan` therefore records the *previous* metrics sample, up to one
+`metrics_period_sec` (5 s) stale — and because the unknown fraction falls
+monotonically, the error is one-sided: the recorded value is always ≥ the value
+tested. In seed 104 that put the endpoint's own record 0.020 above its own
+threshold.
+
+Nothing about navigation or exploration behaviour is affected: both hooks test a
+real measured sample against the threshold, and the `doPlan` one tests a
+*fresher* sample than the cache holds. The event's `t_sim`, `steps`, and
+`distance_m` are all stamped at the latch instant and are correct. What is wrong
+is the single field that certifies the user-specified stopping rule — and that
+field is what an analysis reads.
+
+**Change (one, in `explo_planner`).** `maybeLatchCoverageDone` now writes the
+deciding sample and its source into `last_unknown_fraction_` /
+`last_coverage_source_` at the moment it latches. Fixed inside the function
+rather than at the `doPlan` call site so the property holds for any future hook
+without that hook having to know about it. `logRunEnd`, the other consumer of
+the same cache, documents its value as "at most one metrics period old"; this
+only ever makes it fresher.
+
+**Why this is a new generation and not a patch to `g6pilot`.** By the rule of
+§32.7 the antecedent is "same binary", and it is now false. `g6pilot`'s 12 cells
+are generation 6 and do not enter this campaign's analysis; they keep their
+standing as the pilot that found the defect. The 30 cells/arm are re-run in
+full under generation 7. The cost is one extra pilot's worth of wall time
+(~2.6 h of a ~13 h campaign) and it buys a dataset whose primary-endpoint record
+is correct by construction rather than reconstructible from a second log file.
+
+**Identity of the generation.** Parent `9a7ee6f`, `explo_planner` `f201a10`,
+`simple_nav_3d` `c9f83a7`, `scovox` `078d3f7` (both unchanged); planner binary
+sha256 `17989c1bd5901434`. `colcon test`: 242 tests, 0 failures.
+
+**What carries over, unchanged.** Everything in §32.11 and §32.12: the
+endpoints, the exact permutation test, 30 cells/arm in ONE seed-major
+`run_campaign.sh` invocation, `RECORD=0`, the censoring vocabulary, the 13-check
+gate and both properties of it recorded at the end of §32.12. The generation-6
+change list stands — all seven items are in this binary too; generation 7 is
+generation 6 plus the one field fix.
+
+**Added gate check (14).** For every robot-run, the `unknown_fraction` on the
+`exploration_complete` event must be ≤ `done_unknown_fraction` (0.640) and must
+agree to 3 dp with the `ROI unknown fraction %.3f` field of the matching
+`Exploration complete [latch]` line in `planner_<robot>.log`. This is the check
+that would have caught the defect above, and it is written down because it did
+not exist while the run that produced the defect was being scored.
