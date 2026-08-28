@@ -13581,11 +13581,22 @@ calibrated at 0.502, per [[power-sim-needs-null-calibration]]); still 14 vs
 vs exactly 0. Mechanism (verified in seed16, hypothesis elsewhere):
 rendezvous commands long cross-map legs *precisely when the peer has been
 silent*, i.e. from far-apart positions, executed by greedy local
-navigation through forest. The 3–0 censoring split alone is **not**
-significant (hypergeometric p = 0.114), so on counts alone bad luck cannot
-be excluded; the nav-failure excess and the failure timing relative to
-dispatches make an arm-linked elevation the better-supported reading.
-Magnitude is not estimable from three events.
+navigation through forest.
+
+> **Correction (2026-08-28).** This paragraph originally read "the 3–0
+> censoring split … hypergeometric p = 0.114". Both numbers were wrong. The
+> final 36-cell census is **3 hybrid + 1 off** censored, not 3–0; the off
+> cell was missed because it was counted from a partial listing. On the
+> corrected 4 events, P(≥3 of 4 landing in hybrid | 18/18 split) =
+> **0.3013**. The split is even weaker evidence than first stated, and
+> nothing downstream may cite 3–0 or 0.114 again. The argument does not
+> depend on it — it rests on the nav-failure excess (24 vs 5, p = 0.018),
+> which is a per-cell count over all 34 completed cells rather than a
+> four-event tally.
+
+So on counts alone bad luck cannot be excluded; the nav-failure excess and
+the failure timing relative to dispatches make an arm-linked elevation the
+better-supported reading. Magnitude is not estimable from four events.
 
 **Censoring is informative and one-sided.** `seed18` was the worst run in
 the campaign on every metric before it was censored (partner's t_explore
@@ -13607,3 +13618,330 @@ coincided with a peer map merge arriving (seed11 crossed 0.655→0.632 while
 sitting stationary in the trap). Both are by-design behaviours present in
 both arms, but `t_explore` must be interpreted as "time until the robot's
 *distributed* map converged", not as raw exploration speed.
+
+### 32.10 Generation 5: the five defects `mr1` exposed, and what was changed
+
+`mr1` was stopped by the operator at 36 of 60 cells. It was not stopped
+because the treatment looked bad — it was stopped because §32.9's forensics
+found that a large share of both arms' running time was being spent inside
+failure modes that have nothing to do with the treatment, and that keeping
+the box busy for another 24 cells would only buy more of the same. Four
+defects were named at the time; a fifth (E, the unreachable controller
+recovery) came out of the same forensics. All five are fixed here; the
+resulting binary is **generation 5** and, per
+[[binary-generations-and-the-link-gate]], nothing from generation 4 or
+earlier may be pooled with it.
+
+Every change below is applied to **both arms identically**. That is what the
+no-compound-experiments rule actually forbids: compounding the *treatment*,
+not fixing a defect that both arms suffer. `off` and `hybrid` run the same
+binary, the same yaml, and the same launch file; the only difference remains
+`DONE_SEEK` and the reconnection behaviour.
+
+#### A. The global planner had never planned — not once
+
+**The defect.** `simple_nav_global_planner` subscribed to
+`/<robot>/dscovox_node/planning_map`. Nothing has ever published that name.
+dscovox publishes `~/global_planning_map` (world-fixed) and scovox_node
+publishes `~/planning_map` (a 20 m body-centred rolling crop, which is the
+*local* planner's input). So `has_map_` stayed false, the planner returned
+before A\* on every tick, and the global planner produced zero paths.
+Navigation ran on the 20 m local horizon alone for the entire history of this
+project. That is the direct mechanism behind the local-minimum traps in §28
+and §32.9: a greedy 20 m planner has no way to route around a pocket wider
+than its own window.
+
+> **Correction to the count, and to the probe.** An earlier draft of this
+> section said "66 of 66 robot-logs". `mr1` banked **36 cells = 72
+> robot-logs**, and the correct figure is **72 of 72**. The count is the
+> smaller of the two errors. The larger one is that the probe behind it was
+> the *absence* of a plan line — and absence proves nothing without a
+> same-binary control ([[nav-global-planner-never-planned]]); worse, the
+> obvious modern version of that probe (`grep 'global plan ok'`) returns 0/72
+> on a generation-4 log **because the string did not exist in generation 4**,
+> which reads as confirmation and is pure artefact. The claim is instead
+> established *positively*, from a line generation 4 did print, in all 72:
+>
+> ```
+> [atlas.simple_nav_global_planner]: planner node started: role=global
+>   ... in_map=/atlas/dscovox_node/planning_map ...
+> [atlas.dscovox_node]: dscovox global_planning_map: 150.0 m envelope @ 0.40 m/cell
+> ```
+>
+> The planner names the topic it subscribed to; dscovox, four lines earlier in
+> the same log, names the topic it publishes. They differ, in every cell, on
+> both robots. That is a statement about what the binary *did*, not about what
+> it failed to say.
+
+**The fix.** Three parts, because the bug survived this long by being
+*silent*:
+
+1. The launch file points the global planner at
+   `/<robot>/dscovox_node/global_planning_map`.
+2. A **starvation warning**: goal present, pose present, no map for >20 s
+   emits a throttled WARN naming the dead topic. The 20 s grace exists
+   because dscovox publishes nothing until its first fused frame.
+3. A **liveness heartbeat**, `global plan ok: wps=… len=… map=…`, printed at
+   most every 30 s and only on a tick that actually published a path.
+
+Parts 2 and 3 are the falsifiable pair. A unit test cannot catch a
+launch-wiring bug, but these two lines can: the WARN can only print when the
+planner has no map, the heartbeat can only print when it produced a plan,
+and both branches live in the same binary. Presence of one and absence of
+the other is checkable from any campaign nav log.
+
+> **A trap inside the fix, worth recording.** The heartbeat was first written
+> as `RCLCPP_INFO` on the node's own logger — and the launch file runs that
+> node at `--log-level <robot>.simple_nav_global_planner:=warn`. The line
+> could never have printed. A liveness check that the log level eats reads as
+> PASS whether the planner works or not, which is precisely the
+> [[checks-that-stopped-checking]] pattern, and it would have been the second
+> time this same subsystem hid behind silence. The heartbeat now goes to a
+> separate `<robot>.nav_liveness` logger, outside the subtree the selector
+> names, so it keeps INFO severity and still prints. It is deliberately *not*
+> escalated to WARN: the campaign failure counts are read off the WARN
+> stream, and 100 healthy lines per run per robot would corrupt them.
+
+#### B. The homing watchdog measured the wrong quantity
+
+**The defect.** The mission-return watchdog asked "has the robot moved
+`progress_min_distance_m` in the last `progress_window_sec`?" That is gross
+odometry, not progress toward home. `mr1_hybrid_seed11`'s atlas orbited a
+local minimum for the full 600 s cap: **0.19 m of net displacement** while
+`distance_traveled` climbed 158→188 m, with 0.5–1.7 m of motion in *every*
+20 s window. The watchdog passed on every single window and fired **zero**
+times, by construction, while the robot ended 48.75 m from home.
+
+**The fix.** A second detector that measures the quantity that matters:
+remaining distance to home must fall by `return_approach_min_m` (1.0 m)
+every `return_approach_window_sec` (40 s). That is 0.025 m/s — roughly 9×
+below the slowest homing leg in the campaign that actually arrived, so the
+false-fire rate on healthy runs should be near zero. Details that make it
+honest rather than merely strict:
+
+- While retracing the breadcrumb trail the metric is **remaining trail
+  length**, not straight-line distance. Following a curved trail away from
+  the straight line is correct behaviour and must not score as failure.
+- Suppressed inside 3 m of home, where the remaining distance is small and
+  the final approach is dominated by yaw alignment.
+- Suppressed for one window after a pose teleport (`max_pose_jump_m`), since
+  a jump moves the metric by metres in either direction in one tick.
+- The old gross-movement detector is **kept**, not replaced. It is the only
+  one that catches a genuinely wedged chassis; the new one is the only one
+  that catches an orbit. They fire independently.
+
+**Graduated response, so a false positive costs time and never a park.**
+Homing now has three modes — DIRECT, RETRACE, ESCAPE. First fire re-sends
+the home goal (braking first: the nav cancel action is a no-op here, see D).
+Second fire engages the breadcrumb retrace. A fire while retracing spends
+one of `return_escape_max_attempts` (3) **escape legs**: a ≤30 s drive to a
+crumb 1.5–6 m away — ground this robot has already driven, so it is known
+passable — never the same crumb twice in a row, with a 2.5 m behind-the-robot
+fallback on a rotating bearing when no crumb qualifies. Only after the third
+escape is exhausted does the run park, and parking is logged as
+`no-progress` / `home-gave-up` rather than silently. Termination is bounded:
+DIRECT yields at most two fires, each RETRACE fire spends an escape, an
+escape can only end by returning to RETRACE, and the 600 s
+`mission_return_max_sec` cap sits outside all of it.
+
+**What the ladder actually costs, and why the 600 s cap is the wrong number
+to quote.** There are two worst cases and they differ by a factor of three.
+
+| Ladder | Fires × window | Escape legs | Worst case |
+|---|---|---|---|
+| Approach (moving, not closing) | 6 × 40 s | 3 × 30 s | **330 s** |
+| Frozen (chassis wedged) | 7 × 15 s | aborted, not driven | **105 s** |
+
+The approach walk is: fire 1 resend, fire 2 engage retrace, fires 3–5 spend
+the three escapes (each leg suppresses the approach test for up to
+`return_escape_leg_sec` = 30 s), fire 6 parks. 6 × 40 + 3 × 30 = 330 s, so
+`mission_return_max_sec` (600 s) never binds on a robot the *approach*
+detector is judging. It binds only on the seed11 orbit case, which passes
+every frozen test and closes distance often enough to keep resetting the
+approach reference. The frozen walk is derived in a comment at
+`homeWatchdogFire` and is `(2·escapes + 1) · progress_window_sec` = 105 s.
+
+An earlier draft put the approach bound at 290 s by forgetting that the
+final, parking fire also costs a window. It matters which number is right:
+the recorded mission-end time of a censored cell differs by minutes
+depending on which bound fired, exposure to the ladder is **not**
+arm-symmetric (§32.9's nav-failure counts are 24 vs 5), and so 105 s parks
+and 600 s parks must be pooled as one event class by any analysis. A
+difference in *which* bound fired is not a treatment effect.
+
+**Two bugs the adversarial review caught in this design, both invisible in a
+log.** `engageRetrace` and the escape-target picker each searched the
+breadcrumb trail from index 0 — and crumb 0 **is** home, assigned from the
+same pose sample as `home_pos_`. A retrace onto crumb 0 republishes the goal
+that just failed twice while the event stream says `retrace`; worse, it is a
+one-way door, because the escape branch keys off `home_mode_ == RETRACE`, so
+a nominal retrace that never retraces sends every later fire straight to an
+escape and silently deletes three rungs. An escape onto crumb 0 aims the leg
+at the trap it is escaping, *ahead* of the robot rather than behind, so the
+rotate-in-place the mechanism depends on never happens. Both now search from
+1. The three trail computations moved into `home_trail.hpp` and carry 14
+tests, which also removes a structural risk that was live rather than
+hypothetical: the approach metric and the nav budget had the same geometry
+inlined at four call sites, and if those two definitions ever drift the
+ladder either fires on a healthy robot or stops firing at all. They now call
+one function.
+
+#### C. The failed-goal blacklist expired faster than one nav attempt
+
+**The defect.** `failed_goal_ttl_sec` was 60 s, sized against an old 60 s
+nav budget. When `nav_max_timeout_sec` was raised to 180 s for the campaign,
+the TTL was not raised with it, and nothing enforced the coupling. So a
+blacklisted trap expired while the robot was still burning a single 180 s
+budget at a *different* trap. In `mr1_hybrid_seed18` the measured
+fail→re-pick gaps for the same site were **210, 203, 224 and 225 s** — all
+longer than 60, all shorter than 240. Eight full budgets, 1441 s, two sites,
+and the cell was censored **0.021 of unknown-fraction short of the latch**.
+
+**The fix**, in four parts:
+
+- `failed_goal_ttl_sec` 60 → **240**, and the coupling to the nav budget is
+  now enforced in two places. Note the two thresholds are deliberately
+  different and an earlier draft conflated them: the **guard** fires below
+  `nav_max_timeout_sec + 30` = 210, which is the floor below which the TTL is
+  certainly broken; the **shipped value** is 240 = 180 + 60, which puts 30 s
+  of slack on top of that floor. A guard set at the shipped value would
+  reject working configurations. The planner WARNs on the inequality at
+  startup, and — because a WARN scrolls past in a log nobody reads until the
+  campaign is over, which is exactly what happened for all of `mr1` —
+  `run_explo_sim_rviz.sh` now **refuses to launch the cell**. Calibrated on
+  known answers: 240/180 and 210/180 pass, 209.9/180 and the generation-4
+  60/180 fail, and so does 240/300, i.e. raising the budget without the TTL.
+- **Clustering.** Repeated failures within `failed_goal_radius_m` fold into
+  one record that keeps its *first* centre, so the suppression disc cannot
+  drift with each new failure.
+- **Retirement** on the third failure at one site — the predicate is
+  `count >= failed_goal_retire_after`, so k = 3 retires on the third failure,
+  not after it. (Stated exactly because "after 3" reads as the fourth, and
+  the difference is one whole 180 s budget spent on ground already proved
+  unreachable.)
+  TTL alone cannot close a *permanent* trap: any finite TTL eventually
+  re-admits fixed bad terrain to the argmax, and the trap's own information
+  shadow guarantees it wins again, because the ground behind it stays
+  unobserved precisely because the robot never gets there. k=3 comes from
+  the mr1 evidence — across 72 robot-logs and 49 distinct failure sites,
+  reattempts at budget-failure sites succeeded 0/7, and exactly 1 of 49
+  sites was later reached, on its *first* reattempt, which k=3 would not
+  have blocked.
+- **Amnesty.** Arriving inside the radius clears the record, retired or not
+  — arrival is proof the ground is reachable and outranks any amount of
+  failure history — and the selection loop re-offers retired sites, least
+  recently failed first, when they are the only candidates left. Retiring is
+  a deprioritisation, not a lockout.
+
+Note what the TTL does **not** fix, because overstating it would be easy:
+seed18's two longest gaps (626 s and ~756 s) are beyond 240 s. Those are
+covered by retirement, not by the TTL. Both claims are asserted separately
+in the unit tests.
+
+#### D. Cancel logging claimed something that never happened
+
+`abandonNavGoal` logged "cancelling and resending the goal", but the cancel
+client targets an action `simple_nav` does not implement — every cancel was
+a no-op and every such line was false. This burned a diagnosis in §32.7. All
+such strings are gone; the code and the logs now say what is true, which is
+that a **brake goal published at the robot's current pose** is the only thing
+that actually stops the platform. See [[nav-cancel-is-a-noop]].
+
+#### E. The controller could not reach its own recovery
+
+**The defect.** `simple_nav_3d`'s UGV controller has a recovery sequence
+(back up, rotate, re-approach) for exactly the seed16-class dead-end, and it
+never ran: **zero entries in 72 `mr1` robot-runs**, including runs where a
+robot sat immobilised for ten minutes. The reason is structural rather than
+a tuning miss.
+
+This one *is* an absence, so it needs the control section A did not have.
+The entry line `[ugv_ctrl] HARD STOP -> recovery:` existed verbatim in the
+generation-4 binary, so it is an absence in the same binary that ran — and
+the channel is known good, because `ros2 launch` demonstrably captures raw
+child-process output: the same logs carry `[scovox_mapping_node-1]
+[scovox_node] sparse_add K_TOP overflow: …`, a plain `fprintf` from a
+different node, prefixed and interleaved exactly as a controller line would
+have been. The string could have printed, the pipe would have carried it, and
+it printed zero times.
+
+**Why it was unreachable.** The slowdown band scales commanded speed
+linearly to zero as
+`clearance` falls from `avoidance_slowdown_distance_m` toward
+`avoidance_hard_stop_distance_m`, so the robot *asymptotes into a creep* and
+approaches the hard-stop threshold without ever crossing it. At 0.15 m the
+trigger sat below the band the robot could physically reach while still
+commanding motion. It was unreachable by construction.
+
+**The fix, as approved:** `ugv.avoidance_hard_stop_distance_m` 0.15 → **0.4**
+(against `avoidance_slowdown_distance_m` 0.8), which puts the trigger inside
+the reachable band. Both arms, every cell.
+
+**The record of my own error here, because it changed what shipped.** I did
+not make that change when it was approved. I substituted a stall-gated
+second trigger — desired `v` > 0.05 m/s for 8 s without covering 0.15 m —
+on the argument that 0.4 m would fire on gaps the planner considers legitimately
+followable, since `clearance` is measured from the robot's bounding-box edge
+and the local planner already inflates obstacles by 0.20 m against a 0.30 m
+half-width. The operator reversed that: the hard-stop raise goes in and the
+stall detector comes out. The substitution is now fully removed from the
+tree, not merely disabled.
+
+Two things worth keeping from the episode. First, the argument I gave was
+not wrong on its facts — 0.4 m *will* fire on tight-but-passable gaps — it
+was wrong on the trade. An early-firing recovery costs seconds; an
+unreachable one costs a censored cell, and `mr1` measured the second cost
+and not the first. That trade is now written into the code at the trigger,
+and the pilot gate measures the entry rate per robot-run before any full
+campaign commits to it. Second, I had also mis-cited the parameter as
+`ugv.avoidance_hard_stop_range_m`, a name that does not exist; the real one
+is `ugv.avoidance_hard_stop_distance_m`, declared in `parameters.cpp` and set
+in `simple_nav_3d.launch.py`. A fix list that names a nonexistent parameter
+cannot be checked against the tree by anyone, including its author.
+
+Recovery entry and exit are now logged as a **pair** (`-> recovery:` with the
+trigger, clearance and desired speed; a matching exit line), so the pilot
+gate can assert `entries == exits`. An unpaired entry means a recovery that
+never ended, which is the failure mode a raised threshold could plausibly
+introduce and the one thing this change must not do quietly.
+
+#### What is verifiable before the campaign starts
+
+| Claim | Evidence available *now* | Evidence at runtime |
+|---|---|---|
+| A: global planner plans | `test_ugv_planner`, 6/6 — plans across open ground, routes through a gap in a wall rather than through it, relaxes a blocked goal to a nearby free cell, refuses an unmapped world, and refuses a fully sealed goal | `global plan ok:` present **and** `planner starving:` absent, per robot-log |
+| B: homing ladder | `test_home_trail`, 14/14 — the retrace and escape pickers never return home itself, the watchdog metric follows the trail rather than the straight line and decreases monotonically as the robot walks it in, and the nav budget's distance is *the same function* as the watchdog's | `MISSION-RETURN WATCHDOG ARMED` at every homing start; `logHomeWatchdog` rows carry kind/mode/response/escapes |
+| C: blacklist | `test_failed_goal_blacklist`, 20/20 — including a both-sided replay of the seed18 gaps (suppressed at the *shipped* TTL, expired at generation 4's 60 s), a separate test that the 626 s gap needs *retirement*, and four on the amnesty ordering | `failed_goal_ttl_sec`, `failed_goal_retire_after` and `failed_goal_radius_m` echoed into `run_manifest.txt`; the harness refuses to launch a cell whose TTL is below the budget |
+| D: honest logging | grep: no remaining string claims a cancel took effect | — |
+| E: controller recovery reachable | none — this is a control loop against a live costmap, not a pure function | `-> recovery:` entries **> 0** and `recovery EXIT:` count **equal** to them, per robot-run. Generation 4's count was 0 |
+
+The seed18 replay is deliberately **two-sided**. A one-sided "TTL 240
+suppresses it" would also pass on a build that suppressed everything
+forever, and a guard that cannot fail is not a guard
+([[checks-that-stopped-checking]]).
+
+**Every new guard was calibrated against the defect it exists for**, which is
+the only way to know a test is not already inert. Reverting each fix in a
+scratch build and confirming the *specific* tests go red: the crumb-0 search
+start (4 tests fail), nearest-wins retirement plus a flat amnesty order (3
+fail), a drifting blacklist centre (2 fail), a single cleared cell in the
+sealed-box fixture (1 fails), and a copied config with a 120 s TTL (1 fails,
+printing the longest measured seed18 gap it no longer covers). Two of these
+guards were *written* vacuous and caught before they shipped: an escape test
+whose robot position let the correct crumb win on the broken build too, and a
+blacklist centre-drift probe that passed for every possible centre.
+
+**Manifest blind spot closed.** `failed_goal_*`, `return_*`, `progress_*` and
+the `nav_*_timeout_sec` pair are now stamped into both `run_manifest.txt` and
+the ExpLog params, and the last three of those are also passed explicitly on
+the planner command line so the manifest cannot describe a value the node did
+not use. The 60 s-TTL-against-a-180 s-budget mismatch ran for an entire binary
+generation precisely because neither number was recorded anywhere a reader
+would see them together. The campaign driver was hardened at the same time and
+for the same reason: `--duration` and `--scenario` **lost their defaults** —
+both define the experiment, and the old defaults (3600 s, the sparse forest)
+matched no campaign run since 2026-08-27, so their only reachable effect was
+to silently relabel a campaign that forgot a flag — `--record` now defaults to
+0, and the resume guard that compared one manifest key now compares five
+(mission return, scenario, duration, done-criterion, done-unknown), treating
+an absent key as a mismatch.
