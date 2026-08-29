@@ -14597,3 +14597,484 @@ rather than only the current answer, so that a future reader can see the figure
 has moved twice. The commit bodies of `3d4306c` and `1966069` are left alone: they
 were right about the range, loose about the n, and rewriting them would change the
 very hashes this section pins.
+
+## 32.15 Generation 9 — the trigger that could not fire, and a threshold picked three times
+
+Generation 9 is declared after campaign `g8r1` was stopped mid-flight, and the
+reason it was stopped is the whole content of this section: the campaign was
+running correctly and measuring nothing.
+
+**The finding.** In `g8r1`'s 23 hybrid cells the mid-run reconnect trigger fired
+in 3. The other 20 ran the manoeuvre code with the clock never expiring, which is
+behaviourally the control arm. Nothing failed — no crash, no dropped cell, no bad
+provenance — and the whole gate suite passed. The treatment was configured out of
+existence by a threshold, and 87 % of the treated arm was a second copy of `off`.
+
+Counted precisely, because three different numbers are all true of the same
+event and get swapped for each other: **3 cells**, **6** `reconnect_dispatch`
+events, of which **5** are the mid-run silence clock expiring (`reason=peer-lost`,
+record ages 254.01–258.80 s) and the sixth is a `trail-exhausted` re-dispatch
+inside a manoeuvre already running (record age 22.69 s). The cell count is the
+one that matters for dilution; the 5 clock expiries are the ones the record-age
+arithmetic in `docs/ros_api.md` is measured on.
+
+`reconnect_midrun_silence_sec` was 240 s through generation 8, chosen so the
+record-age clock would clear the measured ~180 s heartbeat-suppression tail by
+pure waiting. That reasoning was sound for the quantity it was about and wrong
+about the world it was applied to.
+
+**The radio, measured, with the population stated.** From the emulator's own
+`link_states.csv`, over the **13 campaign tags carrying ≥ 10 cells** (33 tags
+exist under the campaign root; the other 20 are pilots and aborted runs too small
+to characterise a distribution), outages on the 0–1 pair are stable across every
+generation: **14.32–19.21 outages per 1000 s of exposure, median 6.20–12.20 s,
+p90 52.0–111.0 s**, and **0.00–3.34 % reach 240 s** — `td1` is the 3.34 % upper
+end, and `rr1` and `tr1` have no 240 s outage at all. A gate at 240 s sits far
+out in the tail of the thing it is supposed to detect.
+
+Method, stated because a range quoted over an unstated population cannot be
+falsified by anyone reading it: an outage is a maximal run of `connected==0` on
+the 0–1 pair; one distribution per campaign tag, cells pooled within a tag, one
+row per tag. Percentiles are **nearest-rank** — `x[⌈q·n⌉]` on the sorted pooled
+sample — and that is stated because it changes the number: the p90 range is
+52.0–111.0 s nearest-rank against 51.4–101.6 s under linear interpolation, a
+9 s difference at the top end carried entirely by `ds1`'s 119-outage sample. The
+median range is 6.20–12.20 s under either convention, so only the p90 depends on
+the choice. An outage still open at the last sample is right-censored and
+dropped; counting it instead moves the medians by at most 5.4 s and the ≥ 240 s
+share by at most 0.78 points, so the censoring rule does not carry the
+conclusion. An earlier draft of this paragraph said "all four banked campaigns"
+with narrower ranges and no grouping. There were never four, and the count had
+never been checked.
+
+**The presence clock, and what the "4–10×" claim really was.** The trigger does
+not read the radio; it reads `team_last_complete_time_`, which advances only
+while peer intents arrive, and the intent beacon is conditional twice over. An
+earlier draft asserted that presence gaps "run 4–10× longer than the radio
+outages underneath them". The data does not say that, and the figure turns out to
+be a mangled restatement of a different quantity.
+
+Measured — presence gap = `peer_lost` → the next `peer_seen` for that peer in one
+robot's log, open gaps at run end dropped — the *durations* are barely inflated:
+presence-gap medians are 1.24–1.86× the radio-outage medians. Filter the outages
+to ≥ 5 s so both samples clear the claim TTL, below which `peer_lost` cannot fire
+at all (the unfiltered version compares a filtered sample against an unfiltered
+one, which inflates the ratio for free), and the median ratio is **0.41–0.93×** —
+the bodies of the two distributions are comparable, and the presence gap's is if
+anything the shorter one. What is inflated is the **tail**: p90 ratios are
+1.84–5.47× unfiltered, 1.30–4.32× TTL-matched.
+
+The claim that survives, and the one the threshold argument actually needs, is a
+survival ratio *at the threshold*, not a duration ratio anywhere:
+
+| share of episodes reaching… | 240 s | 90 s |
+|---|---|---|
+| radio outages | 0.00–3.34 % (`g8r1` 0.40 %) | 4.02–12.61 % (`g8r1` 4.62 %) |
+| presence gaps | 1.98–17.78 % (`g8r1` 4.46 %) | 11.49–31.17 % (`g8r1` 20.54 %) |
+
+At 240 s the presence clock is **3.3–17.9× more likely to have expired than the
+radio is to still be down** (per-campaign ratios; `td1` is the 3.3 floor, `gt1`
+the 17.9 ceiling, `g8r1` 11.2×), and in the two campaigns where no outage ever
+reached 240 s the ratio is undefined because 2.0–10.8 % of presence gaps got
+there against a denominator of zero. That is the real asymmetry, and it is
+a tail phenomenon, not a scaling of the whole distribution. Dropping the clock to
+90 s multiplies `g8r1`'s presence-gap expiries by ~4.6× (4.46 % → 20.54 % of
+episodes).
+
+An earlier draft finished that sentence with "— the same factor as 3/23 cells
+arming against the 18/23 in §32.15.1". **That appositive is withdrawn.** 18/3 is
+6.0, not 4.6; and the two numerators were never comparable, because 3/23 is
+hybrid's *real* dispatch count at generation 8's configuration (`T` = 240,
+`confirm` = 3) while 18/23 is the `off` arm's *modelled* arming at generation
+9's (`T` = 90, `confirm` = 0) — the quotient crosses both an arm boundary and a
+configuration boundary. The like-for-like figure holds both fixed: on the `off`
+arm at `confirm` = 0, moving 240 → 90 takes arming from 6/23 to 18/23, a factor
+of **3.0**. Three different quantities of the same order of magnitude, which is
+exactly how a coincidence gets written down as a mechanism.
+
+**The radio was arm-asymmetric in `g8r1`, and that is not the instrument.** An
+earlier draft opened this ground with "the world did not change; the instrument
+did" — the radio being stable across generations, so only the presence clock
+could explain the collapse. **That sentence is retracted.** Its first half is
+true *between* campaigns and false *within* `g8r1`: the mean share of exposure
+with the link down is **29.84 % in hybrid against 39.72 % in `off`** (medians
+32.27 % / 44.88 %), permutation **p = 0.0194**. With 3 cells dispatching, the
+treatment cannot plausibly have produced a ten-point swing in radio connectivity,
+so this is not a treatment effect; it is **not diagnosed** and is recorded as
+open.
+
+The presence asymmetry noted in the earlier draft is the *same* asymmetry, not a
+second deeper layer: presence gaps in `g8r1` are hybrid median 9.62 s / p90
+124.9 s / 2.29 % ≥ 240 s against `off`'s 20.91 s / 187.1 s / 7.53 %, which moves
+in the same direction as the radio underneath it and is what a better-connected
+arm should look like. One imbalance, in the radio, inherited by the clock.
+
+None of this disturbs the proximate account — `arm@240` is 3/23 for hybrid,
+exactly the three dispatching cells — but the retracted sentence would have ruled
+the imbalance out by assertion, and an imbalance of this size would bias a
+between-arm comparison if it recurred. **Check it in the generation-9 campaign
+before reading any headline number.**
+
+> The permutation test: 200 000 Monte-Carlo relabelings of the 46 cells, reported
+> as (hits+1)/(draws+1). C(46,23) ≈ 8.2 × 10¹² is not enumerable, so this is not
+> the exact test §30 prefers, and the departure is declared rather than
+> glossed. Per [[lcg-low-bits-bias]] the sampler is not trusted on its face: it
+> was validated against an enumerable 5-vs-5 case, where it returned 0.0954
+> against the enumerated 0.0952. It is a permutation test, not a bootstrap.
+
+### 32.15.1 The threshold was picked wrong, then picked wrong again, then picked
+
+The first generation-9 draft set the threshold to 120 s and justified it with a
+sweep over banked data. That sweep was circular, and the circularity is worth
+recording because it is invisible when reading the result:
+
+> Each candidate `T` was scored on "presence episodes that reach `T` **and are
+> still disconnected when it expires**", using the presence clock for both the
+> filter and the score. The reported "120 fires 24 times with zero chases into an
+> already-reachable peer" therefore restates the filter. An episode selected for
+> being ≥ `T` long is disconnected at `T` by construction.
+
+A non-circular calibration has to filter on the **past** and score on the
+**future**, on two different clocks: select on how long the presence gap has run,
+score on what the radio does next.
+
+The second draft did that, and picked 90 from a sweep over **the 20 hybrid cells
+that never dispatched**. That sample is selected on the outcome being swept: a
+cell appears in it *because* the 240 s clock never expired there, which is a
+statement about the very episode-length distribution the sweep is measuring.
+Sweeping a threshold on the cells where the old threshold did not fire biases
+toward finding that a lower one would have.
+
+**The sweep that stands runs on the `off` arm**, which never ran the trigger at
+all and is untreated by construction — the same logic that makes `off` the
+control makes it the only clean counterfactual population on the disk. Scored
+with the veto as it ships (`reconnect_link_down_confirm_sec` = 0):
+
+| presence `T` | cells arming | fires | wasted | beats natural recovery |
+|---|---|---|---|---|
+| 240 | 6/23 | 12 | 50 % | 33 % |
+| 150 | 12/23 | 24 | 42 % | 58 % |
+| 120 | 18/23 | 36 | 33 % | 72 % |
+| **90** | **18/23** | **40** | **20 %** | **85 %** |
+| 75 | 18/23 | 42 | 29 % | 86 % |
+| 60 | 21/23 | 60 | 43 % | 73 % |
+
+"Wasted" is the radio outage in progress ending within the ~14.6 s it takes to
+start moving. "Beats natural recovery" is the fire happening more than one chase
+(~53 s, `p13` median) before the radio next comes up and *stays* up for 30 s.
+
+**The model behind this table is optimistic, by a measured amount — and the
+forward walk does more damage than the first version of this paragraph
+admitted.** The model fires on the presence gap alone and so omits the
+tick-granularity overshoot the real dispatch path carries: `g8r1`'s five clock
+expiries fired 14.0–18.8 s *after* nominal `T`, of which the claim TTL accounts
+for 4.98–4.99 s and mid-run tick granularity for 9.02–13.82 s. Walking that
+forward means scoring each candidate at `T` + the measured overshoot rather than
+at `T`. The forward walk was **missing from the first two drafts entirely**,
+which is why it is stated here rather than left as a caveat.
+
+Two claims were then made about the walk, and **both were wrong.**
+
+*The direction was backwards.* "Moves 90's activation from 11/20 to 12/20 on the
+hybrid sample" describes a walk that *buys* activation. The unwalked value on
+that sample is already **12/20**; walking it gives 12/20 at +14.0 s, 10/20 at
++16.4 s and 11/20 at +18.8 s. An overshoot can only cost activation or leave it
+alone, and that is what it does. 11/20 is not the baseline at any offset tried.
+
+*It does reorder the table, on the arm that matters.* At all three measured
+offsets the waste argmin moves off 90 and onto **75** — at +14.0 s, 75 wastes
+20.0 % against 90's 28.6 %; at +16.4 s, 19.2 % against 26.3 %; at +18.8 s,
+25.0 % against 29.4 %. The 120/90/75 activation plateau does not survive either:
+120 falls to 14/23, 15/23 and 17/23 across the three offsets while 90 holds 18,
+19 and 17. Only the coarse shape is stable — 240 arms 4–6 of 23 at every offset,
+and 60's waste turns back up at every offset.
+
+Out of sample, the same model at generation 8's actual configuration (`T` = 240,
+`confirm` = 3) arms 4 of 23 `off` cells, against the 3 of 23 hybrid cells that
+really dispatched. One cell of error on the only prediction that can be checked
+against reality.
+
+**The scoring quantity was also nearly wrong, in the opposite direction.** Scored
+against how much of the *current* outage remains, the intervention looks
+ill-posed: outages are short, so most of any given one is over before the robot
+moves, and the conclusion "this treatment chases noise" follows. That conclusion
+does not survive asking what a chase actually buys. The pair is flickering, and a
+chase does not close one 7 s outage — it ends the *sequence* by closing the
+separation. Scored against time-to-sustained-connectivity the treatment is
+well-posed, and the right-hand column above is that scoring. Both the circular
+version and the over-corrected version were reached and discarded before the
+table above; the file records all three because the difference between them is
+entirely in the choice of outcome variable, which no amount of care with the
+statistics would have caught.
+
+**90 rather than the grid minimum — and the grid is not the reason.** On the
+unwalked grid 90 *is* the argmin of waste, and 120, 90 and 75 all arm the same 18
+of 23 cells. Neither fact survives the forward walk above: walked, the argmin is
+75 and the plateau is gone. That does **not** make 75 the answer. It makes the
+grid unusable as the justification, because a ranking that flips under a 4.8 s
+change in one nuisance offset is a ranking these 23 cells cannot resolve — the
+waste column separates 20 % from 29–33 % over 36–42 fires. Taking the argmin of a
+grid fitted on the campaign the next one is about to be compared against is how a
+threshold comes to encode this run's noise, and re-tuning to 75 now, on the same
+23 cells, would be that same mistake with an extra step.
+
+What the grid can support is the coarse verdict, which *is* stable across the
+walk: 240 is far too high (4–6 of 23 cells at every offset) and 60 is past the
+point where waste turns back up. Inside 120–75 the choice is made off the grid
+entirely, and 90 is defensible there without it: it is well clear of the p90
+radio outage (52.0–111.0 s, nearest-rank over the 13-tag population above) while
+sitting far below the 240 s point where the presence clock stops being a filter
+at all. That it is also the round number matters only for reporting.
+
+### 32.15.2 The conjunct that turned out not to do the work
+
+`reconnect_link_down_confirm_sec` is new. Both link-veto sites previously
+borrowed `reconnect_confirm_sec` (3.0), which is the team-**presence** release
+confirm and answers a different question. Decoupling them is right at any value:
+anyone retuning the debounce would otherwise have silently moved the
+presence-release path with it.
+
+**It ships at `0`, and the 30 s debounce this section originally recommended is
+withdrawn.** The withdrawn draft claimed the conjunct "is the part that does the
+work" and credited it with moving wasted fires "from 50 % to 33 %". That was a
+misattribution of the plainest possible kind: the table it pointed at held this
+conjunct **fixed** at 30 and varied the presence clock, so 50 → 33 is the
+150 → 90 move and contains no information about this parameter at all. Measured
+properly — on the untreated `off` arm, holding `reconnect_midrun_silence_sec` at
+90 and varying only the conjunct:
+
+| `confirm` | cells arming (of 23) | fires | wasted | beats natural recovery |
+|---|---|---|---|---|
+| **0** | **18** | **40** | **20 %** | **85 %** |
+| 30 | 12 | 26 | 15 % | 92 % |
+
+The conjunct buys 5 points of purity (20 % wasted → 15 %) for **a third of the
+arm's activation** — 18 arming cells down to 12, i.e. 6 lost out of the 18 that
+armed. An earlier draft called that "a quarter", which is 6/23, the share of the
+*arm*; the denominator the purity is being traded against is the 18 that armed,
+not the 23 that exist. Dilution is the defect this whole generation exists to
+fix, so the trade goes the other way and the parameter ships inert. Its value is in *existing* — decoupled,
+recorded in the manifest, and available to a later campaign that wants it.
+
+At `0` the veto is exactly its disjunct — never chase a peer whose radio is up
+*right now* — and that only works because a latent hole was closed at the same
+time. The veto read `link_down_for < confirm`, and `link_down_for` is exactly
+`0.0` whenever the radio is up, so at `confirm = 0` the test is `0.0 < 0.0`,
+false, and the veto would have passed a chase at a peer on the radio right then:
+the single case it exists to prevent, failing at the value it now ships with. It
+is now `link_connected_ || link_down_for < confirm`, so `0` means the honest
+thing.
+
+### 32.15.3 Why the veto is not a compounded second treatment
+
+Generation 9 changes two things at once — the threshold drops and the link veto
+is on by default — and the never-compound rule deserves an explicit answer rather
+than an assurance. (`reconnect_link_down_confirm_sec` is a third *parameter* but
+not a third change: it ships at `0`, where it is exactly the veto's own disjunct
+and adds no behaviour of its own — §32.15.2.)
+
+The veto is not a second arm. Both veto sites sit inside the reconnect machinery,
+which the control disables outright (`rendezvous_enabled=false` in `off`), so the
+veto is **inert in the control arm** and cannot contribute a between-arm
+difference. It is a component of what "hybrid" means, in the same way the chase
+policy is. The contrast this campaign runs is still `off` vs `hybrid`, one factor.
+
+What it does do is make generation 9 non-poolable with everything before it, which
+is the standing rule anyway. `gt2`'s gate-ON arm was 1.203× slower than `tl1`
+(p = 0.042), a between-campaign comparison confounded with session; §30 concluded
+that campaign could not measure the gate and `rr1` deliberately ran `LINK_GATE=0`.
+None of that is evidence about generation 9's within-campaign contrast, and it is
+not treated as any.
+
+### 32.15.4 What this costs the analysis, stated in advance
+
+The activation rate is estimated at **78 % of hybrid cells (18/23 on the `off`
+arm's untreated traces)**, against generation 8's measured 13 % (3/23). It is an
+estimate fitted on generation-8 traces by a model whose only checkable
+out-of-sample prediction was off by one cell, and generation 9 changes behaviour,
+so **the realised rate will differ and must be reported from the new campaign,
+not assumed from this table.**
+
+Two independent reasons it will read high. The activation model omits the
+14.0–18.8 s dispatch overshoot (§32.15.1), which costs activation rather than
+adding it. And it is fitted on a *control* arm: in the treated arm a chase that
+succeeds closes the separation, which suppresses the later gaps that would have
+armed the trigger again — so per-cell fire *counts* from this table are an upper
+bound even where the cell-level activation is right. Treat 78 % as a ceiling.
+
+The consequence is pre-registered here so it cannot be discovered later and
+rationalised: the between-arm effect is **intention-to-treat over a hybrid arm
+that is not fully treated**. At 30 seeds per arm, 78 % is ~23 treated cells and a
+pessimistic 55 % is ~17. Conditioning the analysis on whether a cell dispatched
+is forbidden — dispatch is post-treatment, and §30.19's rule against adjusting on
+post-treatment covariates applies with full force. The dilution is carried, not
+adjusted away. If the headline contrast comes out null, "the treatment only fired
+in part of the arm" is a description of the treatment, not an excuse to re-slice
+toward the cells where it did fire.
+
+The second thing to report from the new campaign, alongside the activation rate,
+is the **arm-wise disconnected fraction** — the imbalance opened above
+(29.84 % / 39.72 %, p = 0.0194) is undiagnosed, and whether it recurs at 30 seeds
+per arm decides whether it was `g8r1`'s luck or a property of this scenario.
+
+### 32.15.5 Guards added, and calibrated
+
+Three checks were added. §32.14's inert-check rule says a guard never shown to
+fail is not evidence, so each has a **planted-failure case in a harness that runs
+on demand** — the first draft of this section claimed each was "calibrated against
+a known-answer case" when two of the three had only been observed to *pass*.
+
+1. **`gate_g8.py` check 3f** — the treatment must have been *able* to happen:
+   `reconnect_midrun_silence_sec`, `link_gate_configured` and
+   `reconnect_link_down_confirm_sec` are read from the `run_start` params (what
+   the node got) rather than the manifest (what the launcher intended), on the
+   treated arms only. Calibrated in `sim/gate_g8_calib.py`, which now carries
+   ten 3f cases including the clock at 240, the clock absent, the clock
+   non-numeric, `link_gate_configured=false`, the field absent, both topics named
+   with no sample ever arriving, the withdrawn 30 s debounce reintroduced, a
+   missing planner log, and the token present *in the wrong file* — see below.
+
+   On `g8r1` it raises 138 failures — 23 cells × 2 robots × 3 sub-checks. It does
+   **not** "go silent when told to expect 240": that was asserted in an earlier
+   draft and is false — the count falls 138 → 92, because the two generation-9-only
+   params are still absent from a generation-8 run. Re-gating a banked campaign
+   needs both overrides:
+   `GATE_MIDRUN_SILENCE=240 GATE_GEN9_PARAMS=0 ./gate_g8.py g8r1`, which scores 9
+   hard failures, all genuinely pre-existing and none of them 3f.
+
+   3f has a **runtime** half, because `link_gate_configured` is written at
+   `startRun` from two topic *names* being non-empty and a dead emulator
+   satisfies it for a whole run. The node emits a one-shot `link_gate_live:` INFO
+   line on the veto's first usable sample, and 3f asserts that line's
+   **presence** — not the absence of a warning, since a run whose logging broke
+   would pass an absence test ([[nav-global-planner-never-planned]]).
+
+   Two things about that half were wrong when this section was first written, and
+   both are worth recording because they are the same failure as §32.14's.
+
+   *It read the wrong file.* The check looked in `$ROOT/<cell>.console.log`,
+   which holds only the two harness scripts' own `log()` output; the node's
+   stdout goes to `<cell>/planner_<robot>.log`. Because the console log *exists*,
+   the probe returned "token absent" rather than "cannot tell", so 3f would have
+   hard-failed **every treated robot-run of every campaign ever recorded**. It
+   was not caught by the calibration because the fixture planted the token in the
+   same wrong file — the harness printed ALL PASS while agreeing with the bug,
+   which is [[checks-that-stopped-checking]] wearing the costume of its own
+   remedy. The calibration now carries a planted case in which the token is
+   present in the console log and absent from the planner log, and requires a
+   hard failure; and the missing-artefact case deletes the planner log and
+   requires UNRESOLVED *and* the absence of the "no `link_gate_live:`" failure,
+   so a missing file can never again be scored as a missing veto.
+
+   *It was emitted from the wrong place.* The line was first emitted from
+   `linkGateReady()`, which is reached only from the mid-run trigger branch and
+   from `pursuitFallback()` — so a run whose team never went silent long enough
+   to consult the gate would emit nothing, and 3f would score a perfectly healthy
+   run as a hard failure. It now comes from the link-states subscription itself,
+   on the first usable sample, where everything the token asserts is already
+   established: the index resolved, a row addressed to us parsed, and the sample
+   is zero seconds old by construction.
+
+2. **`run_campaign.sh`** refuses a campaign that would run the sub-200 s threshold
+   with no veto, whether via `--env LINK_GATE=0` or `--comms 0`, with
+   `--env MIDRUN_SILENCE=240` as the explicit escape hatch. The guard was
+   rewritten after its calibration harness was written: substring matching on
+   `$EXTRA_ENV` misread neighbouring variable names, the threshold comparison
+   parsed the key rather than the value, and the treated-arm test ignored
+   `--cells`. `sim/campaign_guard_calib.sh` now holds 32 known-answer cases and
+   runs them through a new `--dry-run` flag, added because the only previous way
+   to check that a *legitimate* campaign was not refused was to let it start —
+   which orphaned six sim processes the first time it was tried. That count is
+   **emitted by the harness**, not counted by hand into this paragraph: every
+   assertion increments a counter and the final line prints
+   `ALL PASS (N known-answer cases)`. It is written that way because the
+   hand-maintained number drifted twice.
+
+   The census assertion is a **delta**, not a zero. An absolute zero is not
+   available — this box legitimately runs other processes matching the census
+   pattern — so the harness records the count before, the count after, and fails
+   if the two differ. That form is itself calibrated: one case copies
+   `/bin/sleep` to a file named `scovox_probe`, runs it, and requires the census
+   to see it. The first version planted the process with `exec -a`, which sets
+   `argv[0]`; the census reads `ps -o comm=`, the executable's basename, so the
+   probe would never have been seen and the calibration would have passed by
+   being blind ([[checks-that-stopped-checking]]).
+
+   The harness itself then had to be corrected twice, in the same shape as the
+   guard it calibrates. Its ALLOW verdict was **the absence of the guard's FATAL
+   text**, with the exit status discarded — so `--bogus`, which is refused for an
+   unrelated reason and never reaches the guard at all, scored a PASS as a
+   permitted campaign. ALLOW now requires exit 0, BLOCK requires the text *and* a
+   refusal (a guard that printed and then launched would be worse than none), and
+   the `--bogus` case is kept as the self-check. Separately, `run_campaign.sh`
+   hard-codes the launcher's `LINK_GATE` default in order to decide before
+   anything starts; nothing linked the two files, so flipping the default in
+   `run_explo_sim_rviz.sh` would have left the guard reasoning about a run that
+   does not happen. The harness now reads the literal back out of the launcher
+   and fails if they disagree.
+
+   Two more `--env` passengers are refused for the reason `DONE_SEEK`,
+   `MISSION_RETURN` and `COMMS` already were: `RECONNECT_MODE` and `SEED` are
+   assigned per cell and `--env` is expanded after them, so a passenger silently
+   makes every cell one arm, or every replicate one world, while the directory
+   names, the campaign index and the gate's arm parser all still describe the
+   design that was intended. Given [[sim-run-to-run-nondeterminism]], a collapsed
+   `SEED` would not even look degenerate — the spread would read as ordinary
+   between-cell variation.
+
+   The `--comms 0` refusal deliberately does **not** advise raising
+   `MIDRUN_SILENCE`: that would swap one confound for another and produce a
+   compound experiment. It advises running `--arms off` alone, or running the
+   whole matrix at `--comms 1`.
+
+3. **`link_gate_effective`** in the manifest, separate from `link_gate`. The
+   first is what was asked for, the second what the planner will actually get;
+   they differ exactly when the gate is requested with no emulator behind it.
+   `link_gate_effective` is now *derived from the observable* — whether
+   `comms_link_states_topic` was actually put on the node's command line — rather
+   than recomputed from the same inputs a second time, so it cannot drift from
+   what the run did. And `LINK_GATE` is validated to `0|1`: the launcher treats
+   every non-`1` value as off, so `LINK_GATE=2` used to be copied verbatim into
+   `link_gate_effective=2` for a run with no veto at all, while the safety
+   WARNING — conditioned on `LINK_GATE=1` — could not fire. A provenance line
+   that disagrees with the run is worse than no provenance line.
+   The node's event-log field is `link_gate_configured`. It was called
+   `link_gate_active` in the first draft of this section, described as "true only
+   when *both* topics arrived" — it never checked arrival, only that both names
+   were non-empty, and would have passed a dead-emulator run. The name was
+   changed to say what it means, and the arrival check is the `link_gate_live:`
+   witness in (1). Three sources, three different questions: the manifest says
+   what the launcher intended, `link_gate_configured` what the node was handed,
+   and `link_gate_live:` whether a sample ever came.
+
+`reconnect_midrun_max_silence_sec` is now **defaulted to the resolved clock**
+rather than to a copied literal. It was documented as "tracking"
+`reconnect_midrun_silence_sec` while being a hand-maintained constant, which is
+how it came to sit at 240 after the clock had moved. The invariant WARN that was
+supposed to catch that had also been conjoined with `reconnect_min_share_voxels >
+0`, so it could fire only in the configuration where the clamps are live and
+never in the shipped one where they are inert and drifting — a guard that cannot
+fire in the default configuration ([[checks-that-stopped-checking]]).
+
+A side effect of the same move, recorded because it changes what the **info-gate
+arm** would measure if it is ever run again: the clamp floor
+(`reconnect_midrun_min_silence_sec` = 60) now binds over most of the usable
+range. At a 90 s ceiling, the window in which the information target actually
+decides the firing time is roughly [138k, 207k] voxels of share target, where it
+used to be [138k, 552k]. Outside it the gated arm is a fixed clock wearing the
+gate's name. **That window is the ~2,300 vox/s rate the estimator was calibrated
+on in `p14`, not `cg050`'s** — an earlier draft of this paragraph attributed it
+to `cg050`, whose measured rates are ~9,100 vox/s in the first 200 s and
+~2,900 vox/s after, and which put through the same clamps give [546k, 819k]
+early and [174k, 261k] late. Neither is wrong; they answer for different worlds
+and different phases of a run, and they differ by about 4×. That is the whole
+reason the range has to be re-derived rather than quoted: that arm is not part of
+this campaign, and whoever runs it must divide by the rate their own world
+produces.
+
+**One behavioural change rides along and is not independently justified.** The
+mid-run cooldown is stamped at manoeuvre end and *equals*
+`reconnect_midrun_silence_sec`, so moving 240 → 90 shortened the cooldown by the
+same factor: the 6-attempt budget can now be spent in well under half the
+wall-clock it used to need. This is a consequence of the threshold, not a separate
+decision, and it is recorded because it is invisible at the call site.
