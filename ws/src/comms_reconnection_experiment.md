@@ -14397,23 +14397,84 @@ so it is a manifest fix, not a re-score.
 
 `322b6fc` — the gate identity, below.
 
+`a005440` — the gate could not fail, and its calibration could not notice. Round 4
+of review found that three of the checks written for this generation were inert
+and one fired on every clean cell, while the calibration harness reported 18/18
+PASS throughout. Checks 3b and 3c read `run_start["git_rev"]`; the node writes it
+as a *param*, so the lookup returned `""` and `manifest_rev.startswith("")` is
+true for every input — the stale-binary comparison and the `-dirty` witness were
+both dead, which is to say the gate could not detect the generation-mixing it
+exists to prevent. Check 19 demanded `team_incomplete_sec` on `peer_lost` /
+`peer_seen`; `PeerEvent` has no such member and the only writer is
+`logReconnectDispatch`, so run against the one real cell in the bank the gate
+produced 34 hard failures on clean data — it would have condemned every cell of
+`g8r1`. `if start:` had no `else`, so a robot whose planner died before stamping
+`run_start` silently disabled checks 3b, 18b and 18c: the cell most likely to be
+broken was the one three checks declined to examine. Nothing asserted the arm
+identity the data carries (3e), the schema version (3d), or the number of cells
+(21) — and since `run_campaign.sh` is seed-major, a campaign that died a third of
+the way in is arm-*unbalanced*, so a truncated dataset is biased rather than
+merely small, and it scored CLEAN. `UNRESOLVED` never reached the exit code, so a
+wrapper keying on `$?` read "nothing was tested" as "everything passed"; the gate
+now exits 3 for that case, kept distinct from 1 because off-arm cells legitimately
+have empty reconnect populations. An empty right-hand side in the identity file is
+not the literal `FILL_ME`, so a truncated declaration passed the refusal and then
+hard-failed every cell with `expected ` and nothing after it, pointing the
+operator at the data when the fault was in the declaration.
+
+The durable half of that commit is the calibration. Its fixtures were hand-written
+to match what the *gate* believed rather than what the *binary* writes, so the two
+defects above cancelled inside the harness and it reported ALL PASS while the gate
+was simultaneously unable to fail on a stale binary and unable to pass on any real
+cell. No number of additional negative cases would have caught this, because every
+one of them would have been written against the same wrong shape. The fixtures are
+now derived from the writers in `experiment_log.cpp`, and
+`audit_fixture_against_real_cell()` checks that mechanically — it compares the
+fixture's per-event key sets against a banked schema-3 cell and reports UNRESOLVED,
+never PASS, when no such cell is reachable. The fixture also builds *both* arms
+(check 3e's off branch and check 21 had no known-answer case at all), and its nav
+log carries a paired recovery episode so gate E's pairing arithmetic is exercised
+instead of UNRESOLVED. The identity-file assertion was inert in both halves — the
+gate prints `check 3b` but never the bare token `check 3`, and the return code was
+captured and discarded — and now asserts `rc`, with a wrong-sha negative beside it.
+30 cases, ALL PASS; against the real `g8smoke` cell the 34 spurious failures are
+gone and the two that remain are correct.
+
+This commit also reverts a "correction" to the `home_watchdog` comment that was
+itself wrong (see the closing paragraph of this section), and carries reader and
+harness fixes: `--min-schema` mutated `MIN_SCHEMA` globally so lowering the floor
+made every current file warn it was "newer than this reader" (false — the reader
+is not older, the floor is); `t_explore` had counts but no censoring denominator;
+the horizon comment claimed the run ends inside the horizon *by construction*,
+which it does not, since `$T` is only resampled every `CLOCK_EVERY_S`; and the
+`done_action` probe required double quotes, so valid unquoted YAML recorded
+`=missing`. The drain-truncated case is recorded as an additive manifest key
+`done_drain_complete` rather than a third `run_end_reason`, which `gate_g8.py`,
+`modes_compare.py` and `reconnect_value.py` all enumerate exhaustively and would
+have silently dropped.
+
 **Identity of the generation.**
 
 | field | value |
 | --- | --- |
-| `explo_planner` | `322b6fc` (clean; baked `EXPLO_PLANNER_GIT_REV` matches HEAD) |
+| `explo_planner` | `a005440` (clean; baked `EXPLO_PLANNER_GIT_REV` matches HEAD) |
 | `simple_nav_3d` | `c9f83a7` |
 | `scovox` | `078d3f7` |
-| planner binary sha256 (first 16) | `cf1f4f299fedf67c` |
+| planner binary sha256 (first 16) | `4579462e91d0e81b` |
 | `colcon test` | 248 tests, 0 errors, 0 failures, 0 skipped |
 | event-log schema | 3 |
 
 `EXPLO_PLANNER_GIT_REV` is computed at CMake *configure* time, so any build that
 produces cells must pass `--cmake-force-configure` and then be verified with
-`strings install/explo_planner/lib/explo_planner/explo_planner_node`. Two interim
+`strings install/explo_planner/lib/explo_planner/explo_planner_node`. Three interim
 identities were measured during the generation and are superseded, recorded here
-only so a stray note quoting them can be placed: `1966069` /
-`03f9625b2414be48`, and `3545fb8` / `625b584ffa28a0b7`.
+only so a stray note quoting them can be placed: `1966069` / `03f9625b2414be48`,
+`3545fb8` / `625b584ffa28a0b7`, and `322b6fc` / `cf1f4f299fedf67c`. None of them
+produced a cell that will be analysed. That last pair was written into
+`g8r1.identity.txt` before round 4 and had to be re-frozen after the rebuild: a
+generation declared before its review is finished will name a binary that no
+longer exists, and the identity file is the one artefact where that goes unnoticed
+until every cell fails check 3.
 
 **The gate identity has no fixed point.** The two build-dependent fields could not
 be literals in `gate_g8.py`, and not for want of filling them in. The manifest's
@@ -14430,8 +14491,8 @@ property that matters is preserved: the gate is told what to expect by something
 it does not compute, and it still refuses to score when nothing is declared, now
 naming which keys are missing and where to put them. For `g8r1` that file is
 `/home/kalhan/hmr_campaign/g8r1.identity.txt`, written before the first cell ran,
-declaring `git_explo_planner=322b6fc` and
-`sha256_explo_planner_node=cf1f4f299fedf67c`.
+declaring `git_explo_planner=a005440` and
+`sha256_explo_planner_node=4579462e91d0e81b`.
 
 **Added gate checks (18b, 18c).** 18b: the declared identity must be present and
 must match. Verified non-vacuous out of band — a wrong rev in the file is caught
@@ -14454,6 +14515,18 @@ calibrated is byte-for-byte what will score the campaign. A case for the identit
 *file* path was added specifically: the env path is the harness's own shortcut,
 the file path is what the campaign will use, and a branch that only ever runs in
 production is a branch nobody has tested.
+
+That case was, at first, one of the inert ones. Its assertion was `"REFUSING TO
+RUN" not in out and "check 3" not in out`, and the gate never emits the bare token
+`check 3` — it emits `check 3b`, `check 3e` — while `p.returncode` was captured and
+then not used. Both halves were unfalsifiable, so the branch the campaign actually
+uses to learn which binary it is gating had a test that could only pass. It now
+asserts the return code, with a wrong-sha negative and an empty-RHS negative
+beside it. This is the same failure as the six in
+[[checks-that-stopped-checking]], committed in the act of writing the file whose
+purpose is to catch it — which is the strongest available argument that
+known-answer calibration has to be adversarial about its own assertions, not only
+about the code under test.
 
 **How censored `t_mission` is analysed — pre-registered here, before `g8r1`.**
 Two endpoints are declared: `t_explore` (both robots' distributed dscovox unknown
@@ -14488,16 +14561,39 @@ stands, plus generation 7's field fix. Arms remain exactly two — `off` and
 experiments rule; the coast is not a third arm and is not separately estimated in
 this campaign.
 
-**Two commit messages in this generation state figures that do not reproduce.**
-They are recorded here rather than corrected by rewriting history. `3d4306c`'s
-body says the watchdog `metric_m` stood "4.1x to 162x" above the firing delta
-"on the seven banked g6pilot fires". Direct re-measurement: seven fires exist, but
-only **two** of them log a delta at all — the other five are retrace-mode fires,
-which the writer omits the fields on. The two ratios are 4.11x and ~123x, and the
-second is only bounded to 105.5x–147.7x by the 2-dp rounding of its source. The
-case for logging the field was therefore made on two data points, which is still
-a case, but not the one the commit message describes. `1966069`'s body inherits
-the same range. The in-tree comments in `experiment_log.hpp` and
-`explo_planner_node.cpp` were corrected to the measured values in `3545fb8`; the
-commit bodies were not, because rewriting them would change the very hashes this
-section pins.
+**A correction this section previously got wrong, in the other direction.** The
+first version of §32.14 claimed that `3d4306c`'s "the watchdog `metric_m` stood
+4.1x to 162x above the firing delta on the seven banked g6pilot fires" did not
+reproduce, and that only two fires logged a delta with ratios 4.11x and ~123x.
+That claim was itself wrong, and it had already been pinned into the comments in
+`experiment_log.hpp` and `explo_planner_node.cpp`. The measurement, redone over
+the whole bank:
+
+| cell / robot | mode | `metric_m` | logged delta | ratio |
+| --- | --- | --- | --- | --- |
+| `g6pilot_hybrid_seed103` / bestla | direct | 3.660852 | 0.89 m | 4.11x |
+| `g6pilot_hybrid_seed103` / bestla | direct | 3.691460 | −0.03 m | 123.05x |
+| `g6pilot_off_seed102` / atlas | direct | 38.879211 | 0.24 m | 161.997x |
+| 4 further fires | retrace | — | none logged | — |
+
+Seven approach fires, of which **three** log a delta and four do not — the delta
+is printed only by the direct-mode fires, and the retrace-mode ones print "fired
+in retrace mode" instead. `38.879211 / 0.24 = 161.997`, so **162x reproduces to
+within 0.002x** and the original commit body's range was correct. Only the *n* was
+loose: "over the seven fires" describes a range computed from three of them. The
+2-dp printing of the deltas bounds the two large ratios to 105.5x–147.7x and
+158.7x–165.4x respectively; only the 4.11x is tight.
+
+The mechanism of the error is worth recording, because it is a sampling mistake
+and not an arithmetic one. Six of the seven fires sit in a single robot-run,
+`g6pilot_hybrid_seed103/bestla`; the seventh is the only fire in the **off** arm,
+and it is both the largest `metric_m` in the bank and the one that produces the
+162x. A measurement taken over the cells where the events are dense loses it
+without any signal that something was dropped. The arm not under study still has
+rows in it.
+
+The in-tree comments have been corrected back, and now carry both wrong versions
+rather than only the current answer, so that a future reader can see the figure
+has moved twice. The commit bodies of `3d4306c` and `1966069` are left alone: they
+were right about the range, loose about the n, and rewriting them would change the
+very hashes this section pins.
