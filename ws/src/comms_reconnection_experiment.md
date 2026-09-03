@@ -14981,14 +14981,29 @@ a known-answer case" when two of the three had only been observed to *pass*.
    rewritten after its calibration harness was written: substring matching on
    `$EXTRA_ENV` misread neighbouring variable names, the threshold comparison
    parsed the key rather than the value, and the treated-arm test ignored
-   `--cells`. `sim/campaign_guard_calib.sh` now holds 32 known-answer cases and
-   runs them through a new `--dry-run` flag, added because the only previous way
-   to check that a *legitimate* campaign was not refused was to let it start —
-   which orphaned six sim processes the first time it was tried. That count is
-   **emitted by the harness**, not counted by hand into this paragraph: every
-   assertion increments a counter and the final line prints
-   `ALL PASS (N known-answer cases)`. It is written that way because the
-   hand-maintained number drifted twice.
+   `--cells`. `sim/campaign_guard_calib.sh` runs its cases through a `--dry-run`
+   flag, added because the only previous way to check that a *legitimate*
+   campaign was not refused was to let it start — which orphaned six sim
+   processes the first time it was tried. The case count is **emitted by the
+   harness**, not carried in this paragraph: every assertion increments a
+   counter and the final line prints `ALL PASS (N known-answer cases)`. It is
+   written that way because the hand-maintained number drifted twice — and then
+   drifted a third time here, sitting at "32" while the harness had grown to
+   well over a hundred, which is why no figure appears in this sentence now.
+
+   The harness has since outgrown the link veto it was written for. It also
+   holds the known-answer cases for the **resume guard** — the check that
+   decides whether a directory already holding a finished cell counts as
+   "already complete" or as a different experiment wearing the same name. That
+   guard grew from one compared key to seventeen with no calibration at all,
+   and its failure mode is silent: the campaign prints SKIP, the matrix fills,
+   and two configurations end up pooled under one tag. Both directions are
+   asserted, because a guard that always aborts teaches the operator to reach
+   for a fresh `--tag` every time and stops being read. Nothing launches — the
+   guard sits below the point where `--dry-run` exits, so the cases set
+   `MIN_FREE_MB` absurdly high, which trips the disk guard immediately after
+   the resume guard and gives "the guard wrongly passed this cell through" its
+   own distinguishable outcome instead of a 3000 s gazebo run.
 
    The census assertion is a **delta**, not a zero. An absolute zero is not
    available — this box legitimately runs other processes matching the census
