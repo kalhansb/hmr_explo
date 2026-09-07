@@ -22,15 +22,15 @@
 # use_planning_map: false puts the planner in its straight-line fallback
 # (Euclidean candidate costs, no 2D reachability/free-cell filter) — obstacle
 # rejection happens against the 3D map instead (candidate_occ_thresh + ground
-# snapping). See scovox/config/exploration_fused_bag.yaml header.
+# snapping). See explo_planner/explo_planner/config/exploration_fused_bag.yaml header.
 #
 # Per-node param sets are versioned in the submodules (this script carries only
 # the wiring, extrinsics, and env-knob overrides):
 #   hmr_localisation/config/gt_ouster_ndt_tree_fused.yaml       NDT (launch args + extrinsics doc'd in its header)
 #   scovox/config/scovox_fused_lidar_rgbd.yaml                  fused mapping node (KERNEL_L/CARVE_BAND override it)
 #   scovox/src/seg_pipeline/config/seg_fused_experiment.yaml    seg node (MODEL overrides it)
-#   scovox/config/exploration_fused_bag.yaml                    EIG planner (read live via the /scovox mount)
-#   scovox/config/explo_experiment.rviz                         RViz layout (read live via the /scovox mount)
+#   explo_planner/explo_planner/config/exploration_fused_bag.yaml  EIG planner (synced into the overlay each run)
+#   explo_planner/explo_planner/rviz/explo_experiment.rviz      RViz layout (synced into the overlay each run)
 #
 # Containers / roles (one DDS graph: host net + ipc host + ROS_DOMAIN_ID=0):
 #   hmr_loc (svc ros)   : EKF (odom->base_link) + NDT (map->odom, loads gt_map_us050)
@@ -39,7 +39,7 @@
 #   scovox  (svc scovox): fused scovox_mapping_node + explo_planner (built into a
 #                         /tmp/ovl overlay ws on first run; EXPLO_REBUILD=1 forces
 #                         a re-copy + rebuild after host edits to explo_planner)
-#                         + RViz (scovox/config/explo_experiment.rviz)
+#                         + RViz (explo_planner/.../rviz/explo_experiment.rviz)
 #
 # explo_planner is NOT mounted into any container: it is tar-streamed into the
 # scovox container and colcon-built there as an overlay of /scovox/install
@@ -117,6 +117,7 @@ fi
 #    The repo is tar-streamed in (docker-cp-into-existing-dir nests silently)
 #    and built against /scovox/install (scovox_core + scovox_msgs underlay).
 PLANNER_BIN=/tmp/ovl/install/explo_planner/lib/explo_planner/explo_planner_node
+OVL_SHARE=/tmp/ovl/install/explo_planner/share/explo_planner
 if [ -n "$EXPLO_REBUILD" ] || ! dc_scovox exec -T scovox bash -c "test -x $PLANNER_BIN"; then
   echo "[orch] building explo_planner overlay in scovox (first run or EXPLO_REBUILD=1; ~20 s)…"
   tar --exclude=.git --exclude=build --exclude=install --exclude=log \
@@ -131,6 +132,14 @@ if [ -n "$EXPLO_REBUILD" ] || ! dc_scovox exec -T scovox bash -c "test -x $PLANN
 else
   echo "[orch] explo_planner overlay binary present — skipping build (EXPLO_REBUILD=1 to force)."
 fi
+
+# Params + RViz layouts live in the explo_planner repo and reach the container
+# only via install(DIRECTORY config launch rviz ...) in its CMakeLists. The build
+# above is SKIPPED whenever the binary already exists, so an edited or newly
+# added config would otherwise never arrive. Re-sync unconditionally: a few kB
+# of tar, and it turns parameter tuning into edit-and-rerun with no rebuild.
+tar -C "$HERE/explo_planner/explo_planner" -cf - config rviz | \
+  dc_scovox exec -T scovox bash -c "mkdir -p $OVL_SHARE && tar -C $OVL_SHARE -xf -"
 
 # kill any stray bag play left over from manual probing (the [r] trick avoids the
 # shell SIGTERMing itself — see run_seg_experiment.sh).
@@ -206,23 +215,23 @@ dc_scovox exec -d scovox bash -lc '
   source /opt/ros/jazzy/setup.bash; source /scovox/install/setup.bash
   source /tmp/ovl/install/setup.bash
   exec ros2 run explo_planner explo_planner_node --ros-args \
-    --params-file /scovox/config/exploration_fused_bag.yaml > /tmp/explo.log 2>&1
+    --params-file /tmp/ovl/install/explo_planner/share/explo_planner/config/exploration_fused_bag.yaml > /tmp/explo.log 2>&1
 '
 
 # 3c) RViz inside the scovox container (candidates + selected goal + semantic
-#     cloud; config scovox/config/explo_experiment.rviz, read live via the
-#     /scovox mount). NOTE: the planner gates marker publishing on subscriber
+#     cloud; config explo_planner/explo_planner/rviz/explo_experiment.rviz,
+#     synced into the overlay by the sync step above). NOTE: the planner gates marker publishing on subscriber
 #     count, so without RViz (RVIZ=0) /explo_planner/candidates stays silent —
 #     use the log + CSV instead.
 if [ -n "$RVIZ" ]; then
-  echo "[orch] launching RViz inside the scovox container (config: scovox/config/explo_experiment.rviz)…"
+  echo "[orch] launching RViz inside the scovox container (config: explo_planner rviz/explo_experiment.rviz)…"
   GLENV='export __NV_PRIME_RENDER_OFFLOAD=1; export __GLX_VENDOR_LIBRARY_NAME=nvidia'
   [ "${SOFTGL:-0}" = "1" ] && GLENV='export LIBGL_ALWAYS_SOFTWARE=1; unset __GLX_VENDOR_LIBRARY_NAME __NV_PRIME_RENDER_OFFLOAD'
   dc_scovox exec -d scovox bash -lc "
     source /opt/ros/jazzy/setup.bash; source /scovox/install/setup.bash
     export DISPLAY=\"\${DISPLAY:-:1}\"
     $GLENV
-    exec rviz2 -d /scovox/config/explo_experiment.rviz --ros-args -p use_sim_time:=true > /tmp/rviz.log 2>&1
+    exec rviz2 -d /tmp/ovl/install/explo_planner/share/explo_planner/rviz/explo_experiment.rviz --ros-args -p use_sim_time:=true > /tmp/rviz.log 2>&1
   "
 fi
 
