@@ -4,6 +4,16 @@ Orchestration workspace for the HMR autonomous-exploration localisation experime
 **GLIM** LiDAR-IMU SLAM + **SCovox** occupancy mapping (and **explo_planner**), run over
 recorded Ouster/IMU bags in per-repo Docker containers that share one ROS 2 DDS graph.
 
+## Results
+
+| document | what |
+|---|---|
+| [`TS1B_TEAM_SIZE_RESULTS.md`](TS1B_TEAM_SIZE_RESULTS.md) | **ts1b team-size series** (120 cells, N=2/3/4 × 4 arms × 10 seeds, completed 2026-09-08) — the first N>2 data in the project. Makespan, connectivity, censoring, and the order-statistic correction that changes the sign of the naive read. A top-up to 240 cells (seeds 11–20) is in flight |
+
+Cross-campaign synthesis over all 1271 cells lives outside this repo, in
+`~/hmr_campaign/CAMPAIGN_FINDINGS.md`, alongside the per-cell data the results
+document analyses.
+
 ## Layout
 
 | path | what |
