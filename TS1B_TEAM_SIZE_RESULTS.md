@@ -268,6 +268,16 @@ pooled "regrouping arms" near-miss exists only because hybrid drags it. The
 variance belongs to hybrid specifically, not to regrouping — and hybrid is a
 compound arm, so this does not identify which component is responsible.
 
+**Post-hoc, added 2026-09-09:** the residual-SD figures above pool the rungs. A
+per-rung Brown-Forsythe of hybrid against `off`
+(`analysis/ts1b/ts1b_finish.py contrasts --seeds base`) shows the spread gap is
+not flat — it is 1.28× at N=2, 2.19× at N=3, and 2.52× at N=4 (p = 0.006,
+exact), against a rung-pooled 1.44×. Pooling charges an arm's between-rung
+location trend to its spread, and `off` has a strong rung trend where hybrid has
+none, so the pooled number is the *weaker* read rather than the summary. Treat
+the N=4 row as a lead, not a result: it is one of nine per-rung spread rows, so
+Bonferroni puts it at 0.054, and it is unregistered.
+
 ### Endpoint map divergence — **half of it was an artifact of my own statistic**
 
 `map_agreement_n.py` reports the **max over pairs**, and a team has
