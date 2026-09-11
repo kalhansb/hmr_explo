@@ -34,7 +34,7 @@ THE FOUR RULES IT ENCODES
        significant result manufactured out of missing data.
 
 WHAT IT WILL NOT DO
-    It never writes ts1b_cells.csv. That file is the frozen 120-cell base
+    It never writes ts1b_cells.csv. That file is the ts1b_cells.csv
     artifact the results document cites; tools/ts1b_cells.py owns it. This
     script is read-only against the campaign tree.
 
@@ -608,7 +608,7 @@ def selftest(root=DEFAULT_ROOT):
     ck("proportional mixtures match", same_mixture((20, 15, 10), (4, 3, 2)), True)
     ck("lopsided mixtures do not", same_mixture((40, 40, 40), (40, 21, 0)), False)
 
-    print("\n6. endpoint resolver reproduces the frozen base artifact")
+    print("\n6. endpoint resolver reproduces ts1b_cells.csv, at whatever n it holds")
     frozen = os.path.join(root, "ts1_analysis", "ts1b_cells.csv")
     if not os.path.exists(frozen):
         print(f"  [SKIP] {frozen} not present -- cannot verify the resolver")
@@ -616,10 +616,30 @@ def selftest(root=DEFAULT_ROOT):
     else:
         with open(frozen) as fh:
             want = {r["cell"]: r for r in csv.DictReader(fh)}
-        got = {c["cell"]: c for c in load_cells(root, seeds="base", verbose=False)}
-        ck("   same cell count as the frozen CSV", len(got), len(want))
+        # Compare on whatever seed set the CSV actually covers, not a hard-coded
+        # "base". This used to pass seeds="base" because 120 cells were all that
+        # existed; after the top-up rebuilt the CSV at 240 it failed on 120
+        # spurious "missing" rows. The point of this check is that two
+        # independent resolvers agree -- that holds at any n, and pinning it to
+        # a sample size turns a conformance check into a sample-size check.
+        got = {c["cell"]: c for c in load_cells(root, seeds="all", verbose=False)}
+        # The two resolvers diverge BY DESIGN on a latch-less cell: this one
+        # drops it, tools/ts1b_cells.py emits a NaN row (see load_cells'
+        # docstring). Assert that divergence instead of describing it -- a
+        # documented difference that nothing tests is indistinguishable from a
+        # resolver that quietly started dropping good cells.
+        latchless = {n for n, w in want.items()
+                     if not math.isfinite(float(w["t_explore"]))}
+        expected = set(want) - latchless
+        ck("   resolver covers every latch-bearing CSV cell",
+           len(expected & set(got)), len(expected))
+        ck("   resolver drops every latch-less CSV cell (documented divergence)",
+           len(latchless & set(got)), 0)
+        print(f"         (CSV holds {len(want)} cells, {len(latchless)} latch-less; "
+              f"resolver produced {len(got)})")
         bad = []
-        for name, w in want.items():
+        for name in sorted(expected):
+            w = want[name]
             g = got.get(name)
             if g is None:
                 bad.append(f"{name}: missing")
