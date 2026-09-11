@@ -35,12 +35,25 @@ spread difference on `t_explore`:
     n3            -60.5 s           0.330      0.776     288.2 / 261.2
     n4            -43.3 s           0.507      0.532     298.3 / 272.5
 
-The deltas share a sign — the top-up half is 4–7% faster — which is the size of
-the box's documented session-to-session drift. It is not resolvable at this n and
-no adjustment is applied. A pooled ALL row is deliberately **not** reported: the
-rung mixtures differ (40/40/40 vs 40/40/38, from the two latch-less cells below),
-and an ALL row over unequal mixtures would report a rung-composition difference
-as session drift.
+The deltas share a sign — the top-up half is 4.7–6.3% faster. A stratified
+permutation with the session label shuffled **within rung** (so the unequal rung
+mixture cannot leak in) pools them at **−52.0 s, p = 0.174**; all three sharing a
+sign has probability 0.25 under a pure null. **That is not resolvable and no
+adjustment is applied.**
+
+Resist naming a cause for it. It is tempting to write "session drift", but the
+only measurement of that on this box is a single re-run that came out 1.082×
+different *and also changed binary*, which is an upper bound on drift, not an
+estimate of it; an earlier ±25% drift band was retracted as mis-labelled
+per-cell noise. Worse, the two halves ran **different seeds** (11–20 against
+1–10), so this delta confounds session with which worlds were drawn — a paired
+re-run of the same seeds would separate them and nothing here does. The complete
+honest statement is: three underpowered contrasts, none significant, direction
+shared, cause unidentified.
+
+A pooled ALL row is deliberately **not** reported: the rung mixtures differ
+(40/40/40 vs 40/40/38, from the two latch-less cells below), and an ALL row over
+unequal mixtures would report a rung-composition difference as a session effect.
 
 Per-cell data: `~/hmr_campaign/ts1_analysis/ts1b_cells.csv` (one row per cell, all endpoints + link
 metrics). Radio regime is the 2026-09 one — 70 dB trunk attenuation, 30 m
@@ -522,12 +535,14 @@ agreeing to 11.1 s.
   here was checked on the individual gate lines instead.
 - **The three-way interaction is not powered and is not claimed.** Neither is
   redundancy, which needs ~4451 cells and is not an endpoint.
-- **Two sessions, and the box drifts.** Seeds 1–10 and 11–20 ran weeks apart. The
-  top-up half finishes 43–60 s faster on every rung, same sign throughout, and no
-  rung reaches significance on either centre or spread — consistent with the
-  documented ~8% session drift and unresolvable at this n. The design protects
-  every *within-session* contrast because each invocation is seed-major across all
-  four arms; it is the absolute levels that carry the drift.
+- **Two sessions, and an unexplained 5% shift between them.** Seeds 1–10 and
+  11–20 ran weeks apart; the top-up half finishes 43–60 s faster on every rung,
+  pooled −52.0 s at p = 0.174. It is *not* attributed to session drift — see the
+  Status section for why that label is not supported. **Why it does not
+  contaminate anything here:** each invocation is seed-major across all four
+  arms, so every arm contrast is within-session by construction and a common
+  shift cancels out of it. What carries the shift is the absolute levels and any
+  comparison against another campaign.
 - **`hmr_explo` is not stamp-clean across the top-up.** The 240 cells carry four
   `hmr_explo` stamps (f05cdfe ×58, 6217bf7 ×57, 7eee1ce-dirty.a6ec2f5e ×4,
   6217bf7-dirty.39d61b78 ×1 over the top-up half). `explo_planner` — the binary
