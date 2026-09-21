@@ -48,28 +48,66 @@ def find_bag(cell):
 
 
 def read_t0(cell, override=None):
-    """T0 in SIM seconds.
+    """T0 in SIM seconds: the origin every horizon is measured from.
 
-    The runner prints `sim t0=<n>` to stdout and does NOT put it in
-    run_manifest.txt, so the authoritative record is the per-cell console log
-    the campaign driver captures beside the cell dir. There is no reconstructing
-    it from the manifest: `run_end_wall_sec_since_t0` is wall, not sim. The
-    scheduler's "origin latched at t=" line is close but not equal (the runner
-    sleeps ~8 s between the latch and reading T0), so it is not used as a
-    silent fallback -- an 8 s slip would quietly mis-register every horizon.
-    Cells without a console log must pass --t0.
+    Taken from the planner's own `run_start` event (`t0_sim_sec`), which is the
+    instant the mission clock starts. That is the right origin rather than
+    merely a convenient one: the target scheduler latches its release schedule
+    at the same instant -- `sched.log` reads "Schedule origin latched at
+    t=24.12s" for a cell whose run_start says 24.12 -- so horizons registered
+    here are on the same clock as the treatment they are meant to measure.
+
+    The runner also prints `sim t0=<n>` to stdout, but it reads that value a few
+    seconds AFTER the latch (29 against 24.12 on the same cell) and rounds it,
+    so it is used only as a cross-check. A disagreement beyond a couple of
+    seconds is reported rather than resolved silently, because a mis-registered
+    origin shifts every horizon by the same amount and nothing downstream would
+    reveal it.
     """
     if override is not None:
         return float(override), "--t0"
+
+    t0 = src = None
+    for robot in ROBOTS:
+        ev = os.path.join(cell, f"{robot}.events.jsonl")
+        if not os.path.exists(ev):
+            continue
+        with open(ev, errors="replace") as f:
+            for line in f:
+                try:
+                    e = json.loads(line)
+                except ValueError:
+                    continue
+                if e.get("event") == "run_start" and e.get("t0_sim_sec") is not None:
+                    t0, src = float(e["t0_sim_sec"]), ev
+                    break
+        if t0 is not None:
+            break
+
+    console = None
     name = os.path.basename(os.path.normpath(cell))
     for cand in (os.path.join(cell, "sim.log"),
                  os.path.join(os.path.dirname(os.path.normpath(cell)), name + ".console.log")):
-        if not os.path.exists(cand):
-            continue
-        m = re.search(r"sim t0=(\d+(?:\.\d+)?)", open(cand, errors="replace").read())
-        if m:
-            return float(m.group(1)), cand
-    sys.exit("could not determine sim t0 (no `sim t0=` line found); pass --t0")
+        if os.path.exists(cand):
+            m = re.search(r"sim t0=(\d+(?:\.\d+)?)", open(cand, errors="replace").read())
+            if m:
+                console = float(m.group(1))
+                break
+
+    if t0 is None:
+        if console is None:
+            sys.exit("could not determine sim t0 (no run_start event, no `sim t0=` "
+                     "line); pass --t0")
+        print(f"[scorer] WARNING: no run_start event; falling back to the console "
+              f"`sim t0={console}`, which is read a few seconds after the true "
+              f"origin", flush=True)
+        return console, "console (fallback)"
+
+    if console is not None and abs(console - t0) > 8.0:
+        print(f"[scorer] WARNING: run_start t0={t0:.2f}s and console t0={console:.0f}s "
+              f"differ by {abs(console - t0):.1f}s, more than the runner's usual "
+              f"read lag -- check this cell before trusting its horizons", flush=True)
+    return t0, src
 
 
 # --- the oracle ------------------------------------------------------------
