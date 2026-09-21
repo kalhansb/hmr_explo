@@ -28,14 +28,21 @@
 # Override with LOC_CORES/SCOVOX_CORES/DSCOVOX_CORES/PLANNER_CORES/PLAYER_CORES.
 #
 # The mapping config is the VERIFIED field set (scovox bunker_jetson.yaml:
-# res 0.20, full-ray carve, deskew on @ ref_frac 0.5, max_range 20) with only
-# what the dscovox path needs on top: mode:=rolling (makes scovox_bin exist)
-# and share_rate_hz:=2.0 (coalesced binary deltas, dscovox_single_robot.launch
-# reference values). The underlying voxel grid is fully persistent in both
-# modes, so mapping cost stays comparable to the persistent-mode benchmarks.
+# res 0.20, full-ray carve, deskew on @ ref_frac 0.5, max_range 20). It now
+# ships mode: rolling and share_rate_hz: 2.0 itself, so the two -p overrides
+# below are belt-and-braces rather than load-bearing — they are kept so the
+# run is pinned even if the config drifts. mode=rolling is what makes
+# scovox_bin exist for dscovox; 2.0 Hz coalesces the binary deltas
+# (dscovox_single_robot.launch reference values). The underlying voxel grid is
+# fully persistent in both modes, so mapping cost stays comparable to the
+# persistent-mode benchmarks.
 set -e
 LWS=/home/jetsondevkit/jetbot-slam/hmr_localisation
-SCOVOX_WS=/home/jetsondevkit/scovox_new_experiments/scovox
+# The scovox submodule of hmr_explo, built into ws/install — the same tree the
+# planner overlay is built from (ovl_field/src/explo_planner symlinks into
+# ws/src/explo_planner). One source tree, so a scovox change is picked up here
+# by rebuilding ws, with no second clone to keep in sync.
+SCOVOX_WS=/home/jetsondevkit/hmr_explo/ws
 OVL=/home/jetsondevkit/hmr_explo/ovl_field
 source /opt/ros/humble/setup.bash
 source "$LWS/install/setup.bash"
