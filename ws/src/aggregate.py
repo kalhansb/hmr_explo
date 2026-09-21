@@ -61,6 +61,12 @@ CONFORMANCE_EXEMPT = (
     # reason that concerns the configuration.
     "finished_utc", "started_utc", "done_drain", "run_duration",
 )
+# The achievable ROI unknown fraction in this world (shared_params.yaml calls
+# it ~0.486 unpinned). A horizon where BOTH arms sit within FLOOR_TOL of it has
+# no coverage left to lose, so the H2 budget is met there by arithmetic rather
+# than by evidence -- see `h2_cost`.
+EXPLORE_FLOOR = 0.486
+FLOOR_TOL = 0.03
 # §5.3: the M1 estimator's own worst-case error on synthetic bark. A difference
 # smaller than this is not a difference, which is what makes it the threshold
 # for M4's disagreement trigger (§6.4).
@@ -582,8 +588,18 @@ def h2_cost(cells, horizon):
     off = [x for x in off if x is not None]
     # Higher unknown = worse, so the one-sided alternative is on > off.
     p, floor = permutation_p(on, off, greater=True)
+    on_m, off_m = mean(on), mean(off)
     d_lo, d_hi = bootstrap_ci_diff(on, off)
-    return {"horizon": horizon, "on_mean": mean(on), "off_mean": mean(off),
+    # A horizon at which both arms have already hit the world's floor cannot
+    # show a cost even if one exists: there is no unknown volume left for
+    # exploitation to have denied the explorer. Reading "within budget" off
+    # such a horizon would be reporting the world's geometry as a result about
+    # the treatment. Flagged so the verdict is read only where it means
+    # something -- in this world, the horizons before ~1500 s.
+    at_floor = (on_m is not None and off_m is not None
+                and max(on_m, off_m) <= EXPLORE_FLOOR + FLOOR_TOL)
+    return {"horizon": horizon, "at_floor": at_floor,
+            "on_mean": mean(on), "off_mean": mean(off),
             "delta": (mean(on) - mean(off)) if on and off else None,
             "on_ci": bootstrap_ci(on), "off_ci": bootstrap_ci(off),
             "delta_ci": (d_lo, d_hi), "budget": H2_UNK_BUDGET,
@@ -823,9 +839,19 @@ def main():
             continue
         print(f"  {h:<9} {fmt(r['on_mean']):>8} {fmt(r['off_mean']):>8} "
               f"{fmt(r['delta']):>8} {ci(r['delta_ci']):>20} "
-              f"{fmt(r['p'], 4) if r['p'] is not None else 'n/a':>8}")
+              f"{fmt(r['p'], 4) if r['p'] is not None else 'n/a':>8}"
+              f"{'   AT FLOOR' if r['at_floor'] else ''}")
     rp = h2_cost(cells, PRIMARY_H)
     print(f"\n  budget {H2_UNK_BUDGET} on the delta at t={PRIMARY_H}s -> {rp['verdict']}")
+    if rp["at_floor"]:
+        print(f"     BUT BOTH ARMS ARE AT THE FLOOR ({EXPLORE_FLOOR}) HERE, so this"
+              "\n     verdict is arithmetic, not evidence: there is no unknown volume"
+              "\n     left for exploitation to have denied the explorer. Read the cost"
+              "\n     off the horizons above that are NOT marked AT FLOOR.")
+    live = [h for h in HORIZON_ORDER if h != "end"
+            and not h2_cost(cells, h)["at_floor"]]
+    if live and rp["on_mean"] is not None and rp["off_mean"] is not None:
+        print(f"     horizons that can still show a cost: {', '.join(live)}")
     print("     The verdict is the interval against the budget, not the p value"
           "\n     (§6.4): a non-significant difference at n=5 an arm is evidence"
           "\n     of five cells, not of a small cost.")

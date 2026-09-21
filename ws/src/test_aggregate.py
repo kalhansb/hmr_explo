@@ -301,4 +301,40 @@ live2["manifest"]["finished_utc"] = "2026-09-21T05:08:44Z"
 r2 = {x["cell"]: x for x in A.conformance([ref, live, live2], ref)}
 check_true("a timestamp does not break conformance", r2["off_rep4"]["conforms"])
 
+
+# --- a floor-vs-floor comparison is not evidence of no cost ----------------
+
+def fcell(name, arm, unk):
+    c = cell(name, arm, [0.5] * 3, [0.5] * 2,
+             planner={"r": [{"sim_time_sec": "1500", "unknown_fraction": str(unk)},
+                            {"sim_time_sec": "1600", "unknown_fraction": str(unk)}]})
+    c["manifest"] = {"done_unknown_fraction": "0.0"}
+    return c
+
+
+# Both arms pinned at the world's floor: the delta is zero and inside the
+# budget, but only because there is nothing left to lose. It must be flagged.
+at_floor = ([fcell(f"on{i}", "on", 0.502) for i in range(5)] +
+            [fcell(f"off{i}", "off", 0.501) for i in range(5)])
+r = A.h2_cost(at_floor, A.PRIMARY_H)
+check_true("both arms at the floor is flagged", r["at_floor"])
+check_true("...even though the budget verdict itself says accept",
+           r["verdict"].startswith("ACCEPT"), r["verdict"])
+
+# The same arms well above the floor: a real comparison, not flagged.
+live = ([fcell(f"on{i}", "on", 0.65) for i in range(5)] +
+        [fcell(f"off{i}", "off", 0.64) for i in range(5)])
+check_true("a horizon above the floor is not flagged",
+           not A.h2_cost(live, A.PRIMARY_H)["at_floor"])
+
+# One arm at the floor and one above it is a real difference, and the worse
+# arm is what decides: there IS coverage left that the treatment could explain.
+mixed = ([fcell(f"on{i}", "on", 0.60) for i in range(5)] +
+         [fcell(f"off{i}", "off", 0.50) for i in range(5)])
+rm = A.h2_cost(mixed, A.PRIMARY_H)
+check_true("one arm above the floor still counts as a live horizon",
+           not rm["at_floor"])
+check_true("and a 0.10 cost against a 0.03 budget is rejected",
+           rm["verdict"].startswith("REJECT"), rm["verdict"])
+
 print("SELF-TEST PASS")
