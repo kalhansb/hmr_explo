@@ -507,6 +507,23 @@ def gate_P2(cells):
             "primary": "M1" if m < P2_SAT_LIMIT else "M3"}
 
 
+def resolvable(sd_noise, budget, n_per_arm=5, z=1.96):
+    """Can a difference this small be told from zero at this n?
+
+    Half-width of the 95% CI on a difference of two arm means, each of
+    `n_per_arm` cells drawn from a population with SD `sd_noise`:
+    z * sd * sqrt(2/n). If that exceeds the budget, the budget sits inside the
+    noise and the H2 verdict can only come back UNDECIDED however the cells
+    fall -- which is worth knowing from the PILOT, before five treated cells
+    are spent measuring something the design cannot resolve.
+    """
+    if sd_noise is None:
+        return None
+    half = z * sd_noise * math.sqrt(2.0 / n_per_arm)
+    return {"ci_half_width": half, "budget": budget,
+            "resolvable": half <= budget}
+
+
 def gate_P3(cells):
     """The noise floor, from the exploit-off pilot."""
     tgt = [target_means(c, PRIMARY_H, "M1") for c in cells if c["arm"] == "off"]
@@ -519,16 +536,22 @@ def gate_P3(cells):
         unk.append(mean(v))
     s = sd(tgt)
     n = len([x for x in tgt if x is not None])
+    su = sd(unk)
+    # The unknown-fraction SD needs no scoring, so it is available from the
+    # pilot's CSVs alone, before any oracle merge has been run.
+    h2 = resolvable(su, H2_UNK_BUDGET)
+    out = {"sd_target_M1": s, "sd_control_M1": sd(ctl), "sd_unknown_1200": su,
+           "n_unknown": len([x for x in unk if x is not None]),
+           "h2_resolvable": h2, "n": n}
     if s is None:
-        return {"sd_target_M1": None, "sd_control_M1": sd(ctl),
-                "sd_unknown_1200": sd(unk), "n": n, "pass": None,
-                "action": None,
-                "note": f"UNDECIDED: {n} scored exploit-off cell(s); "
-                        "an SD needs at least 2"}
-    return {"sd_target_M1": s, "sd_control_M1": sd(ctl), "sd_unknown_1200": sd(unk),
-            "n": n, "pass": s <= P3_SD_LIMIT,
-            "action": None if s <= P3_SD_LIMIT
-                      else "extend both arms to 8 before the exploit-on cells (§6.2)"}
+        out.update({"pass": None, "action": None,
+                    "note": f"UNDECIDED: {n} scored exploit-off cell(s); "
+                            "an SD needs at least 2"})
+        return out
+    out.update({"pass": s <= P3_SD_LIMIT,
+                "action": None if s <= P3_SD_LIMIT
+                          else "extend both arms to 8 before the exploit-on cells (§6.2)"})
+    return out
 
 
 # ---------------------------------------------------------------- readouts
@@ -793,7 +816,18 @@ def main():
     if p3.get("note"):
         print(f"     {p3['note']}")
     print(f"     SD(control M1)={fmt(p3['sd_control_M1'])}  "
-          f"SD(unknown@1200s)={fmt(p3['sd_unknown_1200'])}")
+          f"SD(unknown@1200s)={fmt(p3['sd_unknown_1200'])} "
+          f"over n={p3['n_unknown']} off cells")
+    h2r = p3.get("h2_resolvable")
+    if h2r:
+        print(f"     H2 budget {h2r['budget']} vs the 95% CI half-width this "
+              f"noise implies\n     at n=5 an arm, {fmt(h2r['ci_half_width'])}: "
+              f"{'RESOLVABLE' if h2r['resolvable'] else 'NOT RESOLVABLE'}")
+        if not h2r["resolvable"]:
+            print("     The budget sits inside the replicate noise, so H2 can only"
+                  "\n     come back UNDECIDED however the cells fall. That is a"
+                  "\n     property of the design read off the PILOT, not a result;"
+                  "\n     report it as a limit on H2 rather than as no cost.")
     if p3["action"]:
         print(f"     ACTION: {p3['action']}")
 

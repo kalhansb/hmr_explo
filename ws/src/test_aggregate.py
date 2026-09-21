@@ -337,4 +337,18 @@ check_true("one arm above the floor still counts as a live horizon",
 check_true("and a 0.10 cost against a 0.03 budget is rejected",
            rm["verdict"].startswith("REJECT"), rm["verdict"])
 
+
+# --- can the H2 budget be told from zero at this n? ------------------------
+
+# Noise well under the budget: a 5v5 difference can resolve it.
+r = A.resolvable(0.010, 0.03)
+check_true("small noise makes the budget resolvable", r["resolvable"])
+# The pilot's own number: SD ~0.025 on unknown@1200 puts the CI half-width at
+# ~0.031, just past a 0.03 budget. This is the case that motivated the check.
+r = A.resolvable(0.025, 0.03)
+check("CI half-width at n=5", r["ci_half_width"], 1.96 * 0.025 * (2 / 5) ** 0.5, 1e-12)
+check_true("noise at the budget's scale makes it unresolvable",
+           not r["resolvable"])
+check("no SD gives no verdict", A.resolvable(None, 0.03), None)
+
 print("SELF-TEST PASS")
