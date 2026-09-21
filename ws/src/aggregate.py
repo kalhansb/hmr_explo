@@ -47,16 +47,26 @@ P1_MAKESPAN = (1300.0, 2100.0)
 # §7 gate O1: the two maps must agree to this.
 O1_TOL = 0.01
 # §5.4 H2 budgets, decided on a CI rather than a p-value (§6.4).
-H2_UNK_BUDGET = 0.03
-# The horizons at which H2's verdict is taken. Exploration saturates in this
-# world by ~1500 s (0.6467/0.5880/0.5602/0.5049/... at 600/900/1200/1500 s
-# against a floor near 0.486), so at the later horizons there is no unknown
-# volume left for exploitation to have denied the explorer and a pass is
-# arithmetic rather than evidence. The late horizons are still computed and
-# printed -- they are the evidence that saturation happened. See plan §6.5.
-H2_DECIDING_H = ("600", "900", "1200")
+#
+# RETIRED SCALE (plan §6.6). 0.03 was set as half the 0.55 - 0.4922 headroom
+# and §6.5's calibrated 0.031 came from the 3D SD; both are 2.5D column-coverage
+# numbers. Coverage is now the 2D planning map, where the same run ends at 0.061
+# unknown rather than 0.502, so neither number transfers. None means "not yet
+# re-derived": the readout refuses to print an H2 verdict rather than score the
+# 2D series against a 3D budget. Re-derive from the exploit-off arm alone,
+# before any treated cell is scored, and pin the value here.
+H2_UNK_BUDGET = None
+# The horizons at which H2's verdict is taken.
+#
+# On the retired 3D scale this was ("600","900","1200"), because the 3D measure
+# stopped moving at ~1500 s and a pass at a later horizon was arithmetic rather
+# than evidence. That saturation was an artifact of unobservable z-column
+# volume, NOT of exploration finishing (§6.6): on the 2D scale the same run is
+# still gaining map at 1500 s (0.078) and does not flatten until ~2400 s
+# (0.065 -> 0.061 by 3600 s). The deciding set widens accordingly.
+H2_DECIDING_H = ("600", "900", "1200", "1500", "1800")
 # The headline H2 verdict: the last horizon that still carries information.
-H2_HEADLINE_H = "1200"
+H2_HEADLINE_H = "1800"
 H2_DELAY_BUDGET = 900.0
 # §3: the manifest lines a campaign cell is ALLOWED to differ on. Everything
 # else must match the reference cell exactly, or the cell is not a member of
@@ -70,11 +80,25 @@ CONFORMANCE_EXEMPT = (
     # reason that concerns the configuration.
     "finished_utc", "started_utc", "done_drain", "run_duration",
 )
-# The achievable ROI unknown fraction in this world (shared_params.yaml calls
-# it ~0.486 unpinned). A horizon where BOTH arms sit within FLOOR_TOL of it has
-# no coverage left to lose, so the H2 budget is met there by arithmetic rather
-# than by evidence -- see `h2_cost`.
-EXPLORE_FLOOR = 0.486
+# The achievable ROI unknown fraction in this world. A horizon where BOTH arms
+# sit within FLOOR_TOL of it has no coverage left to lose, so the H2 budget is
+# met there by arithmetic rather than by evidence -- see `h2_cost`.
+#
+# C4 (2026-09-21): was 0.486, which was never a property of this world. It was
+# where the 3D COLUMN measure saturated, and that saturation is unobservable
+# z-column volume -- on off_rep1 the 3D fraction sticks at 0.502 from t=1500s
+# while the 2D map over the very same sensor data keeps falling to 0.061. On
+# the 2D scale 0.486 is above every horizon the campaign reaches, so leaving it
+# would mark EVERY horizon AT FLOOR and suppress the entire H2 table.
+#
+# The 2D floor is real but is ROI GEOMETRY, not sensing: of off_rep1's 3837
+# residual unknown cells, 3808 lie in blobs touching the ROI boundary and only
+# 29 are interior, and insetting the rim by 10 m leaves 8 unknown cells of
+# 40000. So it is near 0.06 -- but that is one cell, measured under the offline
+# two-mapper census rather than the production config, and pinning a constant
+# to it would repeat the error being corrected. It is derived from the
+# re-scored exploit-off arm, with the budget, and is None until then.
+EXPLORE_FLOOR = None
 FLOOR_TOL = 0.03
 # §5.3: the M1 estimator's own worst-case error on synthetic bark. A difference
 # smaller than this is not a difference, which is what makes it the threshold
@@ -180,9 +204,37 @@ def load_cell(cell):
         if os.path.exists(csvp):
             with open(csvp) as f:
                 out["planner"][robot] = list(csv.DictReader(f))
+    # C4: the per-step `unknown_fraction` in planner_<robot>.csv is the RETIRED
+    # 3D column measure -- it is what the planner computed while the cell ran,
+    # and it is an artifact (plan §6.6). coverage_2d.csv is the same cell
+    # re-scored off its own bagged scovox_bin streams under the 2D planning-map
+    # definition. When it exists it REPLACES the planner column; it is never
+    # merged with it, because the two are not the same quantity on the same
+    # scale.
+    cov = os.path.join(cell, "coverage_2d.csv")
+    if os.path.exists(cov):
+        with open(cov) as f:
+            out["cov2d"] = list(csv.DictReader(f))
+    else:
+        out["cov2d"] = None
     ev = os.path.join(cell, "atlas.events.jsonl")
     out["t0"] = clock_offset(ev)[1] if os.path.exists(ev) else None
     return out
+
+
+def unknown_series(c):
+    """The cell's ROI unknown-fraction series, on the 2D scale, or None.
+
+    One series per CELL, not per robot: the unknown fraction is read off the
+    FUSED team map, so both robots' planner rows carried the same number and
+    averaging them only ever averaged two copies of one quantity.
+
+    Returns None for a cell that has not been re-scored. Callers must report
+    that as missing rather than falling back to the planner column -- silently
+    substituting the 3D series is exactly the error §6.6 corrects, and it would
+    be invisible in the output.
+    """
+    return c.get("cov2d")
 
 
 # ------------------------------------------------------- derived quantities
@@ -330,6 +382,8 @@ def budget_verdict(lo, hi, budget):
     honest answer at this n and the one a non-significant p would have
     disguised as a pass.
     """
+    if budget is None:
+        return "NO VERDICT (H2's budget is not derived on the 2D scale yet)"
     if lo is None or hi is None:
         return "UNDECIDED (no interval)"
     if hi < budget:
@@ -476,18 +530,23 @@ def gate_P1(cells):
     unknown fraction stayed at or below the run's own done threshold for three
     steps -- together with whether it lands in the plan's band.
 
-    Expect it not to. In this world the criterion is met near 485 s, roughly a
-    third of the plan's lower bound, which says the band was calibrated on a
-    different configuration rather than that these runs went wrong. It is
-    reported, not silently widened.
+    The band was calibrated before the coverage measure changed, so read it as
+    provisional. On the 2D map 90 % of the ROI is known near t_sim 1300 in the
+    pilot cell -- just inside P1's 1300-2100 s band, where the retired 3D
+    criterion was met near 485 s, a third of the lower bound. If the band is
+    wrong it is reported as missed, not silently widened.
     """
     out = []
     for c in cells:
-        thresh = float(c["manifest"].get("done_unknown_fraction") or 0) or 0.64
-        times = [completion_time(rows, thresh) for rows in c["planner"].values()]
-        times = [t for t in times if t is not None]
-        mk = max(times) if len(times) == len(c["planner"]) and times else None
+        # 0.10 = 90 % of the ROI known on the 2D map (plan §6.6). The old 0.64
+        # default is a 3D column-coverage number; applied to a 2D series it is
+        # crossed in the first few minutes of every cell and makes every
+        # makespan meaningless. The manifest value still wins when present.
+        thresh = float(c["manifest"].get("done_unknown_fraction") or 0) or 0.10
+        rows = unknown_series(c)
+        mk = completion_time(rows, thresh) if rows else None
         out.append({"cell": c["name"], "makespan": mk, "threshold": thresh,
+                    "rescored": rows is not None,
                     "end_reason": c["run_end_reason"],
                     "in_band": mk is not None and P1_MAKESPAN[0] <= mk <= P1_MAKESPAN[1]})
     return out
@@ -529,6 +588,13 @@ def resolvable(sd_noise, budget, n_per_arm=5, z=1.96):
     if sd_noise is None:
         return None
     half = z * sd_noise * math.sqrt(2.0 / n_per_arm)
+    if budget is None:
+        # C4: the 3D budget was retired with the 3D coverage measure and the 2D
+        # one is not derived yet. The half-width is still worth reporting -- it
+        # is a property of the design, not of the budget -- but there is nothing
+        # to compare it against, and inventing one here would be the same error
+        # as carrying 0.03 across the scale change.
+        return {"ci_half_width": half, "budget": None, "resolvable": None}
     return {"ci_half_width": half, "budget": budget,
             "resolvable": half <= budget}
 
@@ -558,8 +624,8 @@ def gate_P3(cells):
     for c in cells:
         if c["arm"] != "off":
             continue
-        v = [series_at(rows, 1200.0, "unknown_fraction") for rows in c["planner"].values()]
-        unk.append(mean(v))
+        rows = unknown_series(c)
+        unk.append(series_at(rows, 1200.0, "unknown_fraction") if rows else None)
     s = sd(tgt)
     n = len([x for x in tgt if x is not None])
     su = sd(unk)
@@ -630,8 +696,10 @@ def h2_cost(cells, horizon, calibrated=None):
     reported beside it because the plan asks for it, derived as in `gate_P1`.
     """
     def unk(c):
-        return mean([series_at(rows, float(horizon), "unknown_fraction")
-                     for rows in c["planner"].values()]) if horizon != "end" else None
+        rows = unknown_series(c)
+        if rows is None or horizon == "end":
+            return None
+        return series_at(rows, float(horizon), "unknown_fraction")
     on = [unk(c) for c in cells if c["arm"] == "on" and c.get("include", True)]
     off = [unk(c) for c in cells if c["arm"] == "off"]
     on = [x for x in on if x is not None]
@@ -647,8 +715,11 @@ def h2_cost(cells, horizon, calibrated=None):
     # exploitation to have denied the explorer. Reading "within budget" off
     # such a horizon would be reporting the world's geometry as a result about
     # the treatment. Flagged so the verdict is read only where it means
-    # something -- in this world, the horizons before ~1500 s.
-    at_floor = (on_m is not None and off_m is not None
+    # something. On the 2D map that is every horizon this campaign reaches:
+    # coverage is still climbing at 1800 s and the floor is not approached
+    # until ~2800 s.
+    at_floor = (EXPLORE_FLOOR is not None
+                and on_m is not None and off_m is not None
                 and max(on_m, off_m) <= EXPLORE_FLOOR + FLOOR_TOL)
     return {"horizon": horizon, "at_floor": at_floor,
             "on_mean": mean(on), "off_mean": mean(off),
@@ -826,13 +897,27 @@ def main():
         print(f"  O1 {r['cell']:<12} oracle={r['oracle']:<10} planner={r['planner_max']:<12.0f} "
               f"rel={fmt(r['rel_diff'], 4)}  {'PASS' if r['pass'] else 'FAIL'}")
     print()
+    unscored = []
     for r in gate_P1(cells):
-        band = "in band" if r["in_band"] else f"OUTSIDE {P1_MAKESPAN[0]:.0f}-{P1_MAKESPAN[1]:.0f}s"
+        if not r["rescored"]:
+            unscored.append(r["cell"])
+            band = "NOT RE-SCORED on the 2D map -- no verdict"
+        elif r["makespan"] is None:
+            band = f"never reached unknown<={r['threshold']} within T"
+        else:
+            band = ("in band" if r["in_band"]
+                    else f"OUTSIDE {P1_MAKESPAN[0]:.0f}-{P1_MAKESPAN[1]:.0f}s")
         print(f"  P1 {r['cell']:<12} derived completion={fmt(r['makespan'], 0):<8} "
               f"(unknown<={r['threshold']}) {band}")
     print("     P1 note: the stop latch is disabled campaign-wide, so no run ends"
           "\n     'all_done'; the completion time above is the same crossing read"
           "\n     off the logged series instead of acted on.")
+    if unscored:
+        print(f"     {len(unscored)} cell(s) carry only the retired 3D column series:"
+              f"\n     {', '.join(unscored)}. Their unknown fractions are LEFT BLANK"
+              "\n     rather than filled from planner_<robot>.csv, which measures a"
+              "\n     different quantity on a different scale (§6.6). Re-score them"
+              "\n     off their bags into <cell>/coverage_2d.csv.")
     p2 = gate_P2(cells)
     print()
     verdict = "UNDECIDED" if p2["pass"] is None else ("PASS" if p2["pass"] else "SATURATED")
@@ -851,7 +936,13 @@ def main():
           f"SD(unknown@1200s)={fmt(p3['sd_unknown_1200'])} "
           f"over n={p3['n_unknown']} off cells")
     h2r = p3.get("h2_resolvable")
-    if h2r:
+    if h2r and h2r["resolvable"] is None:
+        print(f"     the 95% CI half-width this noise implies at n=5 an arm is "
+              f"{fmt(h2r['ci_half_width'])},\n     but H2's budget is not derived on"
+              " the 2D scale yet, so whether it\n     is resolvable CANNOT BE"
+              " ASSESSED. This half-width is the floor any\n     re-derived budget"
+              " has to clear to be worth pre-registering.")
+    elif h2r:
         print(f"     H2 budget {h2r['budget']} vs the 95% CI half-width this "
               f"noise implies\n     at n=5 an arm, {fmt(h2r['ci_half_width'])}: "
               f"{'RESOLVABLE' if h2r['resolvable'] else 'NOT RESOLVABLE'}")
@@ -909,15 +1000,27 @@ def main():
               f"{fmt(r['p'], 4) if r['p'] is not None else 'n/a':>8}"
               f"{'   AT FLOOR' if r['at_floor'] else ''}"
               f"{'   [deciding]' if r['deciding'] else ''}")
-    # NOT PRIMARY_H: 1500 s is past saturation in this world, so the H1
-    # horizon is the wrong place to read a cost off (§6.5).
+    # NOT PRIMARY_H. On the retired 3D measure 1500 s was past saturation, so
+    # the H1 horizon could not show a cost at all. On the 2D measure it CAN --
+    # the map is still filling there -- but the headline stays at 1800 s, which
+    # is where the arms have had the longest to diverge while both are still
+    # above the floor (§6.6).
     rp = h2_cost(cells, H2_HEADLINE_H, calibrated=cal)
-    print(f"\n  budget {H2_UNK_BUDGET} on the delta at t={H2_HEADLINE_H}s "
-          f"-> {rp['verdict']}")
-    for h in H2_DECIDING_H:
-        if h == H2_HEADLINE_H:
-            continue
-        print(f"     and at t={h}s -> {h2_cost(cells, h)['verdict']}")
+    if H2_UNK_BUDGET is None:
+        print("\n  H2's budget is NOT SET. The pre-registered 0.03 was fixed on the"
+              "\n     retired 3D column measure, whose unknown fraction floors near"
+              "\n     0.50; the 2D planning map runs the same cells down to ~0.06, so"
+              "\n     a delta on this scale means something different in kind, not"
+              "\n     merely in size. It is re-derived from the re-scored exploit-off"
+              "\n     arm alone, before any treated cell is scored (plan §6.6). Until"
+              "\n     then the deltas below are reported and NO H2 verdict is printed.")
+    else:
+        print(f"\n  budget {H2_UNK_BUDGET} on the delta at t={H2_HEADLINE_H}s "
+              f"-> {rp['verdict']}")
+        for h in H2_DECIDING_H:
+            if h == H2_HEADLINE_H:
+                continue
+            print(f"     and at t={h}s -> {h2_cost(cells, h)['verdict']}")
     if rp["at_floor"]:
         print(f"     BUT BOTH ARMS ARE AT THE FLOOR ({EXPLORE_FLOOR}) HERE, so this"
               "\n     verdict is arithmetic, not evidence: there is no unknown volume"
@@ -928,15 +1031,23 @@ def main():
     if live and rp["on_mean"] is not None and rp["off_mean"] is not None:
         print(f"     horizons that can still show a cost: {', '.join(live)}")
     print(f"     H2 is decided on t={', '.join(str(h) for h in H2_DECIDING_H)}s "
-          "(§6.5): exploration saturates by ~1500s,"
-          "\n     so the later horizons carry no information about a cost.")
+          "(§6.6). The horizons were widened past"
+          "\n     1200s because the ~1500s saturation that justified truncating"
+          "\n     them was the 3D artifact: on the 2D map the same cells are still"
+          "\n     gaining coverage out to ~2800s, so those horizons DO carry"
+          "\n     information about a cost and are no longer discarded.")
     if cal is not None:
         print(f"\n  calibrated budget (SECONDARY, §6.5): {fmt(cal)} -- the smallest"
               "\n     difference this design can tell from zero, from the exploit-off"
               f"\n     arm alone. At t={H2_HEADLINE_H}s -> "
-              f"{rp['calibrated_verdict']}. The plan's {H2_UNK_BUDGET} stays primary"
-              "\n     and is reported above whatever it returns; this number is"
-              "\n     reported beside it, never in place of it.")
+              f"{rp['calibrated_verdict']}."
+              + ("\n     This is a NOISE FLOOR, not the budget: it is what n=5 an arm"
+                 "\n     can resolve, and adopting it as the budget would be choosing"
+                 "\n     a threshold to fit the noise. It bounds the re-derivation."
+                 if H2_UNK_BUDGET is None else
+                 f"\n     The plan's {H2_UNK_BUDGET} stays primary and is reported above"
+                 "\n     whatever it returns; this number is reported beside it, never"
+                 "\n     in place of it."))
     print("     The verdict is the interval against the budget, not the p value"
           "\n     (§6.4): a non-significant difference at n=5 an arm is evidence"
           "\n     of five cells, not of a small cost.")

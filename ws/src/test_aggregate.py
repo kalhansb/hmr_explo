@@ -18,8 +18,14 @@ FAILURES = []
 
 
 def check(name, got, want, tol=1e-9):
-    ok = (got is None and want is None) or (
-        got is not None and want is not None and abs(got - want) <= tol)
+    # Numbers compare within tol; anything else compares for equality. Without
+    # the second branch a string or tuple expectation raises a TypeError out of
+    # the helper, which reads as a broken test rather than a failed one.
+    if isinstance(got, (int, float)) and isinstance(want, (int, float)) \
+            and not isinstance(got, bool) and not isinstance(want, bool):
+        ok = abs(got - want) <= tol
+    else:
+        ok = got == want
     print(f"  {'ok  ' if ok else 'FAIL'} {name}: got {got!r}, want {want!r}")
     if not ok:
         FAILURES.append(name)
@@ -94,7 +100,8 @@ check("before the first row is None",
 print("cell-level means and gates")
 
 
-def cell(name, arm, targets, controls, include=True, m2=None, planner=None):
+def cell(name, arm, targets, controls, include=True, m2=None, planner=None,
+         cov2d=None):
     """A cell carrying only what the readouts read.
 
     `m2` gives the targets a second metric that can move independently of M1,
@@ -114,7 +121,8 @@ def cell(name, arm, targets, controls, include=True, m2=None, planner=None):
     trunks["Oak tree_19"] = {"M1": 99.0, "M3": 99.0, "target_id": None,
                              "excluded_control": True}
     return {"name": name, "arm": arm, "include": include,
-            "planner": planner or {}, "manifest": {}, "run_end_reason": None,
+            "planner": planner or {}, "cov2d": cov2d, "manifest": {},
+            "run_end_reason": None,
             "score": {"horizons": {A.PRIMARY_H: {"trunks": trunks}}}}
 
 
@@ -201,24 +209,30 @@ check("constant arms give a point interval at the delta (hi)", hi, 0.3, 1e-9)
 
 
 def prows(vals):
-    """One robot's per-step CSV: (sim_time_sec, unknown_fraction) pairs."""
-    return {"r": [{"sim_time_sec": str(t), "unknown_fraction": str(u)}
-                  for t, u in vals]}
+    """A cell's re-scored 2D coverage series: (sim_time_sec, unknown_fraction).
+
+    One series per CELL, not per robot: the unknown fraction is read off the
+    fused team map. The values are on the 2D scale, where the campaign's
+    threshold is 0.10 -- the retired 3D column series ran an order of magnitude
+    higher and never came near it (§6.6).
+    """
+    return [{"sim_time_sec": str(t), "unknown_fraction": str(u)}
+            for t, u in vals]
 
 
-# Crosses 0.64 for three consecutive steps starting at t=300.
-crossed = [(100, 0.90), (200, 0.70), (300, 0.60), (400, 0.60), (500, 0.60)]
+# Crosses 0.10 for three consecutive steps starting at t=300.
+crossed = [(100, 0.40), (200, 0.18), (300, 0.08), (400, 0.08), (500, 0.08)]
 # Never crosses: this cell has no completion time and must not be averaged.
-never = [(100, 0.90), (200, 0.85), (300, 0.80), (400, 0.80), (500, 0.80)]
-late = [(100, 0.90), (200, 0.90), (300, 0.90), (400, 0.60), (500, 0.60),
-        (600, 0.60)]
-cells_d = ([cell(f"on{i}", "on", [0.9] * 3, [0.5] * 2, planner=prows(late))
+never = [(100, 0.40), (200, 0.30), (300, 0.22), (400, 0.22), (500, 0.22)]
+late = [(100, 0.40), (200, 0.40), (300, 0.40), (400, 0.08), (500, 0.08),
+        (600, 0.08)]
+cells_d = ([cell(f"on{i}", "on", [0.9] * 3, [0.5] * 2, cov2d=prows(late))
             for i in range(4)] +
-           [cell("on4", "on", [0.9] * 3, [0.5] * 2, planner=prows(never))] +
-           [cell(f"off{i}", "off", [0.4] * 3, [0.5] * 2, planner=prows(crossed))
+           [cell("on4", "on", [0.9] * 3, [0.5] * 2, cov2d=prows(never))] +
+           [cell(f"off{i}", "off", [0.4] * 3, [0.5] * 2, cov2d=prows(crossed))
             for i in range(5)])
 for c in cells_d:
-    c["manifest"] = {"done_unknown_fraction": "0.64"}
+    c["manifest"] = {"done_unknown_fraction": "0.10"}
 d = A.h2_delay(cells_d)
 check("delay averages only the cells that crossed", d["on_mean"], 600.0, 1e-9)
 check("delay control arm", d["off_mean"], 500.0, 1e-9)
@@ -306,36 +320,83 @@ check_true("a timestamp does not break conformance", r2["off_rep4"]["conforms"])
 
 def fcell(name, arm, unk):
     c = cell(name, arm, [0.5] * 3, [0.5] * 2,
-             planner={"r": [{"sim_time_sec": "1500", "unknown_fraction": str(unk)},
-                            {"sim_time_sec": "1600", "unknown_fraction": str(unk)}]})
+             cov2d=[{"sim_time_sec": "1500", "unknown_fraction": str(unk)},
+                    {"sim_time_sec": "1600", "unknown_fraction": str(unk)}])
     c["manifest"] = {"done_unknown_fraction": "0.0"}
     return c
 
 
+# The floor and the budget are BOTH None in the module until they are derived
+# from the re-scored exploit-off arm (§6.6). That is the campaign's state, not
+# a property of the arithmetic, so the flagging and the verdict are exercised
+# against locally pinned 2D-scale values and the module's own None is checked
+# separately below.
+FLOOR_2D, BUDGET_2D = 0.062, 0.010
+
+
+def h2(cs, floor=FLOOR_2D, budget=BUDGET_2D, **kw):
+    """h2_cost with the two undetermined constants pinned for the test."""
+    of, ob = A.EXPLORE_FLOOR, A.H2_UNK_BUDGET
+    A.EXPLORE_FLOOR, A.H2_UNK_BUDGET = floor, budget
+    try:
+        return A.h2_cost(cs, A.PRIMARY_H, **kw)
+    finally:
+        A.EXPLORE_FLOOR, A.H2_UNK_BUDGET = of, ob
+
+
 # Both arms pinned at the world's floor: the delta is zero and inside the
 # budget, but only because there is nothing left to lose. It must be flagged.
-at_floor = ([fcell(f"on{i}", "on", 0.502) for i in range(5)] +
-            [fcell(f"off{i}", "off", 0.501) for i in range(5)])
-r = A.h2_cost(at_floor, A.PRIMARY_H)
+at_floor = ([fcell(f"on{i}", "on", 0.062) for i in range(5)] +
+            [fcell(f"off{i}", "off", 0.061) for i in range(5)])
+r = h2(at_floor)
 check_true("both arms at the floor is flagged", r["at_floor"])
 check_true("...even though the budget verdict itself says accept",
            r["verdict"].startswith("ACCEPT"), r["verdict"])
 
 # The same arms well above the floor: a real comparison, not flagged.
-live = ([fcell(f"on{i}", "on", 0.65) for i in range(5)] +
-        [fcell(f"off{i}", "off", 0.64) for i in range(5)])
+live = ([fcell(f"on{i}", "on", 0.36) for i in range(5)] +
+        [fcell(f"off{i}", "off", 0.35) for i in range(5)])
 check_true("a horizon above the floor is not flagged",
-           not A.h2_cost(live, A.PRIMARY_H)["at_floor"])
+           not h2(live)["at_floor"])
 
 # One arm at the floor and one above it is a real difference, and the worse
 # arm is what decides: there IS coverage left that the treatment could explain.
-mixed = ([fcell(f"on{i}", "on", 0.60) for i in range(5)] +
-         [fcell(f"off{i}", "off", 0.50) for i in range(5)])
-rm = A.h2_cost(mixed, A.PRIMARY_H)
+mixed = ([fcell(f"on{i}", "on", 0.16) for i in range(5)] +
+         [fcell(f"off{i}", "off", 0.06) for i in range(5)])
+rm = h2(mixed)
 check_true("one arm above the floor still counts as a live horizon",
            not rm["at_floor"])
-check_true("and a 0.10 cost against a 0.03 budget is rejected",
+check_true("and a 0.10 cost against a 0.010 budget is rejected",
            rm["verdict"].startswith("REJECT"), rm["verdict"])
+
+# --- the retired constants must fail LOUDLY, not quietly ------------------
+
+# With the floor unset nothing may be flagged as saturated. The danger is the
+# opposite default: the retired 0.486 sits ABOVE every horizon a 2D cell
+# reaches, so carrying it over would mark every horizon AT FLOOR and suppress
+# the whole H2 table as "arithmetic, not evidence".
+check_true("an underived floor flags nothing",
+           not h2(at_floor, floor=None)["at_floor"])
+check_true("and the retired 3D floor would have flagged a live 2D horizon",
+           h2(live, floor=0.486)["at_floor"])
+
+# With the budget unset there is no verdict to give. It must say so rather
+# than compare a 2D delta against the retired 3D 0.03.
+r_nb = h2(mixed, budget=None)
+check_true("an underived budget gives no verdict",
+           r_nb["verdict"].startswith("NO VERDICT"), r_nb["verdict"])
+check("and it is not silently filled in", r_nb["budget"], None)
+check("the module ships with no floor", A.EXPLORE_FLOOR, None)
+check("and no H2 budget", A.H2_UNK_BUDGET, None)
+
+# A cell that has not been re-scored has no 2D reading, and must NOT fall back
+# to the 3D column left in planner_<robot>.csv.
+stale = cell("stale", "off", [0.5] * 3, [0.5] * 2,
+             planner={"r": [{"sim_time_sec": "1500", "unknown_fraction": "0.502"}]})
+check("an un-rescored cell has no 2D series", A.unknown_series(stale), None)
+check("and contributes nothing to the off arm",
+      h2([stale] + [fcell(f"on{i}", "on", 0.20) for i in range(5)])["off_mean"],
+      None)
 
 
 # --- can the H2 budget be told from zero at this n? ------------------------
@@ -350,6 +411,12 @@ check("CI half-width at n=5", r["ci_half_width"], 1.96 * 0.025 * (2 / 5) ** 0.5,
 check_true("noise at the budget's scale makes it unresolvable",
            not r["resolvable"])
 check("no SD gives no verdict", A.resolvable(None, 0.03), None)
+# An underived budget cannot be resolvable or unresolvable, but the half-width
+# it would have to clear is still a fact about the design and is still reported.
+rn = A.resolvable(0.025, None)
+check("an underived budget is neither resolvable nor not", rn["resolvable"], None)
+check("but the half-width is still reported",
+      rn["ci_half_width"], 1.96 * 0.025 * (2 / 5) ** 0.5, 1e-12)
 
 
 # --- the calibrated budget reported beside the plan's (§6.5) ---------------
@@ -362,21 +429,31 @@ check("no SD gives no calibrated budget", A.calibrated_budget(None), None)
 # It never replaces the plan's budget. A delta that the plan's 0.03 cannot
 # decide may still be decided against the wider calibrated one -- and both
 # verdicts are carried, so the reader sees which budget bought which answer.
-und = ([fcell(f"on{i}", "on", 0.60 + (0.001 if i % 2 else -0.001)) for i in range(5)] +
-       [fcell(f"off{i}", "off", 0.565) for i in range(5)])
-r = A.h2_cost(und, A.PRIMARY_H, calibrated=0.20)
-check("the plan's budget is still the primary one", r["budget"], A.H2_UNK_BUDGET)
+und = ([fcell(f"on{i}", "on", 0.16 + (0.001 if i % 2 else -0.001)) for i in range(5)] +
+       [fcell(f"off{i}", "off", 0.125) for i in range(5)])
+r = h2(und, calibrated=0.20)
+check("the plan's budget is still the primary one", r["budget"], BUDGET_2D)
 check("the calibrated budget is carried separately", r["calibrated_budget"], 0.20)
-check_true("and a wide calibrated budget accepts what 0.03 cannot",
+check_true("and a wide calibrated budget accepts what 0.010 cannot",
            r["calibrated_verdict"].startswith("ACCEPT"), r["calibrated_verdict"])
 # With no calibrated budget passed there is no second verdict to read.
-r0 = A.h2_cost(und, A.PRIMARY_H)
+r0 = h2(und)
 check("no calibrated budget, no calibrated verdict", r0["calibrated_verdict"], None)
+# The calibrated budget is a noise floor and stays readable even while the
+# plan's budget is undetermined -- it is what bounds the re-derivation.
+rc = h2(und, budget=None, calibrated=0.20)
+check_true("a calibrated verdict survives an underived plan budget",
+           rc["calibrated_verdict"].startswith("ACCEPT"), rc["calibrated_verdict"])
 
 # The deciding horizons are the pre-registered ones, not every horizon.
 check_true("1200s decides", A.h2_cost(und, "1200")["deciding"])
-check_true("1800s does not", not A.h2_cost(und, "1800")["deciding"])
-check("H2 is decided on three horizons", len(A.H2_DECIDING_H), 3)
+check_true("1800s now decides too", A.h2_cost(und, "1800")["deciding"])
+check_true("2400s still does not", not A.h2_cost(und, "2400")["deciding"])
+# Widened from three horizons to five: the ~1500 s saturation that justified
+# stopping at 1200 was the 3D artifact, and on the 2D map these cells are
+# still gaining coverage well past it (§6.6).
+check("H2 is decided on five horizons", len(A.H2_DECIDING_H), 5)
+check("and the headline horizon moved with them", A.H2_HEADLINE_H, "1800")
 
 # P3's action is the post-hoc symmetric extension, not a pre-treatment one.
 noisy = [cell(f"off{i}", "off", [0.1 + 0.5 * i] * 3, [0.2] * 2)
