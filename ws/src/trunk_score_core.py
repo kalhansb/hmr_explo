@@ -8,6 +8,7 @@ Run with no args: parses the world SDF, reproduces the §4 trunk tables, and
 self-tests M1-M3 on synthetic voxel sets with known coverage.
 """
 import math
+import os
 import re
 import sys
 
@@ -173,9 +174,22 @@ def visible_arc_deg(radius, standoff):
     return 2.0 * math.degrees(math.acos(min(1.0, radius / standoff)))
 
 
+# This file lives at <ws>/src/trunk_score_core.py, and the world it must score
+# is the one THIS workspace builds from. Resolving it relative to __file__ (with
+# an argv override) rather than hardcoding an absolute path matters more than it
+# looks: an absolute path into a sibling checkout still EXISTS on this machine,
+# so the script would silently score another workspace's world and report a
+# clean 80-trunk table while doing it.
+DEFAULT_SDF = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "hmr_sim", "hmr_sim", "worlds", "flatforest", "flatforestv2.sdf")
+
+
 def main():
-    sdf = ("/home/kalhan/Documents/explo_planner_experiments/hmr_explo/ws/src/"
-           "hmr_sim/hmr_sim/worlds/flatforest/flatforestv2.sdf")
+    sdf = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_SDF
+    if not os.path.exists(sdf):
+        sys.exit(f"world SDF not found: {sdf}\n"
+                 f"pass one as argv[1]")
     oaks = parse_oaks(sdf)
     print(f"SDF: {len(oaks)} 'Oak tree*' models parsed")
 
