@@ -73,8 +73,14 @@ def angular_coverage(columns, centre_xy):
     iv = []
     for vx, vy in columns:
         rc = math.hypot(vx - cx, vy - cy)
-        if rc < VOX / 2:                      # column on the axis: all bearings
-            return 1.0
+        if rc < VOX / 2:
+            # Column on the axis. Its bearing from the centre is undefined, so
+            # it carries no angular evidence and is dropped -- it must NOT be
+            # read as full coverage. The model origin is not the trunk axis at
+            # low z (§4.1), and on flatforestv2 a lattice corner lies within
+            # VOX/2 of the origin for all three targets and 10 of the 11 near
+            # controls, so returning 1.0 here saturated M1 for a single voxel.
+            continue
         iv.append((math.atan2(vy - cy, vx - cx) % (2 * math.pi),
                    math.atan2(VOX / 2.0, rc)))
     if not iv:
@@ -221,6 +227,25 @@ def main():
             print(f"  {r:7.2f} {label:36} {truth:6.3f} {g['M1']:6.3f} "
                   f"{g['M1']-truth:+7.3f} {g['M1_sec12']:6.3f} "
                   f"{g['M1_sec12']-truth:+7.3f}{'  FAIL' if bad else ''}")
+
+    print("\n--- F1 regression: axis-adjacent voxel must not saturate M1 ---")
+    # A single occupied voxel at/near the model origin. Before the fix this
+    # returned 1.0; on flatforestv2 that fires for all 3 targets and 10/11
+    # near controls, saturating the primary metric in BOTH arms.
+    for dx, dy, label in ((0.0, 0.0, "exactly at origin"),
+                          (0.06, 0.02, "0.063 m off (Oak tree_42 offset)")):
+        m1 = score_trunk([(dx, dy, 0.5, 10.0, 1.0)], c)["M1"]
+        bad = m1 > 0.2
+        ok &= not bad
+        print(f"  one voxel {label:32} M1 = {m1:.3f}"
+              f"{'  FAIL (saturated)' if bad else '  ok'}")
+    # Off-axis bark: the trunk axis sits 0.40 m from the scoring centre, the
+    # geometry S4.1 actually describes. A 120 deg arc must still read ~1/3.
+    off = (0.40, 0.0, 0.0)
+    v = bark_voxels(off, 0.40, [(0, 120)])
+    m1 = score_trunk(v, c)["M1"]
+    print(f"  120 deg arc on a trunk whose axis is 0.40 m off centre: "
+          f"M1 = {m1:.3f} (truth ~0.333 about its own axis)")
 
     print("\n--- why not fixed bins (threat 8.2.5) ---")
     for r in (0.40, 0.70, 1.10, 1.70):
