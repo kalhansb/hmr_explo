@@ -108,7 +108,7 @@ def angular_coverage(columns, centre_xy):
     return min(1.0, total / (2 * math.pi))
 
 
-def score_trunk(voxels, centre):
+def score_trunk(voxels, centre, lattice_off=0.0):
     """voxels: iterable of (x, y, z, a_occ, a_free). centre: (cx, cy, cz).
 
     M1 angular completeness, M2 observed fraction, M3 median evidence mass.
@@ -127,7 +127,7 @@ def score_trunk(voxels, centre):
             hit.add(sector_of(vx, vy, cx, cy))
             cols.add((round(vx / VOX) * VOX, round(vy / VOX) * VOX))
             masses.append(a_occ + a_free - 2.0)
-    n_cells = cells_in_cylinder()
+    n_cells = cells_in_cylinder(centre, lattice_off)
     masses.sort()
     m3 = masses[len(masses) // 2] if masses else 0.0
     return {"M1": angular_coverage(cols, (cx, cy)),
@@ -136,15 +136,50 @@ def score_trunk(voxels, centre):
             "n_occ": n_occ, "n_cols": len(cols), "sectors": sorted(hit)}
 
 
-def cells_in_cylinder():
+def cells_in_cylinder(centre=None, off=0.0):
+    """Number of voxel centres inside the trunk cylinder -- M2's denominator.
+
+    It must be counted on the SAME lattice the numerator lives on, which is the
+    world-aligned map lattice, not one centred on the trunk. Two ways the old
+    trunk-centred count went wrong, both upward-biasing M2 past 1.0:
+
+      * z. `in_cylinder` accepts the CLOSED span [cz+0.2, cz+1.2], 1.0 m wide.
+        On a 0.20 m lattice that holds 5 or 6 centres depending on where the
+        trunk's z falls between planes; a hardcoded 5 undercounts by 20%
+        whenever it is 6.
+      * x/y. Offsets of exactly i*VOX from the centre assume the lattice is
+        phased to the trunk. It is phased to the world origin, so the true
+        count varies with each trunk's own fractional offset.
+
+    `off` is the lattice phase: voxel centres sit at k*VOX + off. The map's
+    GetRegion reports corners (multiples of VOX), so a caller working in centres
+    passes off=VOX/2. Called with no centre it keeps the old trunk-centred
+    approximation, which is what the synthetic self-test builds against.
+    """
+    if centre is None:
+        n = 0
+        k = int(CYL_R / VOX) + 1
+        nz = int(round((Z_HI - Z_LO) / VOX))
+        for i in range(-k, k + 1):
+            for j in range(-k, k + 1):
+                if (i * VOX) ** 2 + (j * VOX) ** 2 <= CYL_R ** 2:
+                    n += nz
+        return n
+    cx, cy, cz = centre
+    eps = 1e-9
+
+    def axis(lo, hi):
+        k0 = math.ceil((lo - off) / VOX - eps)
+        k1 = math.floor((hi - off) / VOX + eps)
+        return [k * VOX + off for k in range(int(k0), int(k1) + 1)]
+
+    nz = len(axis(cz + Z_LO, cz + Z_HI))
     n = 0
-    k = int(CYL_R / VOX) + 1
-    nz = int(round((Z_HI - Z_LO) / VOX))
-    for i in range(-k, k + 1):
-        for j in range(-k, k + 1):
-            if (i * VOX) ** 2 + (j * VOX) ** 2 <= CYL_R ** 2:
-                n += nz
-    return n
+    for x in axis(cx - CYL_R, cx + CYL_R):
+        for y in axis(cy - CYL_R, cy + CYL_R):
+            if (x - cx) ** 2 + (y - cy) ** 2 <= CYL_R ** 2:
+                n += 1
+    return n * nz
 
 
 # --- synthetic trunks ------------------------------------------------------
