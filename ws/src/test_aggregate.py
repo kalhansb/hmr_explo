@@ -94,11 +94,18 @@ check("before the first row is None",
 print("cell-level means and gates")
 
 
-def cell(name, arm, targets, controls, include=True):
-    """A cell carrying only what the readouts read."""
+def cell(name, arm, targets, controls, include=True, m2=None, planner=None):
+    """A cell carrying only what the readouts read.
+
+    `m2` gives the targets a second metric that can move independently of M1,
+    which is what the M4 trigger is defined on; left None it tracks M1, so the
+    two can never disagree and the trigger stays quiet.
+    """
     trunks = {}
     for i, v in enumerate(targets, start=1):
-        trunks[f"Target_{i}"] = {"M1": v, "M3": v, "target_id": i,
+        trunks[f"Target_{i}"] = {"M1": v, "M3": v,
+                                 "M2": v if m2 is None else m2,
+                                 "target_id": i,
                                  "excluded_control": False}
     for i, v in enumerate(controls):
         trunks[f"Ctrl_{i}"] = {"M1": v, "M3": v, "target_id": None,
@@ -106,7 +113,8 @@ def cell(name, arm, targets, controls, include=True):
     # An excluded control must never reach an average, whatever its value.
     trunks["Oak tree_19"] = {"M1": 99.0, "M3": 99.0, "target_id": None,
                              "excluded_control": True}
-    return {"name": name, "arm": arm, "include": include, "planner": {},
+    return {"name": name, "arm": arm, "include": include,
+            "planner": planner or {}, "manifest": {}, "run_end_reason": None,
             "score": {"horizons": {A.PRIMARY_H: {"trunks": trunks}}}}
 
 
@@ -171,4 +179,126 @@ print()
 if FAILURES:
     print(f"SELF-TEST FAIL ({len(FAILURES)}): " + ", ".join(FAILURES))
     sys.exit(1)
+
+# --- §6.4: a cost is decided on the interval, not on a p value -------------
+
+check_true("budget accepted only when the whole interval is under it",
+           A.budget_verdict(0.001, 0.02, 0.03).startswith("ACCEPT"))
+check_true("budget rejected only when the whole interval is over it",
+           A.budget_verdict(0.04, 0.09, 0.03).startswith("REJECT"))
+# The case the p-value rule got wrong: a delta that is small on average but
+# whose interval reaches well past the budget is NOT a pass.
+check_true("a straddling interval is undecided, not a pass",
+           A.budget_verdict(-0.01, 0.20, 0.03).startswith("UNDECIDED"))
+check_true("no interval is undecided, never a pass",
+           A.budget_verdict(None, None, 0.03).startswith("UNDECIDED"))
+
+# The difference CI resamples each arm within itself. With both arms constant
+# there is nothing to resample, so the interval collapses onto the difference.
+lo, hi = A.bootstrap_ci_diff([0.5] * 5, [0.2] * 5)
+check("constant arms give a point interval at the delta", lo, 0.3, 1e-9)
+check("constant arms give a point interval at the delta (hi)", hi, 0.3, 1e-9)
+
+
+def prows(vals):
+    """One robot's per-step CSV: (sim_time_sec, unknown_fraction) pairs."""
+    return {"r": [{"sim_time_sec": str(t), "unknown_fraction": str(u)}
+                  for t, u in vals]}
+
+
+# Crosses 0.64 for three consecutive steps starting at t=300.
+crossed = [(100, 0.90), (200, 0.70), (300, 0.60), (400, 0.60), (500, 0.60)]
+# Never crosses: this cell has no completion time and must not be averaged.
+never = [(100, 0.90), (200, 0.85), (300, 0.80), (400, 0.80), (500, 0.80)]
+late = [(100, 0.90), (200, 0.90), (300, 0.90), (400, 0.60), (500, 0.60),
+        (600, 0.60)]
+cells_d = ([cell(f"on{i}", "on", [0.9] * 3, [0.5] * 2, planner=prows(late))
+            for i in range(4)] +
+           [cell("on4", "on", [0.9] * 3, [0.5] * 2, planner=prows(never))] +
+           [cell(f"off{i}", "off", [0.4] * 3, [0.5] * 2, planner=prows(crossed))
+            for i in range(5)])
+for c in cells_d:
+    c["manifest"] = {"done_unknown_fraction": "0.64"}
+d = A.h2_delay(cells_d)
+check("delay averages only the cells that crossed", d["on_mean"], 600.0, 1e-9)
+check("delay control arm", d["off_mean"], 500.0, 1e-9)
+check("delay delta", d["delta"], 100.0, 1e-9)
+check("a cell that never crossed is counted, not averaged",
+      d["no_completion_on"], 1)
+check("and it is excluded from n, not silently zero", d["n_on"], 4)
+check_true("100 s of delay is inside the 900 s budget",
+           d["verdict"].startswith("ACCEPT"), d["verdict"])
+
+
+# --- §6.4: M4 is promoted on a stated condition ----------------------------
+
+# Agreeing metrics: no trigger, however large the effect.
+agree = ([cell(f"on{i}", "on", [0.7] * 3, [0.5] * 2) for i in range(5)] +
+         [cell(f"off{i}", "off", [0.3] * 3, [0.5] * 2) for i in range(5)])
+check_true("agreeing metrics do not promote M4",
+           not A.m4_trigger(agree, "M1")["required"])
+
+# M1 up, M2 down, both well past the instrument's 0.083: that is the
+# disagreement the trigger exists for.
+disagree = ([cell(f"on{i}", "on", [0.7] * 3, [0.5] * 2, m2=0.2) for i in range(5)] +
+            [cell(f"off{i}", "off", [0.3] * 3, [0.5] * 2, m2=0.6) for i in range(5)])
+check_true("opposite signs promote M4",
+           A.m4_trigger(disagree, "M1")["required"])
+
+# The same opposite signs, but both differences inside the instrument error.
+# A sign flip below the noise floor is not a disagreement, it is noise.
+tiny = ([cell(f"on{i}", "on", [0.50] * 3, [0.5] * 2, m2=0.50) for i in range(5)] +
+        [cell(f"off{i}", "off", [0.47] * 3, [0.5] * 2, m2=0.53) for i in range(5)])
+check_true("a sign flip smaller than the instrument error does not promote M4",
+           not A.m4_trigger(tiny, "M1")["required"])
+
+# Saturation in BOTH arms: M1 cannot express a difference that may still exist.
+sat = ([cell(f"on{i}", "on", [0.99] * 3, [0.5] * 2) for i in range(5)] +
+       [cell(f"off{i}", "off", [0.95] * 3, [0.5] * 2) for i in range(5)])
+check_true("saturation in both arms promotes M4",
+           A.m4_trigger(sat, "M1")["required"])
+# One arm saturated is the ordinary large-effect case, not a promotion.
+one_sat = ([cell(f"on{i}", "on", [0.99] * 3, [0.5] * 2) for i in range(5)] +
+           [cell(f"off{i}", "off", [0.40] * 3, [0.5] * 2) for i in range(5)])
+check_true("one saturated arm is a result, not a reason to promote M4",
+           not A.m4_trigger(one_sat, "M1")["required"])
+
+
+# --- §3: one variable, enforced on the manifest ----------------------------
+
+def mcell(name, arm, **man):
+    c = cell(name, arm, [0.5] * 3, [0.5] * 2)
+    c["manifest"] = dict({"done_unknown_fraction": "0.0", "duration_s": "3600",
+                          "comms": "0"}, **man)
+    return c
+
+
+ref = mcell("off_rep1", "off")
+twin = mcell("off_rep2", "off")
+# The treatment itself is the one line a cell is allowed to differ on.
+treated = mcell("on_rep1", "on")
+treated["manifest"]["exploitation_enabled"] = "true"
+# A shakeout at the runner's stock threshold: a valid manifest, the right arm,
+# and a second variable. This is the cell the check exists to catch.
+stray = mcell("shakeout", "off", done_unknown_fraction="0.64", duration_s="300")
+
+r = {x["cell"]: x for x in A.conformance([ref, twin, treated, stray], ref)}
+check_true("an identical cell conforms", r["off_rep2"]["conforms"])
+check_true("the treatment line alone does not break conformance",
+           r["on_rep1"]["conforms"])
+check_true("a cell run at a different threshold does not conform",
+           not r["shakeout"]["conforms"])
+check_true("and the readout names the line it differs on",
+           any(k == "done_unknown_fraction" for k, _, _ in r["shakeout"]["diffs"]),
+           str(r["shakeout"]["diffs"]))
+# Run-end keys are absent while a cell is still running; that is not a
+# configuration difference and must not exclude the live cell.
+live = mcell("off_rep3", "off")
+del live["manifest"]["comms"]
+live["manifest"]["comms"] = "0"
+live2 = mcell("off_rep4", "off")
+live2["manifest"]["finished_utc"] = "2026-09-21T05:08:44Z"
+r2 = {x["cell"]: x for x in A.conformance([ref, live, live2], ref)}
+check_true("a timestamp does not break conformance", r2["off_rep4"]["conforms"])
+
 print("SELF-TEST PASS")
