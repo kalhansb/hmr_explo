@@ -234,10 +234,31 @@ def main():
                 s["excluded_control"] = name in core.EXCLUDE_CONTROL
                 per_trunk[name] = s
             entry = {"t_rel": node.sim - t0, "t_sim": node.sim, "trunks": per_trunk}
-            if args.roi:
+            if args.roi and target is None:
+                # Gate O1, at the final horizon only. Tiled: the ROI is
+                # 100x100x9.5 m and at 0.20 m that is ~12M cells, so a single
+                # GetRegion would try to return one multi-hundred-MB response.
+                # Tiles of 10 m keep each response small; only the count is used.
                 x0, y0, x1, y1 = (float(v) for v in args.roi.split(","))
-                roi = node.get_box((x0, y0, ROI_Z[0]), (x1, y1, ROI_Z[1]))
-                entry["roi_observed_voxels"] = len(roi)
+                # Half-open tiles. GetRegion's box is INCLUSIVE at both corners
+                # (posToCoord on each), so abutting tiles would both return the
+                # shared boundary column: at 10 m tiles over a 100 m ROI that is
+                # ~10% of the columns counted twice, and O1 is a 1% gate.
+                # Backing each tile's max off by half a voxel also drops the
+                # column straddling the ROI edge, which is the right reading of
+                # "clipped to the ROI box" anyway.
+                tile, half, n = 10.0, core.VOX / 2.0, 0
+                ty = y0
+                while ty < y1:
+                    tx = x0
+                    while tx < x1:
+                        n += len(node.get_box(
+                            (tx, ty, ROI_Z[0]),
+                            (min(tx + tile, x1) - half, min(ty + tile, y1) - half, ROI_Z[1])))
+                        tx += tile
+                    ty += tile
+                entry["roi_observed_voxels"] = n
+                print(f"[scorer]   ROI observed voxels (gate O1): {n}", flush=True)
             results[label] = entry
             print(f"[scorer]   targets M1: " + ", ".join(
                 f"{core.TARGETS[n]}={per_trunk[n]['M1']:.3f}" for n in core.TARGETS
