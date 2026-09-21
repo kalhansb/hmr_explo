@@ -351,4 +351,42 @@ check_true("noise at the budget's scale makes it unresolvable",
            not r["resolvable"])
 check("no SD gives no verdict", A.resolvable(None, 0.03), None)
 
+
+# --- the calibrated budget reported beside the plan's (§6.5) ---------------
+
+# It is exactly the CI half-width: the smallest difference that can be told
+# from zero, hence the smallest budget a verdict can be taken against.
+check("calibrated budget is the half-width",
+      A.calibrated_budget(0.025), A.resolvable(0.025, 0.03)["ci_half_width"], 1e-12)
+check("no SD gives no calibrated budget", A.calibrated_budget(None), None)
+# It never replaces the plan's budget. A delta that the plan's 0.03 cannot
+# decide may still be decided against the wider calibrated one -- and both
+# verdicts are carried, so the reader sees which budget bought which answer.
+und = ([fcell(f"on{i}", "on", 0.60 + (0.001 if i % 2 else -0.001)) for i in range(5)] +
+       [fcell(f"off{i}", "off", 0.565) for i in range(5)])
+r = A.h2_cost(und, A.PRIMARY_H, calibrated=0.20)
+check("the plan's budget is still the primary one", r["budget"], A.H2_UNK_BUDGET)
+check("the calibrated budget is carried separately", r["calibrated_budget"], 0.20)
+check_true("and a wide calibrated budget accepts what 0.03 cannot",
+           r["calibrated_verdict"].startswith("ACCEPT"), r["calibrated_verdict"])
+# With no calibrated budget passed there is no second verdict to read.
+r0 = A.h2_cost(und, A.PRIMARY_H)
+check("no calibrated budget, no calibrated verdict", r0["calibrated_verdict"], None)
+
+# The deciding horizons are the pre-registered ones, not every horizon.
+check_true("1200s decides", A.h2_cost(und, "1200")["deciding"])
+check_true("1800s does not", not A.h2_cost(und, "1800")["deciding"])
+check("H2 is decided on three horizons", len(A.H2_DECIDING_H), 3)
+
+# P3's action is the post-hoc symmetric extension, not a pre-treatment one.
+noisy = [cell(f"off{i}", "off", [0.1 + 0.5 * i] * 3, [0.2] * 2)
+         for i in range(3)]
+a3 = A.gate_P3(noisy)["action"]
+check_true("a noisy pilot asks for BOTH arms to grow", a3 and "BOTH arms" in a3, a3)
+check_true("and does not claim to act before the exploit-on cells",
+           a3 and "before" not in a3, a3)
+
+if FAILURES:
+    print(f"SELF-TEST FAIL ({len(FAILURES)}): " + ", ".join(FAILURES))
+    sys.exit(1)
 print("SELF-TEST PASS")

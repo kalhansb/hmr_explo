@@ -48,6 +48,15 @@ P1_MAKESPAN = (1300.0, 2100.0)
 O1_TOL = 0.01
 # §5.4 H2 budgets, decided on a CI rather than a p-value (§6.4).
 H2_UNK_BUDGET = 0.03
+# The horizons at which H2's verdict is taken. Exploration saturates in this
+# world by ~1500 s (0.6467/0.5880/0.5602/0.5049/... at 600/900/1200/1500 s
+# against a floor near 0.486), so at the later horizons there is no unknown
+# volume left for exploitation to have denied the explorer and a pass is
+# arithmetic rather than evidence. The late horizons are still computed and
+# printed -- they are the evidence that saturation happened. See plan §6.5.
+H2_DECIDING_H = ("600", "900", "1200")
+# The headline H2 verdict: the last horizon that still carries information.
+H2_HEADLINE_H = "1200"
 H2_DELAY_BUDGET = 900.0
 # §3: the manifest lines a campaign cell is ALLOWED to differ on. Everything
 # else must match the reference cell exactly, or the cell is not a member of
@@ -524,6 +533,23 @@ def resolvable(sd_noise, budget, n_per_arm=5, z=1.96):
             "resolvable": half <= budget}
 
 
+def calibrated_budget(sd_noise, n_per_arm=5, z=1.96):
+    """The smallest budget this design can actually resolve, from the pilot.
+
+    Same arithmetic as `resolvable`, read the other way round: the CI
+    half-width IS the smallest difference that can be told from zero at this n,
+    so it is the smallest budget against which a verdict can be anything but
+    UNDECIDED. It is computed from the EXPLOIT-OFF arm alone, before any
+    treated cell is scored, and it never replaces the plan's H2_UNK_BUDGET --
+    a budget moved to fit its own noise floor is not a pre-registered budget
+    (plan §6.5). It is reported beside it so the gap between the two is on the
+    page: that gap is what n = 5 an arm buys.
+    """
+    if sd_noise is None:
+        return None
+    return z * sd_noise * math.sqrt(2.0 / n_per_arm)
+
+
 def gate_P3(cells):
     """The noise floor, from the exploit-off pilot."""
     tgt = [target_means(c, PRIMARY_H, "M1") for c in cells if c["arm"] == "off"]
@@ -550,7 +576,8 @@ def gate_P3(cells):
         return out
     out.update({"pass": s <= P3_SD_LIMIT,
                 "action": None if s <= P3_SD_LIMIT
-                          else "extend both arms to 8 before the exploit-on cells (§6.2)"})
+                          else "extend BOTH arms by 3 cells and rescore the whole "
+                               "campaign (post-hoc symmetric rule, plan §6.5)"})
     return out
 
 
@@ -596,7 +623,7 @@ def h3_did(cells, horizon, metric):
             "p": p, "p_floor": floor}
 
 
-def h2_cost(cells, horizon):
+def h2_cost(cells, horizon, calibrated=None):
     """H2: what exploitation cost exploration, at a matched horizon.
 
     `unknown_fraction` at the horizon is the direct reading. Completion time is
@@ -613,6 +640,8 @@ def h2_cost(cells, horizon):
     p, floor = permutation_p(on, off, greater=True)
     on_m, off_m = mean(on), mean(off)
     d_lo, d_hi = bootstrap_ci_diff(on, off)
+    # Secondary, and labelled as such wherever it is printed.
+    cal_v = budget_verdict(d_lo, d_hi, calibrated) if calibrated else None
     # A horizon at which both arms have already hit the world's floor cannot
     # show a cost even if one exists: there is no unknown volume left for
     # exploitation to have denied the explorer. Reading "within budget" off
@@ -627,6 +656,9 @@ def h2_cost(cells, horizon):
             "on_ci": bootstrap_ci(on), "off_ci": bootstrap_ci(off),
             "delta_ci": (d_lo, d_hi), "budget": H2_UNK_BUDGET,
             "verdict": budget_verdict(d_lo, d_hi, H2_UNK_BUDGET),
+            "deciding": horizon in H2_DECIDING_H,
+            "calibrated_budget": calibrated,
+            "calibrated_verdict": cal_v,
             "n_on": len(on), "n_off": len(off), "p": p, "p_floor": floor}
 
 
@@ -863,20 +895,29 @@ def main():
     print("=" * 78)
     print("H2 COST TO EXPLORATION -- ROI unknown fraction at matched horizons")
     print("=" * 78)
+    cal = calibrated_budget(gate_P3(cells)["sd_unknown_1200"])
     print(f"  {'horizon':<9} {'on':>8} {'off':>8} {'delta':>8} "
           f"{'95% CI on delta':>20} {'p':>8}")
     for h in HORIZON_ORDER:
         if h == "end":
             continue
-        r = h2_cost(cells, h)
+        r = h2_cost(cells, h, calibrated=cal)
         if r["on_mean"] is None and r["off_mean"] is None:
             continue
         print(f"  {h:<9} {fmt(r['on_mean']):>8} {fmt(r['off_mean']):>8} "
               f"{fmt(r['delta']):>8} {ci(r['delta_ci']):>20} "
               f"{fmt(r['p'], 4) if r['p'] is not None else 'n/a':>8}"
-              f"{'   AT FLOOR' if r['at_floor'] else ''}")
-    rp = h2_cost(cells, PRIMARY_H)
-    print(f"\n  budget {H2_UNK_BUDGET} on the delta at t={PRIMARY_H}s -> {rp['verdict']}")
+              f"{'   AT FLOOR' if r['at_floor'] else ''}"
+              f"{'   [deciding]' if r['deciding'] else ''}")
+    # NOT PRIMARY_H: 1500 s is past saturation in this world, so the H1
+    # horizon is the wrong place to read a cost off (§6.5).
+    rp = h2_cost(cells, H2_HEADLINE_H, calibrated=cal)
+    print(f"\n  budget {H2_UNK_BUDGET} on the delta at t={H2_HEADLINE_H}s "
+          f"-> {rp['verdict']}")
+    for h in H2_DECIDING_H:
+        if h == H2_HEADLINE_H:
+            continue
+        print(f"     and at t={h}s -> {h2_cost(cells, h)['verdict']}")
     if rp["at_floor"]:
         print(f"     BUT BOTH ARMS ARE AT THE FLOOR ({EXPLORE_FLOOR}) HERE, so this"
               "\n     verdict is arithmetic, not evidence: there is no unknown volume"
@@ -886,6 +927,16 @@ def main():
             and not h2_cost(cells, h)["at_floor"]]
     if live and rp["on_mean"] is not None and rp["off_mean"] is not None:
         print(f"     horizons that can still show a cost: {', '.join(live)}")
+    print(f"     H2 is decided on t={', '.join(str(h) for h in H2_DECIDING_H)}s "
+          "(§6.5): exploration saturates by ~1500s,"
+          "\n     so the later horizons carry no information about a cost.")
+    if cal is not None:
+        print(f"\n  calibrated budget (SECONDARY, §6.5): {fmt(cal)} -- the smallest"
+              "\n     difference this design can tell from zero, from the exploit-off"
+              f"\n     arm alone. At t={H2_HEADLINE_H}s -> "
+              f"{rp['calibrated_verdict']}. The plan's {H2_UNK_BUDGET} stays primary"
+              "\n     and is reported above whatever it returns; this number is"
+              "\n     reported beside it, never in place of it.")
     print("     The verdict is the interval against the budget, not the p value"
           "\n     (§6.4): a non-significant difference at n=5 an arm is evidence"
           "\n     of five cells, not of a small cost.")
@@ -957,7 +1008,13 @@ def main():
             "primary_metric": metric,
             "H1": endpoint(cells, PRIMARY_H, metric),
             "curve": [endpoint(cells, h, metric) for h in HORIZON_ORDER],
-            "H2": [h2_cost(cells, h) for h in HORIZON_ORDER if h != "end"],
+            "H2": [h2_cost(cells, h,
+                            calibrated=calibrated_budget(
+                                gate_P3(cells)["sd_unknown_1200"]))
+                   for h in HORIZON_ORDER if h != "end"],
+            "H2_deciding_horizons": list(H2_DECIDING_H),
+            "H2_calibrated_budget": calibrated_budget(
+                gate_P3(cells)["sd_unknown_1200"]),
             "H2_delay": h2_delay(cells),
             "M4_trigger": m4_trigger(cells, metric),
             "H3": h3_did(cells, PRIMARY_H, metric),
