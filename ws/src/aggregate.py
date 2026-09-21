@@ -260,6 +260,23 @@ def unknown_series(c):
     return None
 
 
+def series_provenance(c):
+    """How this cell reached the 2D scale: "rescored", "native", or None.
+
+    The campaign spans C4, so its exploit-off arm is measured two ways and the
+    aggregator averages both into one arm. That is legitimate only if the two
+    paths agree, which §6.6 pre-registers a check for. Whether or not that
+    check has been run, the mix itself has to be visible in the output: an arm
+    whose cells came by different routes is a different object from one whose
+    cells did not, and a reader cannot see that from the means.
+    """
+    if c.get("cov2d"):
+        return "rescored"
+    if (c.get("manifest") or {}).get("done_coverage_source") in NATIVE_2D_SOURCES:
+        return "native" if c.get("planner") else None
+    return None
+
+
 # ------------------------------------------------------- derived quantities
 
 def completion_time(rows, thresh, consec=3):
@@ -941,6 +958,19 @@ def main():
               "\n     rather than filled from planner_<robot>.csv, which measures a"
               "\n     different quantity on a different scale (§6.6). Re-score them"
               "\n     off their bags into <cell>/coverage_2d.csv.")
+    prov = {}
+    for c in cells:
+        prov.setdefault(series_provenance(c), []).append(c["name"])
+    if len(set(prov) - {None}) > 1:
+        print("     MIXED PROVENANCE: this campaign's 2D series did not all come by"
+              "\n     the same route. re-scored off bags: "
+              f"{', '.join(sorted(prov.get('rescored', [])))}"
+              "\n     measured live: "
+              f"{', '.join(sorted(prov.get('native', [])))}."
+              "\n     Both are the same computation over the same grid, so they"
+              "\n     should agree; §6.6 pre-registers the check (re-score the first"
+              "\n     native cell and compare to its own live series, agree within"
+              "\n     0.01). Until that is run, an arm mixing the two is provisional.")
     p2 = gate_P2(cells)
     print()
     verdict = "UNDECIDED" if p2["pass"] is None else ("PASS" if p2["pass"] else "SATURATED")

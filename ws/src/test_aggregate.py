@@ -420,6 +420,24 @@ check("and contributes nothing to the off arm",
       h2([stale] + [fcell(f"on{i}", "on", 0.20) for i in range(5)])["off_mean"],
       None)
 
+# How a cell reached the 2D scale is reported, because the campaign spans the
+# switch and its exploit-off arm is measured two ways. A cell that took NEITHER
+# route has no provenance rather than a default one -- otherwise an un-rescored
+# 3D cell would be counted as a member of whichever route it was defaulted to,
+# and the mix would look homogeneous exactly where it is not.
+rescored = cell("rescored", "off", [0.5] * 3, [0.5] * 2,
+                cov2d=[{"sim_time_sec": "1500", "unknown_fraction": "0.08"}])
+rescored["manifest"] = {"done_coverage_source": "scovox"}
+check("a re-scored cell reports that route", A.series_provenance(rescored), "rescored")
+check("a live cell reports the other", A.series_provenance(native), "native")
+check("and an un-rescored 3D cell claims neither", A.series_provenance(stale), None)
+check("as does one with no recorded provenance", A.series_provenance(noman), None)
+# The re-scored route wins over the recorded provenance: off_rep1 and off_rep2
+# still carry "scovox" in their manifests, which is true -- it is what the
+# planner measured at the time -- but coverage_2d.csv is what is read now.
+check("a re-scored cell is read off its re-score, not its manifest",
+      A.series_at(A.unknown_series(rescored), 1500.0, "unknown_fraction"), 0.08)
+
 
 # --- can the H2 budget be told from zero at this n? ------------------------
 
