@@ -393,7 +393,29 @@ check("and no H2 budget", A.H2_UNK_BUDGET, None)
 # to the 3D column left in planner_<robot>.csv.
 stale = cell("stale", "off", [0.5] * 3, [0.5] * 2,
              planner={"r": [{"sim_time_sec": "1500", "unknown_fraction": "0.502"}]})
-check("an un-rescored cell has no 2D series", A.unknown_series(stale), None)
+stale["manifest"] = {"done_coverage_source": "scovox"}
+check("an un-rescored 3D cell has no 2D series", A.unknown_series(stale), None)
+
+# A cell run AFTER the switch measured the 2D map live, so its planner column
+# is already the right quantity and re-scoring it off its bag would be doing
+# the same arithmetic twice. The provenance in the manifest decides this, not
+# which files happen to exist on disk.
+native = cell("native", "off", [0.5] * 3, [0.5] * 2,
+              planner={"atlas": [{"sim_time_sec": "1500",
+                                  "unknown_fraction": "0.08"}],
+                       "bestla": [{"sim_time_sec": "1500",
+                                   "unknown_fraction": "0.08"}]})
+native["manifest"] = {"done_coverage_source": "coverage_map"}
+check_true("a natively-2D cell uses its planner column",
+           A.unknown_series(native) is not None)
+check("and reads the right value there",
+      A.series_at(A.unknown_series(native), 1500.0, "unknown_fraction"), 0.08)
+# A missing manifest line is the 3D era by default: every cell recorded before
+# the switch predates the field, so absence must not be read as consent.
+noman = cell("noman", "off", [0.5] * 3, [0.5] * 2,
+             planner={"r": [{"sim_time_sec": "1500", "unknown_fraction": "0.5"}]})
+check("no recorded provenance means no 2D series",
+      A.unknown_series(noman), None)
 check("and contributes nothing to the off arm",
       h2([stale] + [fcell(f"on{i}", "on", 0.20) for i in range(5)])["off_mean"],
       None)

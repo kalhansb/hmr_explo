@@ -222,6 +222,13 @@ def load_cell(cell):
     return out
 
 
+# The done_coverage_source values that mean the planner's own per-step
+# unknown_fraction is ALREADY on the 2D scale. A cell run after C4 measures the
+# 2D map live, so re-scoring it off its bag would be doing the same arithmetic
+# twice. "scovox" is the retired 3D measure and is deliberately absent.
+NATIVE_2D_SOURCES = ("coverage_map", "planning_map", "planning_map_inflated")
+
+
 def unknown_series(c):
     """The cell's ROI unknown-fraction series, on the 2D scale, or None.
 
@@ -229,12 +236,28 @@ def unknown_series(c):
     FUSED team map, so both robots' planner rows carried the same number and
     averaging them only ever averaged two copies of one quantity.
 
-    Returns None for a cell that has not been re-scored. Callers must report
-    that as missing rather than falling back to the planner column -- silently
-    substituting the 3D series is exactly the error §6.6 corrects, and it would
-    be invisible in the output.
+    Two ways a cell can have one. A cell run after C4 measured the 2D map while
+    it ran, so planner_<robot>.csv is already the right quantity. A cell run
+    before C4 measured the 3D column, and has to be re-scored off its bag into
+    coverage_2d.csv (ws/src/rescore_2d).
+
+    Which one applies is decided by the cell's RECORDED provenance, not by
+    which files happen to exist: `done_coverage_source` in the manifest says
+    what the planner actually measured. A cell whose manifest says "scovox" and
+    that has not been re-scored returns None, and callers must report it as
+    missing. Falling back to the planner column there is exactly the error
+    §6.6 corrects, and it would be invisible -- the 3D series is a
+    plausible-looking number in the same units.
     """
-    return c.get("cov2d")
+    if c.get("cov2d"):
+        return c["cov2d"]
+    src = (c.get("manifest") or {}).get("done_coverage_source")
+    if src in NATIVE_2D_SOURCES:
+        # The team map is identical for both robots, so any one robot's rows
+        # carry it; take the longest in case one planner was cut short.
+        rows = list(c.get("planner", {}).values())
+        return max(rows, key=len) if rows else None
+    return None
 
 
 # ------------------------------------------------------- derived quantities
