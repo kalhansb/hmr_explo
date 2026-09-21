@@ -386,8 +386,24 @@ r_nb = h2(mixed, budget=None)
 check_true("an underived budget gives no verdict",
            r_nb["verdict"].startswith("NO VERDICT"), r_nb["verdict"])
 check("and it is not silently filled in", r_nb["budget"], None)
-check("the module ships with no floor", A.EXPLORE_FLOOR, None)
-check("and no H2 budget", A.H2_UNK_BUDGET, None)
+# Both are now DERIVED (C4b) from the two re-scored exploit-off cells, so the
+# "ships underived" assertions above are retired. What replaces them is the
+# invariant that outlives any particular value.
+check("the floor is derived", A.EXPLORE_FLOOR, 0.0487)
+check("and so is the budget", A.H2_UNK_BUDGET, 0.0145)
+# The floor tolerance is not free. Both arms inside [floor, floor+tol] differ
+# by at most tol, so a within-budget verdict is arithmetic exactly when
+# tol <= budget; below the budget the test gives up horizons that could still
+# have shown a real over-budget difference. tol == budget is the only value
+# that is neither, and it must hold for whatever the budget is re-derived to.
+check("the floor band is the budget, not a literal", A.FLOOR_TOL, A.H2_UNK_BUDGET)
+# The specific thing a stranded 0.03 would have done: put the band at 0.0787,
+# above the off arm's own 0.0776 at the 1800s HEADLINE horizon, so the floor
+# test would have suppressed the primary H2 verdict.
+check_true("the headline horizon is not inside the floor band",
+           0.0776 > A.EXPLORE_FLOOR + A.FLOOR_TOL)
+check_true("but the retired 3D tolerance would have swallowed it",
+           0.0776 <= A.EXPLORE_FLOOR + 0.03)
 
 # A cell that has not been re-scored has no 2D reading, and must NOT fall back
 # to the 3D column left in planner_<robot>.csv.

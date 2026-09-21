@@ -55,7 +55,20 @@ O1_TOL = 0.01
 # re-derived": the readout refuses to print an H2 verdict rather than score the
 # 2D series against a 3D budget. Re-derive from the exploit-off arm alone,
 # before any treated cell is scored, and pin the value here.
-H2_UNK_BUDGET = None
+#
+# C4b (2026-09-21): derived. Both exploit-off cells are now re-scored onto the
+# 2D map (ws/src/rescore_2d), and the plan's own §5.4 rule -- half the headroom
+# between the arm's headline unknown and the floor it actually achieves --
+# gives 0.0145 from off_rep1 and off_rep2:
+#
+#   off_rep1  unknown@1800s = 0.0716   best achieved = 0.0614
+#   off_rep2  unknown@1800s = 0.0837   best achieved = 0.0360
+#   headline mean 0.0776, floor 0.0487, headroom 0.0289, half = 0.0145
+#
+# Fixed from the exploit-off arm alone with no treated cell run, let alone
+# scored, which is the pre-registration §6.6 requires. Reproduce with
+#   python3 ws/src/rescore_2d/derive_budget.py runs
+H2_UNK_BUDGET = 0.0145
 # The horizons at which H2's verdict is taken.
 #
 # On the retired 3D scale this was ("600","900","1200"), because the 3D measure
@@ -98,8 +111,28 @@ CONFORMANCE_EXEMPT = (
 # two-mapper census rather than the production config, and pinning a constant
 # to it would repeat the error being corrected. It is derived from the
 # re-scored exploit-off arm, with the budget, and is None until then.
-EXPLORE_FLOOR = None
-FLOOR_TOL = 0.03
+#
+# C4b (2026-09-21): derived as the exploit-off arm's mean best-achieved unknown
+# fraction, 0.0487 (off_rep1 0.0614, off_rep2 0.0360), from the production
+# single-mapper re-score rather than the two-mapper census guessed at above.
+EXPLORE_FLOOR = 0.0487
+# Not an independent constant: it is the budget, and must be.
+#
+# The floor test exists to mark horizons where a within-budget verdict is
+# arithmetic rather than evidence. If both arms lie in [floor, floor+tol] their
+# difference is at most tol, so the verdict is guaranteed by arithmetic exactly
+# when tol <= budget, and any tol BELOW the budget silently gives up horizons
+# that could still have carried a real over-budget difference. tol == budget is
+# the one value that is neither. That it was 0.03 while the budget was also
+# 0.03 was not a coincidence; leaving it as a literal through C4 is what let it
+# survive the rescale.
+#
+# It matters here. On the 2D scale a stranded 0.03 is twice the derived budget,
+# putting the floor band at 0.0787 -- above the off arm's own 0.0776 at the
+# 1800 s HEADLINE horizon. The floor test would have swallowed the budget test
+# and suppressed the primary H2 verdict, which is the same failure C4 caught in
+# EXPLORE_FLOOR, one constant further down.
+FLOOR_TOL = H2_UNK_BUDGET
 # §5.3: the M1 estimator's own worst-case error on synthetic bark. A difference
 # smaller than this is not a difference, which is what makes it the threshold
 # for M4's disagreement trigger (§6.4).
