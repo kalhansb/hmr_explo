@@ -1240,10 +1240,11 @@ an existing root would silently keep pre-fix cells.
   > every upstream dependency, including `scovox`, so an unrelated upstream
   > change can relink `explo_planner_node` and silently invalidate a pinned
   > sha — the failure this doc's second bullet exists to prevent. The
-  > two-package select is therefore the strictly safer form, and the README is
-  > **stale rather than wrong**. Fixing it is a one-line edit to a tracked file
-  > in the fingerprinted `explo_planner` submodule, so it waits for the
-  > between-campaigns window like every other edit here.
+  > two-package select is therefore the strictly safer form, and the README was
+  > **stale rather than wrong**. **Fixed 2026-09-22** in the gen-33 window, in
+  > both the repository README and the package README (`explo_planner/README.md`
+  > `## Build`), which carried the same bare line. The remaining
+  > `--packages-up-to` mentions are listed in §10 and deliberately left.
 - `PYTHONDONTWRITEBYTECODE=1` on every python invocation — a stray `__pycache__`
   entry is an untracked file under the workspace.
 - **This file lives in the `hmr_explo` superproject on purpose. Do not move it
@@ -1369,8 +1370,9 @@ PASSes).
 | Part | What landed | Where | Tests / mutations |
 |---|---|---|---|
 | **0** (planner half) | `acquire_sec` and `held_sec` per peer: acquisition latency from the first one-way packet to the packet that completes the handshake, and hold duration for a handshake broken **by a peer that stayed audible**. Both differenced from **packet** stamps, never tick stamps; both one-shot, so a reader counts events instead of diffing a level. Surfaced on `TeamExchangeEvent` and written to the JSONL. | `team_model.hpp/.cpp`, `experiment_log.hpp/.cpp`, node drain second pass | 6 `TeamModelR1.*`; M1–M7, all killed |
-| **1** | dscovox per-source fusion counters — `deltas_received` **and** `cells_touched`, the pair §9 says the design had dropped one of. New `ScovoxFusionCounters.msg`, published on a timer that does **not** gate on `fused_dirty_` (test-plan 9's defect). | `dscovox_node.cpp`, `scovox_msgs` | consumer-side parse guard in the node |
-| **2** | Drain-release trigger: level test against the hold-start baseline, monotonic within a visit. **Default OFF, and it refuses to start without a measured `R` and `W`** — the constants are deliberately unset (§9) until Part 1 produces an uncontaminated per-peer rate. | `explo_planner_node.cpp` | 2 `Gen33DrainRelease.*`; M27–M34, all killed. The behavioural half of test-plan 8 is still outstanding |
+| **0** (emulator half, §5.1) | The per-link, per-reason cumulative counters `PublishStats()` already built for `~/stats` (`relayed`, `bytes`, `drop_ber`, `drop_airtime`, `drop_disconnected`, `drop_overflow`, `backlog_bytes`, per direction) now also go to `comms.log` as a `link counters: {json}` line, once per stats period. Campaigns run `--record 0`, so the topic was never bagged and the `relay totals` line was the only trace. **A separate line**, so the totals line and `manoeuvre_events.py`'s `RE_RELAY` are byte-unchanged. Logging only; no forwarding behaviour changes. | `hmr_comms_sim_node.cpp` | No gtest — it is a log line. Smoke run of the built emulator (two robots, reliable and best-effort chatter): both lines appear each period, `RE_RELAY` still matches the totals line, and the new line parses as JSON with every link and reason present |
+| **1** | dscovox per-source fusion counters — `deltas_received` **and** `cells_touched`, the pair §9 says the design had dropped one of. New `ScovoxFusionCounters.msg`, published on a timer that does **not** gate on `fused_dirty_` (test-plan 9's defect). | `dscovox_node.cpp`, `scovox_msgs` | consumer-side parse guard in the node; **test-plan 9**: `FusionCountersLiveness.SilenceStillProducesFreshSamplesWithTheCountUnchanged` (`scovox_mapping/test/test_fusion_counters_liveness.cpp`), black-box against the built dscovox binary as a child process. M41 (publish gated on `fused_dirty_`) and M42 (timer never created) killed, three runs each; guard G1 — the test's own fused-map subscription — shown load-bearing by removing it, after which M41 passes |
+| **2** | Drain-release trigger, over every peer believed present (`direct` or `via_relay`): a **level** test against the hold-start baseline, then a **rate** below `R` over a tumbling window `W`; a reading that examines no peer is never a drain (F1). Reaching the cap logs UNFINISHED EXCHANGE, a different event from the drained release. Monotone within a visit. **Default OFF, and it refuses to start without a measured `R` and `W`** — the constants are deliberately unset (§9) until Part 1 produces an uncontaminated per-peer rate. The predicate was **extracted** from `doReturnSync` into `stepDrainRelease` so tests 7 and 8 can run it rather than scan it; the node keeps the window state, the log lines and the latch. | `exchange_drain.hpp/.cpp` (in `explo_planner_lib`), `explo_planner_node.cpp` | **Run** — `test_exchange_drain.cpp`, 7 tests: test-plan 7 (`ExchangePresence.*`, four, one a control), 8's behavioural half (`BlackoutIsNotADrain.*`, two), and `DrainUnmeasured`. M27–M30, M35–M37 and M43 killed against the extraction. **M31 is equivalent** while M28's backstop stands; M31+M28 together are killed. **Scan** — `Gen33DrainRelease.TheNodeCallsThePredicateAndObeysIt` pins the call site, argument by argument (M38–M40 killed); `…TheThresholdsAreRefused…` pins the `R`/`W` refusal (M32–M34 killed) |
 | **3** | Peer mode on `TeamWorld` (`EXPLORING`/`HOMING`/`DONE`, append-only, open-ended upward), max-merge on relay, first-hand authoritative and able to lower. Consumer shipped: `AllocRobot::off_frontier`, which drops a homing robot from the vehicle set and returns its cells — the window `finished` cannot see — folded into `alloc_hash`, and forced off in the rendezvous snapshot. | `TeamWorld.msg`, `team_model.*`, `global_allocator.*`, node | 4 `TeamModelMode.*`; `OffFrontierRobotIsRemovedAndItsCellsReturn` + `AllocHash.EveryVehicleFieldMovesTheDigest`, both mutated and killed |
 
 ### Shipped but **not in this design** — R-3, the latched-hold clock
@@ -1431,22 +1433,51 @@ that was fixed — it is the thing a later reader will otherwise re-raise.
 
 ### Outstanding before launch
 
-1. **§5.1 emulator instrumentation** — log the per-link per-reason drop
-   counters `PublishStats()` already computes and discards
-   (`hmr_comms_sim_node.cpp:966-1001`). §9 calls this a logging line, not a
-   binary change, and §5.1 is **blocking**. It touches `hmr_sim`, which is
-   fingerprinted.
-2. **Test-plan 5–9.** 4 is done (`TeamModelMode.*`). 5 and 6 follow R4's
-   deferred half and are deferred with it (see the correction under the
-   consumer table in Part 3). 8's **scan** half is done —
-   `Gen33DrainRelease.ThePredicateIsALevelThenARateOverEveryReadablePeer`
-   fails the instant the baseline difference is reduced to a rate test, which
-   is how the defect entered the design. 7, 8's **behavioural** half, and 9
-   are not written. Mutate every one of them before believing it.
+1. ~~**§5.1 emulator instrumentation**~~ — **done**, see the Part 0 emulator
+   row. It changes the `hmr_sim` binary, which is fingerprinted.
+2. ~~**Test-plan 7–9**~~ — **done**, see the Part 1 and Part 2 rows. 4 was
+   already done (`TeamModelMode.*`). 5 and 6 follow R4's deferred half and
+   stay deferred with it (see the correction under the consumer table in
+   Part 3). 8's scan test of the inline predicate
+   (`…ThePredicateIsALevelThenARateOverEveryReadablePeer`) is gone: the
+   predicate now runs in `test_exchange_drain`, and the scan was retargeted at
+   the node's call site.
 3. **Set `R` and `W`** from Part 1's per-peer log before `rendezvous_drain_release`
    is enabled. It refuses to start otherwise, by design.
 4. **Final build → read the sha → restore the NV shim → `ctest` → commit all
-   five fingerprinted repos → fresh campaign root.** In that order; §8.
+   five fingerprinted repos → fresh campaign root.** In that order; §8. Three
+   binaries changed in this window: `explo_planner_node` (the extraction
+   changes it even though its behaviour is meant to be unchanged), the
+   `hmr_sim` emulator, and scovox, which gains a test. The pull alone does
+   not produce any of them. The extraction also adds files to
+   `explo_planner`, so `git_explo_planner` moves and the campaign root must be
+   fresh (§8).
+5. **Decide test-plan 7 at N=2 — open, not a defect to fix quietly.** Test 7
+   reads "a `finished` peer with no fresh `direct` does **not** open a hold".
+   What shipped does not skip the hold. It **waits through it** and
+   ends it as unfinished. At N=2 with a finished partner that has gone
+   silent, the barrier releases on `finished` and the hold opens; the drain
+   then finds no peer present, so it examines none, and F1's backstop refuses
+   to call that a drain. The robot stands to the cap and logs UNFINISHED
+   EXCHANGE. That is F1 working as designed (nobody read is not everybody
+   drained), and it is pinned by `ExchangePresence.NobodyReadIsNotEverybodyDrained`.
+   At N≥3 test 7's intent holds: the finished, absent peer is not waited for,
+   and the hold drains on the peer that is present
+   (`AFinishedPeerThatIsNotHereIsNotWaitedFor`). Reading test 7 literally at
+   N=2 would mean either not opening the hold when every counted peer is
+   `finished` and absent, or releasing it drained on zero examined, and the
+   second is F1's defect. Which one, if either, is a design call. Until it is
+   made, the cost is up to one cap-length stand per N=2 meeting whose partner
+   finished and left, logged as UNFINISHED.
+
+**`--packages-up-to` still appears** in `docs/user_manual.md:178,182`,
+`docs/ros_api.md:49,516`, `explo_planner/doc/dscovox_exploration_run.md:41,65`,
+`explo_planner/doc/dscovox_exploitation_run.md:52,71` and
+`explo_planner/doc/exploitation_plan.md:212`. Left alone on purpose. The
+field and dry-run ones build in a scratch workspace with SCovox as an
+underlay, where `--packages-up-to` reaches only the two planner packages and
+pins nothing. `ros_api.md:49` is the one generic `<ws>` instance, and it is
+the same stale line as the READMEs if anyone wants it consistent.
 
 ### Not shipped, deliberately
 
