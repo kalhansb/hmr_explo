@@ -1,12 +1,26 @@
 # Generation 33 design — positive connection, observable map exchange, peer mode
 
-**Status:** for review. No code written. No file under `hmr_explo_ws` touched.
+**Status:** reviewed twice, revised, campaign stopped — cleared to implement.
 **Baseline:** gen 32, `explo_planner_node` sha `751d8344bd4dd21f`, commit `7a7e387`.
-**Evidence base:** `ts4_32_n2`, 40 cells, 10 seeds × 4 arms, all on the gen-32 binary.
+**Evidence base:** `ts4_32_n2`, 40 cells, 10 seeds × 4 arms, all on the gen-32
+binary; plus **2 completed cells** of the stopped `ts4_32_n3` rung. Historical
+blackout figures come from `ts1b`/`ts1d` (superseded binary, pre-2026-09 radio
+regime) and are labelled as such wherever used.
 **Scope decision (Kalhan, 2026-09-22):** no comparison against earlier generations is
 required. The goal is a system that is right in principle, not one that is
 comparable to the banked cells. That removes the provenance argument from every
 decision below; it does **not** remove the correctness arguments.
+
+> **What the waiver does and does not cover.** It waives *performance*
+> comparison: gen 33 owes no speedup against a banked generation, and no result
+> below is expressed as a delta to one. It does not waive *validity*. §5.5 and
+> §2.10 both block on a cross-generation comparison, and neither is asking
+> whether gen 32 beat `e7c185b` — each is asking whether a defect **measured on
+> an old binary still exists on the current one**, which is the question of
+> whether the evidence for a design decision is about this system at all. That
+> is answered by re-measuring on one binary, not by comparing two. Where this
+> doc cites a number spanning generations, it now says so and treats it as
+> unmeasured rather than as evidence.
 
 ---
 
@@ -52,6 +66,43 @@ belief(t) = last_row.direct AND (t - last_row.t) <= direct_ttl_sec   (5.0 s)
 which requires no model of the handshake — only the verdict the node wrote down.
 Ground truth is `link_states.csv` (`connected`, per pair, 5 Hz), which the robot
 cannot see.
+
+> **Does the node actually latch this way?** Raised in review: if `direct` is
+> recomputed from a fresh `in_range_mask` on every arriving packet rather than
+> held, the TTL term above is fiction and every number in §2 inherits the error.
+> Checked against the source, and the reconstruction is exact rather than
+> approximate.
+>
+> `TeamModel::tick(double now_sec)` (`team_model.cpp:238-244`) recomputes every
+> peer on the **clock**, not per message:
+>
+> ```cpp
+> const double at = reported_at_sec_[i];
+> const bool receiving = at >= 0.0 && (now_sec - at) <= cfg_.direct_ttl_sec;
+> const bool mutual    = receiving && maskHas(reported_mask_[i], self_id_);
+> p.direct = mutual;
+> ```
+>
+> `at` is the arrival stamp of the last packet, so at the moment a row is
+> written `at == last_row.t` and `last_row.direct == mutual`. For any later `t`
+> with no new packet, `receiving` is `(t - last_row.t) <= direct_ttl_sec` and
+> `mutual` cannot become true again without one. The reconstruction is
+> therefore **algebraically identical** to what the node computes, not a model
+> of it.
+>
+> There is one call site (`explo_planner_node.cpp:19435`) and it fires
+> unconditionally, including on empty batches — the codebase anticipates this
+> exact objection in the comment above it: *"TTL expiry is a function of time,
+> not of arrivals: a model that only advanced when a message came in could
+> never notice that they stopped, which is the one thing it exists to notice."*
+> `team_model.hpp:232-236` gives the same reason for separating `tick()` from
+> `observe()`.
+>
+> **Residual bias, stated rather than dismissed:** rows are stamped at *drain*,
+> not at arrival, so `last_row.t` runs late by `queue_age_sec` — p50 **0.08 s**,
+> or 1.6 % of the 5 s TTL. `coalesced` is non-zero on one row in the whole
+> corpus. The effect is to make the belief look very slightly *stale*, which is
+> conservative for the up-edge finding in §2.2 and cannot manufacture it.
 
 ### 2.1 Oracle integrity
 
@@ -161,9 +212,71 @@ a time base exactly.
 **Believed ÷ connected during empty visits:** N=2 **p50 1.00**; N≥3 **p50 0.14**
 (oracle-connected p50 28.4 s, believed p50 **0.0 s**).
 
+> **Why 28.4 s here and 11.5 s in §2.3.** Raised in review as an unexplained
+> discrepancy — a meeting window apparently offering 2.5× the contact of a
+> typical link — with the worry that meetings are a selected, unusually
+> favourable subset and the decomposition therefore over-states what a normal
+> reconnection gets. Two things, and the first is the whole of it:
+>
+> 1. **The two numbers do not measure the same quantity.** §2.3's 11.5 s is the
+>    duration of a single connected **interval**. The 28.4 s is **total
+>    connected seconds summed across a visit**, which may contain several
+>    intervals separated by drops. Summing a quantity and taking its median is
+>    not comparable to taking the median of its parts, so no selection effect is
+>    required to produce the gap.
+> 2. **Selection exists but is small.** Holding generation and team size fixed
+>    and varying only the RETURN_SYNC conditioning, meeting windows are
+>    **+11–14 %** on connected time, not +150 % (N=3: 15.2 → 17.4 s; N=4:
+>    15.8 → 17.6 s). Robots that have converged on a point are slightly better
+>    connected than average, which is expected and does not distort the BLIND
+>    finding — a window that is 12 % more favourable still delivered **zero**
+>    rows.
+
+That N=2 `p50 1.00` is **exact, not rounded**, and the distribution says so
+rather than the percentile: **56 of 101** scorable visits (55.4 %) sit at
+exactly 1.0 and **none** fall in [0.995, 1.0). At N=2 the detector believes the
+peer for the entire time the peer is there.
+
 *Sanity check:* ABSENT visits merged 0 of 36. A visit that merges cannot have
 had nobody there, and an earlier run of this decomposition failed exactly that
 check — see §2.9.
+
+**BLIND is not slow acquisition — it is total silence.** Scoring what actually
+*arrived* during each BLIND visit, rather than only what was believed:
+
+| | N=3 | N=4 | both |
+|---|---:|---:|---:|
+| BLIND visits | 41 | 31 | 72 |
+| …that received **zero** `team_exchange` rows | 40 | 31 | **71** |
+| …that ever saw a `direct` row | 0 | 0 | **0** |
+| oracle-connected p50 | 16.6 s | 26.0 s | — |
+| oracle-connected p90 | 37.3 s | 64.8 s | — |
+
+Longest such visit 103.8 s; 63 of the 71 exceed 5 s; the unheard peer was alive
+and still logging in 70 of 71. At 1 Hz the median BLIND visit should have
+carried 16–26 messages and carried **none**.
+
+Dumping the three longest individually shows the silence is **fleet-wide and
+bidirectional**, not a per-link acquisition failure. In `ts1d_n4_…_seed2`, husky
+held `RETURN_SYNC` for 156.6 s with skadi connected 103.8 s of it and received
+**0 rows from atlas, bestla *and* skadi** — while skadi, logging 82 events and
+cycling `NAVIGATE→INTEGRATE→LOG_STEP→PLAN` normally, logged **0 rows from
+anyone**. In all three the first row after the blackout carries
+`direct=False, one_way=True`: the handshake restarting from scratch, not
+resuming.
+
+> **This kills H1 as stated, and redirects Part 0.** Acquisition latency cannot
+> explain a window in which nothing is acquired, in either direction, across
+> every pair at once. The operative hypothesis is contention or shedding in the
+> comms emulator during **convergence** — when every pair goes connected
+> simultaneously against one shared `airtime_capacity: 0.6` bucket — which is a
+> harness property, not a detector property. §5.1 is reframed accordingly.
+
+**Scope limit, and it is load-bearing.** Every number in this subsection comes
+from `ts1b`/`ts1d`: a **superseded binary** and the **pre-2026-09 radio
+regime** (this corpus predates 70 dB trunks + 30 m horizon). Whether the
+blackout survives into the current binary is §5.5, and it now decides whether
+Part 0 and Part 1 are needed **at all**.
 
 ### 2.8 Relay at N≥3 — it is real and it carries content
 
@@ -178,6 +291,29 @@ check — see §2.9.
 Relay rows are rare but **far more productive than average**: 15.5 % of them
 carry an applied merge. Consistent with this, 10 of the 82 BLIND visits merged
 something — **content demonstrably arrives without `direct` ever being true.**
+
+(The 82 is BLIND over *all* visits; §2.7's 72 is BLIND among visits that merged
+nothing. 72 + 10 = 82.)
+
+**`direct` also churns, and the churn scales with team size.** Onset latency is
+only half the question — a verdict that flickers is as costly as one that
+arrives late. Re-scored on a connected-time denominator, counting `direct`
+**drops** while the oracle still says connected:
+
+| | N=2 | N=3 | N=4 |
+|---|---:|---:|---:|
+| `one_way` rows while connected | 2.84 % | 3.95 % | 4.03 % |
+| `direct` drops per pair-minute | **0.00** | 0.15 | 0.34 |
+| pairs that ever dropped `direct` | **0 of 80** | 404 of 930 (43 %) | 804 of 1152 (70 %) |
+
+At N=2 the verdict is **perfectly stable — not one drop in 80 pairs.** At N=4 it
+is unstable for 70 % of pairs, but at ~one drop per three pair-minutes it is
+churn, not cycling; re-acquires exceed drops several-fold (7,831 vs 2,559 at
+N=4), so most are span-onset acquisition rather than recovery from a flicker.
+
+> **Design consequence.** Part 0's instrumentation must report the **drop rate**
+> alongside acquisition latency. A design that only measures onset would score
+> N=2 and N=4 identically on a property where they differ by infinity.
 
 > **Design consequence.** Requiring `direct` to open the exchange hold would
 > discard a channel that measurably delivers. §4.1 already survives this
@@ -233,12 +369,39 @@ either co-sensing (the review's worry) **or a peer merge still landing as the
 robot departs**, which is the §2.5 truncation defect and argues for *longer*
 holds, not shorter.
 
-One discriminator is available: **own-sensing flux should not scale with team
-size; peer-merge flux should.** It scales steeply — 32.3 % → 52.1 % of meetings
-still gaining, p75 1.8 → 1636.2 vox/s. That points at peer merge arrival as the
-dominant component, i.e. at truncation. It is not conclusive (the rungs are
-different generations, and larger teams explore more space), and separating the
-two cleanly is **exactly what Part 1's per-peer counter is for**.
+One discriminator suggests itself: **own-sensing flux should not scale with team
+size; peer-merge flux should.** Across the table it scales steeply — 32.3 % →
+52.1 % still gaining, p75 1.8 → 1636.2 vox/s — which would point at peer merge
+arrival as the dominant component, i.e. at truncation.
+
+> **That reading is withdrawn.** It is the same generation × team-size confound
+> §5.5 calls blocking, and it cannot be waved through with a parenthetical here
+> while blocking a design decision there. The two columns differ in **binary**
+> as well as in N: the N=2 column is gen 32, the N≥3 column is `e7c185b`. So
+> the "scale-up" is equally well explained by the generation change, and this
+> table cannot distinguish the two.
+>
+> Re-run with the binary **held fixed** — gen 32 on both sides, the only
+> comparison that tests the stated premise — the discriminator has no power at
+> all:
+>
+> | still gaining > 1 vox/s at the end | N=2 (gen 32) | N=3 (gen 32) |
+> |---|---:|---:|
+> | meetings > 60 s scored | 31 | **3** |
+> | still gaining | 10 (32.3 %) | 0 (0.0 %) |
+> | p75 vox/s | 1.6 | 0.0 |
+>
+> Three meetings. The point estimate moves the *opposite* way and means nothing
+> at that n. The honest statement is that **the component split is unmeasured**,
+> not that it favours truncation.
+
+This changes no decision in Part 2 — the rate-threshold requirement above rests
+on the N=2 tail (10 of 31), which is within one generation and stands on its
+own. What it removes is the claim about *which* flux that tail is. Separating
+the two cleanly is **exactly what Part 1's per-peer counter is for**. The
+same-generation N=4 arm that would have given this table power was forfeited
+when the gen-32 campaign was stopped (§5.5), so Part 1's counter is now the
+**only** route to the split rather than one of two.
 
 ---
 
@@ -344,26 +507,44 @@ packet's own `in_range_mask` naming us (`team_model.cpp:238-245`). The header is
 right that this is *"the only thing that makes a peer a direct contact"*, and the
 loss edge (§2.2) proves it behaves exactly as specified.
 
-What must change is **acquisition**, and the change depends on §5.1's answer. The
-candidate levers, in order of preference:
+What must change is **acquisition**, and §2.7 has since narrowed the levers from
+three to one:
 
-1. **Close the ~6–7 s gap at its source** once §5.1 identifies it. If the
-   emulator's forwarding gate differs from the logged `connected`, that is a
-   fidelity bug in the harness, not a planner change at all — the cheapest
-   possible fix and it touches no binary.
-2. **Raise `team_world_hz` during acquisition only.** The handshake costs ~3
-   packets; at 1 Hz that is a 3 s floor against an 11.5 s median window. A
-   faster beacon while a peer is `heard_one_way` (i.e. we are mid-handshake)
-   shortens acquisition without raising steady-state airtime. Note the shared
-   airtime bucket — this must be measured, not assumed free.
-3. **Do not widen `direct`.** Accepting one-way contact would destroy the
-   property that makes it a positive determination. §2.2's one-way false
-   negative is only 0.791 %; it is not where the loss is.
+1. **Close the gap at its source in the harness.** §2.7 shows the BLIND windows
+   are fleet-wide TeamWorld blackouts, not per-link handshake latency, so the
+   defect is in delivery rather than detection. This is a fidelity bug in the
+   emulator — **it touches no binary and is the whole of Part 0's value.**
+   §5.1 specifies the instrument.
+2. ~~**Raise `team_world_hz` during acquisition only.**~~ **Withdrawn — refuted
+   by §2.7.** The lever assumed a 3-packet handshake against a 1 Hz beacon, i.e.
+   a 3 s floor worth attacking. But **71 of 72** BLIND visits received *zero*
+   packets across a median 16–26 s of contact. A 5 Hz beacon multiplies zero. It
+   would spend airtime — on the same contended bucket now suspected of causing
+   the blackout — to send more copies of a message that is not being delivered.
+   > A second, independent reason it would not have worked as specified, raised
+   > in review: the lever is **not unilateral**. `direct` requires a packet from
+   > the peer *and* that packet's `in_range_mask` naming us, so the acquisition
+   > time is set by the **slower** of the two beacons. A robot that raises its
+   > own rate to 5 Hz while the peer stays at 1 Hz still waits on the peer's
+   > 1 Hz mask — it buys nothing and spends airtime to do it. "Raise the rate
+   > during acquisition" therefore needs a fleet-wide coherent trigger, which
+   > a robot that has not yet acquired the peer cannot coordinate. Even had
+   > §2.7 not refuted the premise, the lever was underspecified.
+3. **Do not widen `direct`.** Unchanged and now better supported. Accepting
+   one-way contact would destroy the property that makes it a positive
+   determination, and §2.8 shows the one-way rows are not where the loss is
+   (4 % of rows, against visits losing 100 % of their traffic).
 
-**Instrumentation (required, not optional).** Emit the acquisition latency
-directly: on every `heard_one_way → direct` transition, log the elapsed time
-since the first one-way packet. Today this quantity exists only by offline
-reconstruction against an oracle that does not exist in the field.
+**Instrumentation (required, not optional).** Emit **both** halves of the
+verdict's behaviour, because §2.8 shows they diverge:
+
+- on every `heard_one_way → direct` transition, the elapsed time since the first
+  one-way packet — acquisition **latency**;
+- on every `direct → ¬direct` transition while still receiving, the duration
+  held — acquisition **stability**.
+
+Today both exist only by offline reconstruction against an oracle that does not
+exist in the field.
 
 ### Part 1 — R2: make the map exchange observable
 
@@ -374,6 +555,83 @@ exactly as it differences `team_merge_applied_total_` today, and
 
 This is the only way to satisfy R2 as asked. It is also the largest piece of work
 in this document and the only one that leaves `explo_planner`.
+
+#### Where the counter comes from — the quantity already exists
+
+Raised in review: this was hand-waved, and a per-peer counter could have meant
+building a shadow grid. It does not. **dscovox already keeps peers separate.**
+
+- `dscovox_node.cpp:1046-1047` — `std::unordered_map<std::string, SourceGrid>
+  sources_`, commented *"One source grid per robot, keyed by header.frame_id of
+  incoming binaries."* Peers are **not** fused into an anonymous common grid;
+  they are folded at query time (`:559-582`).
+- `:405` keys each incoming binary by `msg->header.frame_id`; `:485-497`
+  finds-or-creates that source's grid.
+- `:437-438`, `:587-588` — `n_touched_beta` / `n_touched_dir` already count
+  *"fused occupancy/semantic cells this frame changed"*, per frame, per source.
+
+So Part 1 is **a per-source running sum of a number dscovox already computes**,
+not new map machinery. Three consequences, each answering a review question:
+
+| question | answer |
+|---|---|
+| Shadow grid needed? | **No.** Per-peer separation is native to `sources_`. |
+| Monotone across a dscovox restart? | **No — and it must not be relied on.** The accumulator is node-local and resets. Part 2 differences *increase since the hold began*, so the planner captures a baseline at hold start; a restart appears as a negative delta and is treated as **re-baseline**, never as arrival. This is what `MapExchangeBaseline` already does for the census. |
+| Under relay, who is credited? | **The originator, and the emulator cannot do otherwise.** `hmr_comms_sim_node` forwards with `create_generic_subscription` / `create_generic_publisher` over `rclcpp::SerializedMessage` (`:774-782`, `:911-912`) — it never deserializes, and the string `frame_id` does not occur in the file. The payload crosses byte-for-byte, so `header.frame_id` is structurally preserved and voxels count against the peer that sensed them, not the relayer. Consistent with §4.1: relay is a delivery path, not a different partner. |
+
+**Cost of being wrong here is bounded:** if `n_touched_*` proves too coarse (it
+counts cells changed, not voxels ingested, and a re-observation of a known cell
+touches nothing), the fallback is the per-source grid's own active-voxel count,
+already available from the same map. Both are per-peer; neither needs a new grid.
+
+#### The counter must be a **pair**, and it must be published unconditionally
+
+**Found by adversarial review of this document, 2026-09-22. This is the one
+finding that changes what gets built.**
+
+A single novelty counter cannot distinguish the two states Part 2 must tell
+apart, because **both read zero**:
+
+| peer state | `n_*_deltas` (arrived) | `n_touched_*` (novel) | correct action |
+|---|---:|---:|---|
+| sent everything, all redundant — **genuinely drained** | > 0 | → 0 | **release** |
+| **blackout** — nothing arriving at all | **0** | **0** | **do not release** |
+
+As Part 1 was written — one counter, of novelty — Part 2 releases in both rows.
+That means the release predicate fires **fastest in exactly the failure mode
+Parts 0 and 1 exist to fix**, and the robot departs having exchanged nothing
+while its own logs record a clean drain. This is the same error §2.7 had to
+build an oracle-based decomposition to escape — *silence read as completion* —
+reproduced one layer down, at the voxel layer, where there is no oracle.
+
+Two code facts make the failure concrete rather than theoretical:
+
+1. **The arrival quantity already exists and is already computed in the same
+   scope.** `dscovox_node.cpp:437-438` computes `n_beta_deltas` /
+   `n_dir_deltas` — *"how much arrived"* — right beside `n_touched_beta` /
+   `n_touched_dir` — *"how much it touched"*. The per-source log at `:601-604`
+   already prints all four. Nothing new is measured; one of two existing
+   numbers was simply dropped from the design.
+2. **Publishing "alongside the map" would itself be silent during a blackout.**
+   `publishFusedMap()` returns early unless the map is dirty (`:850`
+   `if (!fused_dirty_.exchange(false)) return;`), and `fused_dirty_` is set only
+   at `:609`, reached only once non-empty deltas have been fused. So when
+   nothing arrives, **nothing is published**, and the planner sees the counter's
+   last value persist — indistinguishable from "arrived, added nothing".
+   (`:848` returns early on zero subscribers too.)
+
+**Required, and both parts are cheap:**
+
+- dscovox publishes **two** monotone per-source running sums — `deltas_received`
+  (arrival) and `cells_touched` (novelty) — not one.
+- They publish on their **own timer, independent of `fused_dirty_`**, so that
+  "nothing arrived" appears as a *fresh sample with an unchanged arrival count*
+  rather than as an absent sample. A counter whose silence is ambiguous is not
+  an observation.
+
+This is additive: it changes no fusion logic, adds no grid, and reuses both
+quantities verbatim. It does mean Part 1's deliverable is a small message, not
+a single integer.
 
 **Once the signal exists**, the hold rule follows from §2.5 rather than from
 guesswork — but the *shape* of the rule must be re-derived from the new signal's
@@ -397,15 +655,26 @@ moving forever and pin every meeting to the 3000 s cap, converting a timing
 defect into a censoring defect. §2.10 measures it. The predicate is therefore
 specified now, with two properties the measurement forces:
 
-> Release when, for every peer believed present, the **per-peer ingest counter**
-> (Part 1 — *not* `total_observed_voxels`) has gained **less than `R` voxels/s
-> averaged over a trailing window `W`**, with a hard floor of `W` seconds held
-> regardless and the existing duration cap unchanged as a backstop.
+> Release when, for every peer believed present, **data is arriving from that
+> peer** — its Part 1 `deltas_received` rate is **> 0** over the trailing
+> window — **and** its `cells_touched` rate has fallen **below `R` per second**
+> over that same window `W`, with a hard floor of `W` seconds held regardless
+> and the existing duration cap unchanged as a backstop.
+>
+> **The arrival term is not redundant and must not be optimised away.** Without
+> it the predicate reads a blackout as a drain and releases immediately — see
+> *"The counter must be a pair"* in Part 1. A peer whose `deltas_received` rate
+> is zero is **not drained**; that visit falls through to the duration cap and
+> must be **logged as an unfinished exchange**, not as a release. The two
+> outcomes are different events and the logs must name them differently, or
+> the same ambiguity returns as a reporting bug instead of a control bug.
 
-1. **A rate threshold, not a zero test.** 32.3 % (N=2) and 52.1 % (N≥3) of long
-   meetings are still gaining >1 vox/s when the robot currently departs. A
-   "counter has stopped" rule over-holds in a third to a half of cases; a rate
-   rule does not.
+1. **A rate threshold, not a zero test.** **10 of 31 (32.3 %)** long meetings on
+   gen 32 at N=2 are still gaining >1 vox/s when the robot currently departs. A
+   "counter has stopped" rule over-holds in a third of cases; a rate rule does
+   not. (The 52.1 % at N≥3 is cross-generation and is **not** relied on — see
+   the withdrawal in §2.10. The N=2 figure is within one binary and carries
+   this requirement on its own.)
 2. **Per-peer, not fused.** The quantity being thresholded must be *merge
    arrival only*. `total_observed_voxels` sums own sensing and fusion
    (`:16731`), so a rate rule over it is exactly the co-sensing trap the review
@@ -413,6 +682,38 @@ specified now, with two properties the measurement forces:
    parallel workstream — ordering already stated in §5.
 3. **The cap stays.** It is the backstop that makes a mis-set `R` a timing loss
    rather than an unbounded hold.
+4. **Release is monotonic within a visit.** Once the predicate fires for a
+   visit, it **latches released** — the hold does not re-enter on a late burst
+   of merge traffic. Raised in review, and the asymmetry is deliberate: the
+   counter is bursty by construction (a single fused message can deliver
+   thousands of voxels at once), so a re-entrant hold would oscillate around
+   `R` and could pin a robot that had already satisfied the exchange. A late
+   burst after release is a merge that lands while departing — the §2.5
+   truncation defect, which Part 1's counter records and which is a *logging*
+   concern, not a reason to stop the robot again. The latch clears on the next
+   entry into the meeting state, so a subsequent visit re-arms normally.
+5. **The predicate inherits the detector's false-positive rate.** It is
+   quantified in §2.2 and must not be silently carried: the robot believes a
+   peer is direct while the oracle says DOWN on **2.948 %** of scored grid
+   points (13,908 of 471,826). "For every peer believed present" therefore
+   means *believed*, and a robot can hold for a peer that is not actually
+   there. The design does not claim the hold is conditioned on ground truth,
+   because nothing onboard has it.
+   The consequence is bounded, and by a specific knob: the cap in (3) is
+   **`rendezvous_latched_hold_sec`** (default 300 s; this campaign runs 420 s),
+   which the node already validates must exceed `rendezvous_settle_sec`
+   (`explo_planner_node.cpp:4705-4714`) — so replacing the settle trigger with
+   the drain trigger cannot produce a hold the cap fails to bound. The failure
+   mode is a wasted wait of at most that cap, never a permanent stall.
+   > Two neighbouring knobs are **not** the backstop here, and conflating them
+   > is a known defect with a pinned regression test
+   > (`test_gen20_rendezvous.cpp:969-1004`).
+   > `reconnect_midrun_max_wait_sec` bounds a **mid-run reconnect attempt**, not
+   > the wait of a robot keeping an appointment. `rendezvous_appointment_wait_sec`
+   > is the barrier — waiting for a peer to *arrive* — and it is deliberately
+   > unbounded (ruled 2026-09-22); Part 2 does not touch it and proposes no cap
+   > on it. Part 2's hold is strictly **post-arrival**, which is why the
+   > latched-hold cap is the one that applies.
 
 `R` and `W` are **not chosen here.** Choosing them off `total_observed_voxels`
 would be fitting a threshold to the contaminated signal. They get fixed from the
@@ -426,12 +727,29 @@ lands, before Part 2 is enabled.
 `robot_finished[]` already uses and already justifies: *"A monotonic fact has no
 freshness to check."*
 
-**The monotonicity precondition is verified.** `doReturnHome`
+**The monotonicity precondition is verified — for `HOMING`.** `doReturnHome`
 (`explo_planner_node.cpp:14306-14613`) contains **zero** `transitionTo` calls,
 and `startReturnHome` carries two re-entry guards that *"refuse every later
 request"*. Homing never reverts to exploring, so a sticky bit cannot become a
 permanent lie. **This must be written down at the declaration** — if anyone later
 makes homing resumable, there is no TTL to rescue the encoding.
+
+> **`DONE` is a different matter, and the earlier draft was wrong to cover both
+> with one argument.** `state_ == DONE` **is not monotone**: `:7452-7458`
+> transitions `EXPLOIT_PLAN` with reason `"target-arrived-done-idle"`, so a
+> robot that has reached `DONE` can leave it. Encoding the top level of `mode`
+> from `state_` would publish a max-merged, TTL-free `DONE` that the robot
+> itself has already contradicted — permanently, since max-merge cannot go back
+> down.
+>
+> **The codebase already solved this and the solution must be reused, not
+> re-derived.** `finished_announced_` (`:3042-3049`) is set exactly once
+> (`:19101`) and **never cleared** — it exists precisely because
+> `(coverage_latched_ || state_ == DONE)` is not monotone. `mode`'s `DONE`
+> level derives from `finished_announced_`; `HOMING` from the homing latch.
+> **Neither may read `state_` directly.** Per §3.3 this is also the predicate
+> the `finished`-consumer table above is already written against, so the two
+> stay consistent by construction.
 
 Consumers:
 
@@ -503,32 +821,84 @@ Presence gates whether the hold **starts**; arrival gates whether it **stays**.
 They cover each other: if a peer reaches us some way `direct` cannot see, the
 arrival counter moves anyway and the hold persists regardless.
 
+#### Shipping order — what happens between the parts
+
+Raised in review: §4.1 forward-references Part 1, so shipping Part 0 alone
+leaves the hold with **no arrival signal** and it falls back to the old settle
+timer — which is the defect this document exists to remove. Correct, and the
+answer follows from Part 0 having shrunk to a single harness lever:
+
+| ships | what it is | depends on |
+|---|---|---|
+| **Part 0** | emulator instrumentation + whatever §5.1 finds | nothing — **no binary change**, can land today |
+| **Parts 1 + 2** | per-peer voxel counter, then release on it | **atomic** — Part 2 has nothing to release on without Part 1 |
+| **Part 3** | `mode` on the wire | independent of the arrival signal; may ride with 1+2 or alone |
+
+**Parts 1 and 2 are one change and must not be split.** There is no interim
+state worth shipping between them: Part 1 alone adds a signal nothing consumes,
+Part 2 alone consumes a signal that does not exist. Part 0 escapes the question
+entirely because it no longer touches the planner.
+
 ---
 
 ## 5. Open questions — must close before code
 
-### 5.1 The ~6–7 s acquisition gap **(blocking)**
+### 5.1 Why does a connected pair deliver nothing? **(blocking)**
 
-Blips, queueing, delivery rate and handshake circularity are all eliminated
-(§2.4). Remaining candidates:
+**Reframed.** This subsection previously asked whether the emulator's forwarding
+gate disagrees with the `connected` column it logs. **Reading the emulator
+settles that: it does not.**
 
-- the comms emulator's forwarding gate uses a different or hysteretic criterion
-  than the `connected` column it logs;
-- `connected` is sampled at 5 Hz but forwarding is re-evaluated more slowly;
-- publish-timer phase interacts with gate transitions.
+- `hmr_comms_sim_node.cpp:668` — `connected` *is* `bandwidth_mbps > 0`.
+- `:837` — forwarding gates on that **same field**.
 
-**Test:** instrument the emulator to log the instant it begins forwarding between
-a pair, and diff against `link_states.csv`'s up-edge on the same run. One
-instrumented cell answers it. **No binary change, no campaign.**
+There is a discrete forwarding instant, it is the logged column, and there is no
+hysteresis or trailing window to reconstruct. The three candidate causes above
+are all dead. *(Note for whoever instruments this:
+`hmr_comms_relay_node.cpp` has a different, bandwidth-only gate — it is
+**legacy and not launched**. `comms_sim.launch.py:196` starts
+`hmr_comms_sim_node`. Instrumenting the wrong file would produce confident
+nonsense.)*
 
-Until this closes, we do not know which of two disagreeing signals is the truth,
-and *"positively determine if the robots connected"* is not satisfied by either.
+The real question is the one §2.7 raised: **a pair can be `connected` and still
+deliver nothing**, because three more gates sit between connected and delivered —
+`drop_ber` (`:849`), `drop_airtime` (`:854`), `drop_overflow` (`:825`).
+
+**And the instrument already exists but is thrown away.** `PublishStats()`
+(`:966-1001`) computes per-link, per-reason counters — exactly what is needed —
+and publishes them on `stats_pub_`. Only the **cell-wide aggregate** reaches
+`comms.log` (`:998`), and campaigns run `--record 0`, so the topic is never
+bagged. **Nothing in the entire bank can attribute a single drop to a link or a
+reason.** That is the actual gap.
+
+**Test:** log the per-link per-reason counters that `PublishStats` already
+builds, then re-run one convergence-heavy cell. **No binary change, no campaign,
+no new computation** — a logging line in the sim node.
+
+**One candidate is already weakened.** The shared `airtime_capacity: 0.6` bucket
+was the leading suspect, since TeamWorld is best-effort and hard-dropped while
+the dscovox map is reliable and queued on the same bucket. Sampling it during
+the blackouts refutes the simple version: tokens sit near the 0.25 s cap
+(p50 0.18–0.24) in every window, BLIND and SILENT alike, **0 % at zero**. The
+sampler is ~28 s and cannot see sub-second transients — but a 16–103 s blackout
+requires near-continuous emptiness, which would have shown.
+
+**Fallback if the counters exonerate the emulator.** Then the messages were
+never published, and the defect is upstream in the planner's own publish path
+(executor starvation on the TeamWorld timer). That is testable from the same
+cell without new instrumentation: a starved publisher logs no
+`team_exchange` rows to **any** peer while continuing to log other events —
+which is precisely the fleet-wide bidirectional signature §2.7 already observed.
+In that case Part 0 becomes a planner change after all, and its lever is timer
+priority, not beacon rate.
 
 ### 5.2 Does H1 explain the empty meetings? — **ANSWERED (§2.7)**
 
 Refuted at N=2 (1 of 110 BLIND, believed/connected p50 1.00); strongly supported
 at N≥3 (72 of 197 BLIND, believed/connected p50 0.14). **Confounded with
-generation**, which promotes §5.5 to the blocking item.
+generation**, and §5.5 records that the confound is now closed *unmeasured*
+rather than resolved — the N≥3 half of this answer stays on the superseded
+binary permanently.
 
 ### 5.3 Does the relay carry content? — **ANSWERED (§2.8)**
 
@@ -538,28 +908,135 @@ content arrives with `direct` never true. `via_relay` peers **belong** in the
 exchange partner set; §4.1's split (direct gates the start, arrival governs
 staying) is confirmed and must not be tightened.
 
-### 5.4 Is the SILENT bucket correct behaviour? **(blocking Part 1's size)**
+### 5.4 Is the SILENT bucket correct behaviour? — **ANSWERED for the census**
 
 SILENT — connected, believed, nothing applied — is **92 of 110** empty meetings
-at N=2 and **89 of 197** at N≥3. It is now the dominant unexplained bucket, and
-§3.2 predicts the answer: `applied` counts the **100-cell census**, which
-converges early and then legitimately has nothing to say, while the **voxel map**
-underneath is still diverging. A sampled row is consistent with this
-(`known_by_only: 82` of 100, `refused_guard: 13`, `refused_local: 5`).
+at N=2 and **89 of 197** at N≥3. §3.2 predicted that `applied` is simply the
+wrong instrument: the **100-cell census** converges early and then legitimately
+has nothing to say. **Measured, and confirmed.**
 
-If that holds, SILENT is not a defect at all — it is `applied` being the wrong
-instrument, which is precisely why Part 1 exists. One offline pass over the
-existing refusal counters, cross-checked against per-robot
-`total_observed_voxels` divergence across the same visits.
+| | N=2 | N=3 | N=4 |
+|---|---:|---:|---:|
+| delivered rows per **believed-connected second** | 1.01 | 0.96 | 0.96 |
 
-### 5.5 Is the N=2/N≥3 split team size or generation? **(now the blocking item)**
+Against a configured `team_world_hz = 1.0`, messages arrive at **full rate**.
+And they are not being refused: `drop_reason` is empty on **all 14,151 rows**,
+`coalesced` is nonzero on **one** row in the entire corpus, and the merge
+outcome is `applied` = **0** against `agreed_noop` = **1,363,174** cell
+decisions. The census is delivered, on time, and every cell in it already
+agrees.
 
-It decides whether Part 0 is the most valuable work in this document or nearly
-finished (§4). **Test:** fix the gate-scope false positive that aborted
-`ts4_chain32`, then run the n3 and n4 rungs on the gen-32 binary already pinned
-at `751d8344bd4dd21f`. No rebuild, no new generation, and the campaign script
-exists. Re-run §2.7 on the result and compare the BLIND rate against the 36.5 %
-measured at `e7c185b`.
+**SILENT is benign.** It is not a defect, not a detector failure, and — this was
+raised in review as a third possibility — **not silent message loss in the ROS 2
+graph on one side of the exchange.** A dropped-message explanation is
+incompatible with a measured 1 Hz arrival rate and an empty `drop_reason` column.
+Part 1 does not need to defend against it.
+
+> **Methods note, in the spirit of §2.9.** The first run of this normalised
+> delivered rows by **visit duration** and reported 0.44 msg/s — an apparent
+> 56 % shortfall that looked exactly like a defect. It was an artifact of the
+> denominator: a peer believed for 20 s of a 60 s visit cannot be expected to
+> deliver 60 messages, and scoring it against the visit manufactures the gap.
+> Re-normalising on believed-connected seconds reversed the conclusion. **The
+> denominator, not the count, was carrying the finding.**
+
+**Still open — the voxel half.** This settles that the *census* is converged; it
+says nothing about whether the **map** underneath is. That cross-check needs
+per-robot `total_observed_voxels` divergence across the same visits, and it is
+exactly the quantity Part 1 creates. §5.4 therefore no longer blocks Part 1's
+size — it **confirms Part 1's premise** and hands the remaining question to it.
+
+### 5.5 Is the N=2/N≥3 split team size or generation? **(closed — will not be measured)**
+
+> **Decision (Kalhan, 2026-09-22): the gen-32 n3/n4 campaign was stopped at 3 of
+> 80 cells and gen 33 proceeds now.** Recorded here because it changes what the
+> rest of this section is: not a pending result, but a **permanent limit** on
+> the evidence base.
+>
+> What is forfeited is specific. The ≥60 s blackout band — the phenomenon that
+> motivates Parts 0 and 1 — was measured only on `ts1b`/`ts1d`, and is
+> overwhelmingly an **N=4** effect (216/1,612 spans, 13 %, against 13/368,
+> 3.5 % at N=3). The gen-32 N=4 rung never ran, and it cannot be run later:
+> `__TIME__` makes the build non-reproducible, so binary `751d8344bd4dd21f`
+> can never be rebuilt, and a gen-33 campaign ships the fix and the test
+> together — an absence of blackouts there cannot distinguish *fixed* from
+> *never present at N=4 on this generation*.
+>
+> **What survives, and it is not nothing.** The two completed N=3 cells already
+> establish the load-bearing claim: the blackout **reproduces on the current
+> binary** (93.0 connected-seconds lost per cell against the control's 228.6),
+> so Parts 0 and 1 are not fixing a dead defect. They also establish that it is
+> **convergence-linked** within a single binary and seed (`off` 0.0 s, `hybrid`
+> 186 s). What is lost is the *magnitude at N=4*, i.e. how much Parts 0 and 1
+> are worth — not whether they address something real.
+>
+> **Consequence for how this design must be read.** Every ≥60 s blackout figure
+> below is from a superseded binary and the pre-2026-09 radio regime, and now
+> stays that way. Part 0 and Part 1 are justified by a defect confirmed present
+> on gen 32 but **sized only on `ts1b`/`ts1d`**. Any gen-33 result must be
+> stated in absolute terms rather than as an improvement over an unmeasured
+> baseline — which is consistent with the scope decision at the head of this
+> document, and is the reason that decision does not cost anything here.
+
+**The stakes rose with §2.7.** This no longer merely sizes Part 0. Every
+blackout measurement in this document comes from `ts1b`/`ts1d` — a superseded
+binary and the pre-2026-09 radio regime. If the blackout does not reproduce on
+the current binary, then **Part 0 and Part 1 are fixing a defect that no longer
+exists**, and this design would be a binary change justified by evidence from a
+binary already replaced. Nothing else in the bank can settle it, and a
+gen-33 campaign cannot either — it would ship the fix and the test together.
+
+**Test (stopped at 3 of 80 cells).** The gate-scope false positive that aborted
+`ts4_chain32` was fixed and the n3 rung began on the gen-32 binary pinned at
+`751d8344bd4dd21f` — no rebuild, no new generation. Two cells completed
+(`off`, `hybrid`, seed 1); a third was killed mid-run and is marked
+`ABORTED_PARTIAL_` on disk. **The n4 rung never started.**
+
+> The partial cell's manifest carries `run_gates_verdict=CLEAN` with no `rc=`
+> and no `end_reason=` — the gates ran early, passed, and the run was killed at
+> 28 min of a 3000 s sim. A truncated cell that advertises CLEAN is exactly the
+> shape of thing the harvester would bank as valid, which is why it is renamed
+> rather than left in place.
+
+**The one read taken: the blackout survives into gen 32, but milder.** Re-scored on a
+general form of the §2.7 probe — per ordered pair, walk the oracle's contiguous
+connected spans and count rows delivered in each. It does not depend on
+`RETURN_SYNC`, so it runs on any arm, and it is banded by span length because a
+2 s span that delivers nothing at 1 Hz is unremarkable while a 60 s one is the
+whole finding.
+
+N=3, like for like (`ts1d_n3`, 40 cells, old binary/old radio regime — versus
+the first 2 completed gen-32 cells):
+
+| span length | control: zero-rx | gen 32: zero-rx | control rows/s | gen 32 rows/s |
+|---|---:|---:|---:|---:|
+| 1–5 s | 342/480 (71 %) | 12/24 (50 %) | 0.00 | 0.26 |
+| 5–15 s | 339/830 (41 %) | 6/28 (21 %) | 0.37 | 0.68 |
+| 15–60 s | 162/1036 (16 %) | 4/12 (33 %) | 0.63 | 0.71 |
+| **≥60 s** | **13/368 (3.5 %)** | **0/32** | 0.65 | 0.79 |
+| **connected-seconds lost per cell** | **228.6** | **93.0** | | |
+
+Three things follow, and the third is the one that matters:
+
+1. **The defect is real on the current binary.** It is not an artifact of the
+   superseded generation, so Parts 0 and 1 are not solving a dead problem.
+   Delivery rate improved in every band and per-cell loss fell ~2.5×, but
+   **nothing here is fixed.**
+2. **It is convergence-linked, as §2.7 hypothesised.** The gen-32 `off` cell —
+   which never enters `RETURN_SYNC` and therefore never converges — lost
+   **0.0 s** across 28 spans. The `hybrid` cell, which holds `RETURN_SYNC` for
+   96–241 s per robot, lost 186 s. Same binary, same seed, same regime; the
+   difference is whether the robots come together. Anyone re-running this on an
+   `off` cell will conclude the defect is gone, and be wrong.
+3. **The long blackouts are not yet tested.** The ≥60 s band drove §2.7 and is
+   at 0/32 on gen 32 — but the control's own N=3 rate predicts only ~1.1 such
+   events in 32 spans, so **this is underpowered and proves nothing.** Those
+   blackouts were overwhelmingly an **N=4** phenomenon: 216 of 1,612 spans
+   (13 %) at N=4 against 13 of 368 (3.5 %) at N=3. **The n4 rung was the real
+   test of this design's premise, and it will not run** — see the decision
+   above. This is the one claim in the document that is now permanently
+   un-derisked, and it should be read as a stated limit rather than as a gap
+   waiting to be filled.
 
 ---
 
@@ -595,6 +1072,18 @@ relink the node)**
    is home rather than the predicted trail.
 7. Exchange presence: a `finished` peer with no fresh `direct` does **not** open
    a hold (the A3 regression).
+8. **Blackout is not a drain.** Drive the release predicate with
+   `cells_touched` rate **0** and `deltas_received` rate **0**: it must **not**
+   release, must run to the duration cap, and must emit the *unfinished
+   exchange* event — not the drained one. Then drive it with `cells_touched`
+   rate 0 and `deltas_received` rate **> 0**: it **must** release. These two
+   cases differ only in the arrival term, so the test fails the instant that
+   term is dropped or folded away — which is exactly how this defect entered
+   the design in the first place.
+9. **Counter liveness.** The per-source counters must keep publishing while
+   nothing arrives. Assert a fresh sample with an unchanged `deltas_received`
+   during a silent interval; a test that only checks values while data flows
+   would pass against the `fused_dirty_`-gated publish that caused the bug.
 
 **Mutation** — every test above must be shown to fail against a deliberately
 broken implementation before it is believed. A green suite can be blind by
@@ -615,7 +1104,22 @@ an existing root would silently keep pre-fix cells.
   it is dropped every time. Verify by sourcing, not by grepping: the block
   exports a computed variable.
 - colcon: `source /opt/ros/humble/setup.bash` and `PATH="/usr/bin:$PATH"`.
-  Never `--packages-up-to explo_planner`.
+  Never `--packages-up-to explo_planner`. Use
+  `--packages-select explo_planner_msgs explo_planner --symlink-install`.
+  > **This contradicts `explo_planner/README.md:44-55`, which instructs
+  > `--packages-up-to explo_planner`.** Flagged in review, and the
+  > contradiction is literal. Both are partly right, and the README's *reason*
+  > is the part to keep: it warns against `--packages-select` because
+  > `explo_planner_msgs` is a sibling that must build first — true, and it
+  > assumes the single-package form. Naming **both** packages satisfies that
+  > requirement exactly. What `--packages-up-to` additionally does is pull in
+  > every upstream dependency, including `scovox`, so an unrelated upstream
+  > change can relink `explo_planner_node` and silently invalidate a pinned
+  > sha — the failure this doc's second bullet exists to prevent. The
+  > two-package select is therefore the strictly safer form, and the README is
+  > **stale rather than wrong**. Fixing it is a one-line edit to a tracked file
+  > in the fingerprinted `explo_planner` submodule, so it waits for the
+  > between-campaigns window like every other edit here.
 - `PYTHONDONTWRITEBYTECODE=1` on every python invocation — a stray `__pycache__`
   entry is an untracked file under the workspace.
 - **This file lives in the `hmr_explo` superproject on purpose. Do not move it
@@ -631,35 +1135,90 @@ an existing root would silently keep pre-fix cells.
 
 ## 9. Summary for the reviewer
 
-- **R1 is not satisfied today**, and the reason is measured, not asserted: two
-  available signals disagree by ~6–7 s and every benign explanation is
-  eliminated. §5.1 is blocking and costs one instrumented cell.
+- **R1 is not satisfied today, but not for the reason first written.** The
+  emulator's forwarding gate does **not** disagree with the `connected` column
+  it logs — `hmr_comms_sim_node.cpp:837` gates on the same field `:668`
+  defines, so there is a discrete forwarding instant and it is the logged one.
+  The defect is **delivery, not detection**: a pair can be `connected` and
+  deliver nothing (§2.7), and the per-link per-reason counters that would say
+  why are computed by `PublishStats()` and then discarded. §5.1 is blocking and
+  costs **a logging line**, not a binary change.
 - **R2 is not satisfiable with existing signals.** The quantity that would
   answer it does not exist in the planner; it must be created in dscovox.
+  **It is a pair, not a number** — `deltas_received` (arrival) *and*
+  `cells_touched` (novelty), published on a timer that does **not** depend on
+  the fused map being dirty. Adversarial review of this document found that a
+  novelty-only counter reads a blackout and a completed drain identically
+  (both zero), which would make Part 2 release fastest in precisely the failure
+  mode Parts 0 and 1 exist to fix, and record it as a clean exchange. Both
+  numbers are already computed side by side at `dscovox_node.cpp:437-438` and
+  already logged at `:601-604`; the design had simply dropped one of them.
 - **R3 is small** and rides on whatever R2 produces. Its release predicate is
   now specified as a **rate threshold, not a zero test** (Part 2), because
-  §2.10 measures 32–52 % of long meetings still gaining voxels at departure.
-  The threshold constants are deliberately left unset until Part 1 exposes an
-  uncontaminated per-peer rate to set them from.
+  §2.10 measures **10 of 31** long meetings still gaining voxels at departure
+  within a single binary. It is additionally specified as **monotonic within a
+  visit** (no re-entrant hold on a late burst), and it inherits the detector's
+  **2.948 %** false-positive rate — bounded by `rendezvous_latched_hold_sec`,
+  which is the post-arrival cap and *not* the deliberately-unbounded
+  appointment barrier. The threshold constants are deliberately left unset
+  until Part 1 exposes an uncontaminated per-peer rate to set them from.
 - **R4 is ready to build**, with its monotonicity precondition verified — but
   `HOMING` must be a re-price, not a skip, and its value cannot be demonstrated
   at N=2.
 - **The previous drain proposal is withdrawn**, on its own evidence.
-- **H1 was tested and split by team size** (§2.7): refuted at N=2 (1 of 110
-  empty meetings BLIND, believed/connected p50 **1.00**), strongly supported at
-  N≥3 (72 of 197 BLIND, believed/connected p50 **0.14**). Acquisition latency
-  does **not** cost exchanges at the meeting in a pair; at N≥3 it appears to
-  cost a third of them.
-- **That split is confounded with generation**, and the run that separates them
-  never executed: `ts4_chain32` aborted after the n2 rung returned
-  `ok=39 fail=1` on a gate false positive. **§5.5 is now the blocking item**,
-  and it costs a gate fix plus a campaign that is already written — no rebuild,
-  no new generation.
+- **H1 was tested, split by team size, and then killed outright** (§2.7).
+  Refuted at N=2 (1 of 110 empty meetings BLIND; believed/connected is
+  **exactly** 1.0 in 56 of 101 visits, with none in [0.995, 1.0)). At N≥3 the
+  BLIND rate is high (72 of 197) — but **71 of those 72 visits received zero
+  packets** across a median 16–26 s of contact from a live peer, and the
+  silence is fleet-wide and bidirectional. That is not slow acquisition; it is
+  a channel that is down. **A faster beacon multiplies zero, so Part 0's
+  beacon-rate lever is withdrawn.**
+- **`direct` is perfectly stable at N=2 and churns at N=4** (§2.8): 0 drops in
+  80 pairs, versus 0.34 drops per pair-minute across 70 % of pairs. Part 0 must
+  instrument stability, not just onset latency.
+- **The blackout reproduces on the current binary**, so this design is not
+  fixing a dead problem. At N=3 it is ~2.5× milder than the superseded
+  generation (93 vs 229 connected-seconds lost per cell) but **present**, and
+  it is **convergence-linked**: the `off` arm, which never meets, lost 0.0 s
+  while the `hybrid` arm on the same seed lost 186 s. This rests on **two
+  completed cells** — enough to establish presence and the convergence link,
+  not enough to size the effect.
+- **§5.5 is closed unmeasured, by decision, and this is the document's main
+  limit.** The gen-32 campaign was stopped at 3 of 80 cells to start gen 33.
+  The ≥60 s blackouts that drove §2.7 are a 13 %-at-N=4 phenomenon against
+  3.5 % at N=3, and the N=4 rung never ran; it cannot be run later, because the
+  build is not byte-reproducible and a gen-33 campaign ships the fix and the
+  test together. **Parts 0 and 1 are therefore justified by a defect confirmed
+  present but sized only on a superseded binary.** Gen-33 results must be
+  reported in absolute terms, never as a delta to a baseline that does not
+  exist.
 - **Relay is real and productive** (§2.8): 160 of 1,030 relayed rows carried a
   merge, a 15.5 % hit rate against 0.9 % overall, and content arrives with
   `direct` never true. `via_relay` peers belong in the exchange partner set.
-- **SILENT is now the dominant unexplained bucket** and §3.2 predicts why: at
-  the meeting the robots are connected, believed, and have nothing left to say
-  *about the census* — while the map underneath may still be diverging. That is
-  the strongest argument in this document for Part 1, and §5.4 confirms or kills
-  it offline.
+- **SILENT is explained and benign** (§5.4, answered). At the meeting the
+  census arrives at **full rate** (0.96–1.01 rows per believed-connected second
+  against `team_world_hz = 1.0`), `drop_reason` is empty on **all 14,151 rows**,
+  and the outcome is `applied` = **0** against `agreed_noop` = **1,363,174**.
+  The robots are connected, believed, and have genuinely nothing left to say
+  *about the census*. This rules out silent ROS 2 message loss as an
+  explanation, and leaves the voxel map as the only place divergence can hide —
+  **which is the strongest argument in this document for Part 1**, now measured
+  rather than predicted.
+- **The belief model used throughout §2 was challenged and is exact.** If the
+  node recomputed `direct` per packet rather than latching it, every number in
+  §2 would be wrong. `TeamModel::tick()` recomputes on the **clock**
+  (`team_model.cpp:238-244`) from a single unconditional call site
+  (`:19435`), which makes the offline reconstruction algebraically identical to
+  the node's own computation rather than an approximation of it. The one
+  residual bias — rows stamped at drain, `queue_age_sec` p50 **0.08 s** = 1.6 %
+  of the TTL — runs in the conservative direction.
+- **One claim has been withdrawn on review** (§2.10). The co-sensing
+  discriminator argued that flux scaling with team size implicates peer merge,
+  but its two columns differed in **binary** as well as in N — the same
+  confound §5.5 calls blocking, which cannot be waived in one section and
+  enforced in another. Re-run with the binary held fixed it has **3 meetings**
+  and no power. The component split is **unmeasured**, and the arm that would
+  have given it power went with the stopped campaign — Part 1's per-peer
+  counter is now the only route to it. No design decision changes: Part 2's
+  rate-threshold requirement rests on the within-generation N=2 tail.
