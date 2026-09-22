@@ -1353,3 +1353,104 @@ an existing root would silently keep pre-fix cells.
   have given it power went with the stopped campaign — Part 1's per-peer
   counter is now the only route to it. No design decision changes: Part 2's
   rate-threshold requirement rests on the within-generation N=2 tail.
+
+---
+
+## 10. Implementation status — 2026-09-22
+
+Recorded here rather than in a commit message because the campaign reads this
+document, not the log. **Shipped** means written, built, covered by a test, and
+that test shown to fail against a deliberate mutation. Nothing below is claimed
+on a green suite alone (§7, and the eight guards that went inert while printing
+PASSes).
+
+### Shipped
+
+| Part | What landed | Where | Tests / mutations |
+|---|---|---|---|
+| **0** (planner half) | `acquire_sec` and `held_sec` per peer: acquisition latency from the first one-way packet to the packet that completes the handshake, and hold duration for a handshake broken **by a peer that stayed audible**. Both differenced from **packet** stamps, never tick stamps; both one-shot, so a reader counts events instead of diffing a level. Surfaced on `TeamExchangeEvent` and written to the JSONL. | `team_model.hpp/.cpp`, `experiment_log.hpp/.cpp`, node drain second pass | 6 `TeamModelR1.*`; M1–M7, all killed |
+| **1** | dscovox per-source fusion counters — `deltas_received` **and** `cells_touched`, the pair §9 says the design had dropped one of. New `ScovoxFusionCounters.msg`, published on a timer that does **not** gate on `fused_dirty_` (test-plan 9's defect). | `dscovox_node.cpp`, `scovox_msgs` | consumer-side parse guard in the node |
+| **2** | Drain-release trigger: level test against the hold-start baseline, monotonic within a visit. **Default OFF, and it refuses to start without a measured `R` and `W`** — the constants are deliberately unset (§9) until Part 1 produces an uncontaminated per-peer rate. | `explo_planner_node.cpp` | 2 `Gen33DrainRelease.*`; M27–M34, all killed. The behavioural half of test-plan 8 is still outstanding |
+| **3** | Peer mode on `TeamWorld` (`EXPLORING`/`HOMING`/`DONE`, append-only, open-ended upward), max-merge on relay, first-hand authoritative and able to lower. Consumer shipped: `AllocRobot::off_frontier`, which drops a homing robot from the vehicle set and returns its cells — the window `finished` cannot see — folded into `alloc_hash`, and forced off in the rendezvous snapshot. | `TeamWorld.msg`, `team_model.*`, `global_allocator.*`, node | 4 `TeamModelMode.*`; `OffFrontierRobotIsRemovedAndItsCellsReturn` + `AllocHash.EveryVehicleFieldMovesTheDigest`, both mutated and killed |
+
+### Shipped but **not in this design** — R-3, the latched-hold clock
+
+Found while implementing, fixed, and called out here because it is a
+**behavioural change to the campaign binary that no section above reviews**.
+
+`appointmentDue()` has aimed the **arrival** at `t_meet` since 2026-09-19,
+departing at `t_meet − appointmentLeadMs` (the travel estimate marked up 1.2×).
+Early arrival is therefore the designed case. Both stamps of
+`coverage_latch_hold_start_sec_` wrote the bare mission clock, so an early
+arrival spent part of the cap before the meeting was due — against a cap
+`run_explo_sim_rviz.sh` derives as `interval + max_lateness + 60 s` **measured
+from `t_meet`**, with the early margin reaching `interval/6` = 50 s of that
+60 s. The failure it buys is the one the hold exists to forbid: the finished
+robot walking off the cell as the robot it was waiting for drives onto it.
+
+Both stamps are now floored at `t_meet` when the appointment is valid.
+
+The clamp cannot unbound the hold, and the argument for that is **not** the
+lead — an earlier draft of this paragraph bounded `t_meet − arrival` by the
+lead the robot departed on, which is only true of the deadline departure.
+`keepAppointmentOnFinish` departs the moment the map saturates and never calls
+`appointmentDue()` at all, so it carries **no lead**, drives straight there, and
+can stand for most of the countdown. That is the case the floor is most worth
+having for, and a lead-based bound does not cover it. The bound that covers
+both is the lattice: `t_meet` is a rung of spacing `interval` and
+`nextAgreedOccurrence` returns the first rung at or after now, so
+`t_meet − arrival ≤ interval` whatever brought the robot there, and the total
+stand is bounded by `interval + cap`. A schedule that **rolls** does not extend
+it, because the roll clears the stamp and sets the sticky teardown.
+
+Two stale comments from the one-day gen-19 departure rule were rewritten with
+it: the `doReturnSync` note claiming "arrival is necessarily at or after
+`t_meet`", and the scheduler's claim to be `depart_safety_milli`'s only reader.
+
+`Gen33HoldClock.BothStampsFloorTheCapAtTheMeetingInstant`; M23–M26, all killed.
+(Numbered from 23 because GROUP E already holds M15–M22 — the collision is
+logged under *Review* below.)
+
+### Review of the implementation — 2026-09-22
+
+A second reviewer read the code changes above and returned seven findings. All
+seven were checked against source before anything was changed; three did not
+survive that check intact, which is the reason the checking happens. Recorded
+with verdicts because a finding that was **refuted** is as load-bearing as one
+that was fixed — it is the thing a later reader will otherwise re-raise.
+
+| # | Finding | Verdict | What was done |
+|---|---|---|---|
+| F1 | The drain-release presence loop skipped relayed peers, and a loop that skipped **every** peer fell out with `drained` still `true` — releasing the hold having examined no one | **Confirmed, both halves.** The second is reachable on an ordinary relay-only N≥3 topology, not a corner case | Filter widened to `!p.direct && !p.via_relay`; `if (examined == 0) drained = false;` added as the backstop. Relayed peers are the productive channel — gen-32's census had relayed rows applying a merge 15.5 % of the time against 0.9 % overall |
+| F2 | The belief model and the drain test read different clocks | **Refuted.** `TeamModel::tick()` recomputes on the clock; the two blocks in `transitionTo()` are separately guarded and the departure path was traced by brace-matching | Nothing. Left as-is |
+| F3 | `kSchemaVersion` still described a gen-32-only behaviour change | **Confirmed — but the suggested fix was wrong.** It asked for a bump to 13; the bump to **12** is itself uncommitted (`git show HEAD` and `git show 7a7e387` both give 11), so 12 **is** the gen-33 stamp | The v12 note rewritten to cover both generations. Version left at 12 |
+| F4 | `R` and `W` were read but never refused | **Confirmed, and worse than described.** `R = 0` is not the permissive end of the range: `rate >= R` is true for every peer on every window, so the release can *never* fire, every meeting ends at the cap, and the arm logs UNFINISHED EXCHANGE for exchanges that finished — the treatment silently not running under its own name | Strict `> 0` refusal on both, with the reasoning in the code and in the test docstring |
+| F5 | The hold-cap bound comment argued from the lead | **Confirmed** — see the R-3 section above | Rewritten to the lattice argument, which covers the keeper |
+| F6 | GROUP F reused mutation IDs M15–M18, already held by GROUP E | **Confirmed.** My own defect | GROUP F renumbered M23–M26; the file-header ledger now states one sequence for the whole file |
+| F7 | Two stale claims, one in the harness comment and one about `cells_touched` | **Split.** The harness comment was real. The `cells_touched` half was not — the node never indexes it, so the suggested guard would have been dead code | Harness comment corrected; no guard added |
+
+### Outstanding before launch
+
+1. **§5.1 emulator instrumentation** — log the per-link per-reason drop
+   counters `PublishStats()` already computes and discards
+   (`hmr_comms_sim_node.cpp:966-1001`). §9 calls this a logging line, not a
+   binary change, and §5.1 is **blocking**. It touches `hmr_sim`, which is
+   fingerprinted.
+2. **Test-plan 5–9.** 4 is done (`TeamModelMode.*`). 5 and 6 follow R4's
+   deferred half and are deferred with it (see the correction under the
+   consumer table in Part 3). 8's **scan** half is done —
+   `Gen33DrainRelease.ThePredicateIsALevelThenARateOverEveryReadablePeer`
+   fails the instant the baseline difference is reduced to a rate test, which
+   is how the defect entered the design. 7, 8's **behavioural** half, and 9
+   are not written. Mutate every one of them before believing it.
+3. **Set `R` and `W`** from Part 1's per-peer log before `rendezvous_drain_release`
+   is enabled. It refuses to start otherwise, by design.
+4. **Final build → read the sha → restore the NV shim → `ctest` → commit all
+   five fingerprinted repos → fresh campaign root.** In that order; §8.
+
+### Not shipped, deliberately
+
+- **R-1 (the roll cap)** — refuted by its own falsification test.
+- **R4's barrier half** (`peerAccounted` / `reachablePeerCount`) — neither is a
+  leaf predicate; the blanket skip at `:8704` rejects them. The window stays
+  open in gen 33 and is named in Part 3.
