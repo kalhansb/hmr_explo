@@ -589,13 +589,13 @@ already available from the same map. Both are per-peer; neither needs a new grid
 **Found by adversarial review of this document, 2026-09-22. This is the one
 finding that changes what gets built.**
 
-A single novelty counter cannot distinguish the two states Part 2 must tell
+A novelty counter alone cannot distinguish the two states Part 2 must tell
 apart, because **both read zero**:
 
-| peer state | `n_*_deltas` (arrived) | `n_touched_*` (novel) | correct action |
+| peer state, peer **believed present** throughout | `deltas_received` (arrival) | `cells_touched` | correct action |
 |---|---:|---:|---|
-| sent everything, all redundant — **genuinely drained** | > 0 | → 0 | **release** |
-| **blackout** — nothing arriving at all | **0** | **0** | **do not release** |
+| stream tailed off — **genuinely drained** | rose earlier in the visit, now flat | flat | **release** |
+| **map blackout** — nothing arriving at all | **never moved this visit** | **never moved** | **do not release** |
 
 As Part 1 was written — one counter, of novelty — Part 2 releases in both rows.
 That means the release predicate fires **fastest in exactly the failure mode
@@ -603,6 +603,30 @@ Parts 0 and 1 exist to fix**, and the robot departs having exchanged nothing
 while its own logs record a clean drain. This is the same error §2.7 had to
 build an oracle-based decomposition to escape — *silence read as completion* —
 reproduced one layer down, at the voxel layer, where there is no oracle.
+
+> **Corrected during implementation, and the correction sharpens the fix rather
+> than softening it.** The first draft of this table claimed the two rows
+> separate as *arrived > 0, novel → 0* against *both 0* — a drained peer still
+> pushing redundant voxels. **They do not separate that way, because neither
+> end works like that.** The producer delta-encodes: `publishBinaryMap` ships
+> only what `drainTouchedBeta()` / `drainTouchedDir()` hand it
+> (`scovox_node.cpp:2094-2100`), so a drained peer sends *fewer deltas*, not
+> the same deltas again. And the receiver's `touched_*` sets are inserted into
+> **unconditionally** — `*v = d.data; touched_beta.insert(mc);`
+> (`dscovox_node.cpp:536-539`, `:547-551`) — with no compare against the
+> previous value, so `cells_touched` counts *cells written*, not *cells
+> changed*. The two counts therefore rise and fall **together**, and no
+> instantaneous pair of rates tells the rows apart.
+>
+> What separates them is **whether the arrival counter moved at all during this
+> visit**. That is why the arrival term must be differenced against a
+> hold-start baseline — the same thing `MapExchangeBaseline` already does for
+> the census — and not merely rate-thresholded. It also means
+> `cells_touched` is not load-bearing for the release decision. It stays
+> because it is free, it is the number that answers R2's actual question
+> (*"we should know when the maps exchanged"* — did the fused map move, or did
+> bytes cross and change nothing?), and it is the fallback if `deltas_received`
+> turns out to be too coarse.
 
 Two code facts make the failure concrete rather than theoretical:
 
@@ -623,7 +647,7 @@ Two code facts make the failure concrete rather than theoretical:
 **Required, and both parts are cheap:**
 
 - dscovox publishes **two** monotone per-source running sums — `deltas_received`
-  (arrival) and `cells_touched` (novelty) — not one.
+  (arrival) and `cells_touched` (fused cells written) — not one.
 - They publish on their **own timer, independent of `fused_dirty_`**, so that
   "nothing arrived" appears as a *fresh sample with an unchanged arrival count*
   rather than as an absent sample. A counter whose silence is ambiguous is not
@@ -655,19 +679,29 @@ moving forever and pin every meeting to the 3000 s cap, converting a timing
 defect into a censoring defect. §2.10 measures it. The predicate is therefore
 specified now, with two properties the measurement forces:
 
-> Release when, for every peer believed present, **data is arriving from that
-> peer** — its Part 1 `deltas_received` rate is **> 0** over the trailing
-> window — **and** its `cells_touched` rate has fallen **below `R` per second**
-> over that same window `W`, with a hard floor of `W` seconds held regardless
-> and the existing duration cap unchanged as a backstop.
+> Release when, for **every** peer believed present, both hold:
 >
-> **The arrival term is not redundant and must not be optimised away.** Without
-> it the predicate reads a blackout as a drain and releases immediately — see
-> *"The counter must be a pair"* in Part 1. A peer whose `deltas_received` rate
-> is zero is **not drained**; that visit falls through to the duration cap and
-> must be **logged as an unfinished exchange**, not as a release. The two
-> outcomes are different events and the logs must name them differently, or
-> the same ambiguity returns as a reporting bug instead of a control bug.
+> - **it has spoken at all this visit** — its Part 1 `deltas_received` has
+>   risen strictly above the baseline stamped at hold start; **and**
+> - **it has stopped** — its `deltas_received` rate over the trailing window
+>   `W` has fallen **below `R` per second**.
+>
+> A hard floor of `W` seconds is held regardless, and the existing duration cap
+> is unchanged as a backstop.
+>
+> **The first clause is not redundant and must not be optimised away.** Without
+> it the predicate reads a map blackout as a drain and releases on the floor —
+> see *"The counter must be a pair"* in Part 1. A peer that has delivered
+> nothing since the hold began is **not drained**, however long its rate has
+> been zero; that visit falls through to the duration cap and must be **logged
+> as an unfinished exchange**, not as a release. The two outcomes are different
+> events and the logs must name them differently, or the same ambiguity returns
+> as a reporting bug instead of a control bug.
+>
+> **It is a level test, not a rate test, and that is deliberate.** The rate
+> over `W` is zero in both rows at the moment of the decision; only the
+> difference against the hold-start baseline separates "went quiet after
+> talking" from "never started".
 
 1. **A rate threshold, not a zero test.** **10 of 31 (32.3 %)** long meetings on
    gen 32 at N=2 are still gaining >1 vox/s when the robot currently departs. A
@@ -700,11 +734,42 @@ specified now, with two properties the measurement forces:
    there. The design does not claim the hold is conditioned on ground truth,
    because nothing onboard has it.
    The consequence is bounded, and by a specific knob: the cap in (3) is
-   **`rendezvous_latched_hold_sec`** (default 300 s; this campaign runs 420 s),
-   which the node already validates must exceed `rendezvous_settle_sec`
-   (`explo_planner_node.cpp:4705-4714`) — so replacing the settle trigger with
-   the drain trigger cannot produce a hold the cap fails to bound. The failure
-   mode is a wasted wait of at most that cap, never a permanent stall.
+   **`rendezvous_latched_hold_sec`** (default 300 s; this campaign runs 420 s).
+   The failure mode is a wasted wait of at most that cap, never a permanent
+   stall.
+   > **CORRECTION (implementation, 2026-09-22). An earlier draft of this
+   > paragraph argued the cap applied for free, because the node already
+   > validates `rendezvous_latched_hold_sec > rendezvous_settle_sec`
+   > (`explo_planner_node.cpp:4799-4808`) — "so replacing the settle trigger
+   > with the drain trigger cannot produce a hold the cap fails to bound."
+   > **That inference does not hold, and the code as written when the design
+   > was reviewed did not bound the drain hold at all.** The validated
+   > relation is between the cap and the *settle* knob, and the cap's own
+   > declaration comment scopes it to the at-the-rendezvous hold of a
+   > **coverage-latched** robot. The drain hold is neither: a different gate,
+   > on a different path, reached by a robot that need not be latched. A cap
+   > that bounds one branch says nothing about a branch that does not consult
+   > it.
+   >
+   > **It is bounded now because it was written in, not because it followed.**
+   > Two pieces, both required:
+   > - the roll-forward arm of the drain gate tests it explicitly —
+   >   `if (settled_sec < rendezvous_latched_hold_sec_) return;` (`:14058`),
+   >   and past it the robot leaves on a distinctly-named **UNFINISHED
+   >   EXCHANGE** outcome rather than a release, so the cap is visible in the
+   >   log rather than silently absorbed;
+   > - a configure-time coupling check refuses to start when
+   >   `rendezvous_drain_window_sec >= rendezvous_latched_hold_sec`
+   >   (`:4867-4875`). Without it the *first* window test (`:13992`) returns
+   >   unconditionally until a full window has elapsed, so a window wider than
+   >   the cap would carry the hold past it before the cap is ever read. The
+   >   cap would be present in the source and inert in the run — the failure
+   >   mode `checks-that-stopped-checking` is about.
+   >
+   > The claim "at most the cap" is therefore true of the shipped code and was
+   > not true of the design that asserted it. Both mechanisms are pinned by
+   > test; neither may be removed on the grounds that the validation above
+   > already covers it.
    > Two neighbouring knobs are **not** the backstop here, and conflating them
    > is a known defect with a pinned regression test
    > (`test_gen20_rendezvous.cpp:969-1004`).
@@ -757,6 +822,10 @@ Consumers:
   `finished` to `finished || homing`. A homing peer is not coming to the meeting.
   This closes the window between "left for home" and "arrived and published
   finished", which is exactly where a partner burns its wait.
+  **NOT SHIPPED in gen 33 — see the correction under the table. The widening
+  breaks two consumers this same design protects, and no placement that was
+  tried avoids that. The barrier half of R4 is deferred; the allocator half
+  ships.**
 - **pursuit gate** — `HOMING` is a **re-price**, not a skip (§3.3): near-zero
   future-coverage value, full map-merge value, and the intercept point is
   **home**, not the predicted trail.
@@ -771,17 +840,17 @@ consumer set is **larger than four**. Every site that reads a *peer's*
 
 | # | site | question it asks | widen to `\|\| homing`? |
 |---|---|---|---|
-| 1 | `explo_planner_node.cpp:10762` `peerAccounted` | should I stop waiting? | **YES** — the barrier. This is the headline fix |
-| 2 | `:10806` `reachablePeerCount` | is the appointment releasable? | **YES** — same question, ORs into `teamComplete` |
-| 3 | `:10848` `peerReportsTeamBreak` | should the team *arm* a new appointment? | **YES** — the existing comment's own reasoning applies verbatim: arming for a robot "never coming" is the censoring the exemption exists to stop |
+| 1 | `explo_planner_node.cpp:11006` `peerAccounted` | should I stop waiting? | ~~**YES** — the barrier. This is the headline fix~~ → **NO, DEFERRED.** See the correction below: it is not a leaf predicate |
+| 2 | `:11050` `reachablePeerCount` | is the appointment releasable? | ~~**YES** — same question, ORs into `teamComplete`~~ → **NO, DEFERRED**, same reason |
+| 3 | `:11055` `peerReportsTeamBreak` | should the team *arm* a new appointment? | **YES** — the existing comment's own reasoning applies verbatim: arming for a robot "never coming" is the censoring the exemption exists to stop |
 | 4 | `global_allocator.cpp:245` | who gets frontier cells? | **YES** — a homing robot explores no more cells; leaving it in lets makespan balance reserve work for it |
 | 5 | `rendezvous_scheduler.cpp:29` | who is the meeting for? | **YES, and it is not optional** — `:20-23` states a contract that this filter *must* match the allocator's, pinned by test, not by compilation. Widening #4 without #5 breaks a documented invariant silently |
-| 6 | `:9155` `robots_in_problem` | diagnostic count of the problem | **YES** — it counts #4's set. Not widening it makes the log describe a set the solver never saw |
-| 7 | `:7885` `all_in_comms` | is every unfinished peer in radio contact? | **NO** — a *radio* statement, consumed only at `:9152` as a log field. A homing robot out of comms is a real outage; widening hides it from diagnosis |
-| 8 | `:7920` separation anchor skip | should this peer still repel candidates? | **NO** — the comment's own justification is that the term "repels from somewhere a robot genuinely is". A homing robot genuinely is there *and is moving*. Skipping it removes a valid force |
-| 9 | `:8605` → `reconnect_gate.cpp:21`, `:102` | is reconnecting to this peer profitable? | **NO — re-price instead** (§3.3). Near-zero future-coverage value, full map-merge value, intercept at **home** |
-| 10 | `:10994` | reset of the local vehicle list | n/a — not a peer read |
-| 11 | `team_model.cpp:225` | gossip OR | n/a — encoding; `mode` gets its own max-merge |
+| 6 | `:9399` `robots_in_problem` | diagnostic count of the problem | **YES** — it counts #4's set. Not widening it makes the log describe a set the solver never saw |
+| 7 | `:8124` `all_in_comms` | is every unfinished peer in radio contact? | **NO** — a *radio* statement, consumed only at `:9152` as a log field. A homing robot out of comms is a real outage; widening hides it from diagnosis |
+| 8 | `:8143` separation anchor skip | should this peer still repel candidates? | **NO** — the comment's own justification is that the term "repels from somewhere a robot genuinely is". A homing robot genuinely is there *and is moving*. Skipping it removes a valid force |
+| 9 | `:8844` → `reconnect_gate.cpp:21`, `:102` | is reconnecting to this peer profitable? | **NO — re-price instead** (§3.3). Near-zero future-coverage value, full map-merge value, intercept at **home** |
+| 10 | `:11263` | reset of the local vehicle list | n/a — not a peer read |
+| 11 | `team_model.cpp:227` | gossip OR | n/a — encoding; `mode` gets its own max-merge |
 
 The split is one rule: **widen where the question is "will this peer
 participate?" (a mode question); do not widen where it is "can I reach this
@@ -789,6 +858,60 @@ peer?" (a radio question).** Sites 7 and 8 are radio/geometry statements that
 merely *borrowed* `finished` as a proxy for "parked"; homing is not parked.
 
 Sites 4–6 are a **single atomic change** — they are three views of one set.
+
+> **CORRECTION (implementation, 2026-09-22): sites 1 and 2 are not leaf
+> predicates, and widening them breaks two consumers this same table protects.
+> The barrier half of R4 is DEFERRED; it is not in gen 33.**
+>
+> The table classifies each site by the question *that site* asks. For 1 and 2
+> the classification is right and the instruction is still wrong, because
+> neither is read in isolation: `peerAccounted` feeds `accountedPeerCount`,
+> which feeds `teamComplete`, which has ~30 call sites. Two of them are sites
+> this table separately rules **must not** change, and widening the leaf
+> changes them anyway — through the call graph, silently, with no edit at
+> either site to show for it.
+>
+> 1. **The mid-run reconnect trigger is skipped entirely, not re-priced.**
+>    `explo_planner_node.cpp:8704` reads
+>    `if (!teamComplete(live, rendezvous_expected_peers_) && cooldown_ok)`
+>    over `const int live = accountedPeerCount(trig_now)`. Widen the leaf and
+>    a homing, out-of-contact peer counts as accounted, `teamComplete` goes
+>    true, and **the gate is never evaluated at all.** That is a blanket skip
+>    — the exact verdict row 9 rejects in favour of "re-price, NOT skip". The
+>    homing peer's map is worth the same parked as moving, and the widening
+>    would stop the fleet from ever pricing it.
+> 2. **Pursuit releases on a quarry nobody heard.** `:15873` reads
+>    `const bool quarry_heard = !pursue_peer_id_.empty() && peerAccounted(pursue_peer_id_, now);`
+>    Widen the leaf and a homing quarry reads as *heard* with no beacon, no
+>    closure, no contact of any kind — an active chase abandoned on a false
+>    premise, and a log line asserting a reconnection that did not happen.
+>    §5.5's whole complaint is that we cannot tell connection from inference;
+>    this would manufacture a fresh instance of it inside the fix for it.
+>
+> Both were confirmed by reading the call graph, not inferred. **Resolution as
+> shipped:** site 3 is widened (it is a genuine leaf — `peerReportsTeamBreak`'s
+> two callers, the arm at `:11147` and the contagion-hold log, are both
+> barrier-side, so the predicate moves identically on both). Sites 4–6 are
+> delivered through a **new `AllocRobot::off_frontier` field** rather than by
+> widening `AllocRobot::finished`, because `finished` is itself read by rows 7
+> and 9 (`reconnect_gate.cpp:21`, `:102`) and `:8844`'s `MissingPeer` — a
+> widening there would have hit exactly the same wall one layer down.
+> `off_frontier` is folded into `alloc_hash` (it selects the vehicle set, so
+> two robots disagreeing about a peer's mode must not agree on the key) and
+> forced off in the rendezvous snapshot alongside `finished`, which it needs
+> more than `finished` does: a robot's own homing latch flips the instant it
+> turns for home while its partner learns a TeamWorld later, or never.
+>
+> **What this costs.** R4's allocator half ships in full — a homing robot stops
+> being reserved frontier work minutes earlier than before. R4's barrier half
+> — a partner ceasing to wait on a peer that has turned for home — **does
+> not**. That window stays open in gen 33 and remains a live cost in the
+> rendezvous and hybrid arms. It is deferred rather than dropped: the fix
+> needs a `teamComplete` that distinguishes "this peer will not come" from
+> "this peer is reachable", which is a split of that predicate, not a widening
+> of its input, and that is a larger change than gen 33's scope. **Do not
+> attempt it by widening `peerAccounted`; that is the path this correction
+> closes.**
 
 **Honest scope limit:** the relay needs a third robot. At N=2 this degrades to
 last-contact-only, which is information the robot already has. Part 3's value is
@@ -1072,14 +1195,15 @@ relink the node)**
    is home rather than the predicted trail.
 7. Exchange presence: a `finished` peer with no fresh `direct` does **not** open
    a hold (the A3 regression).
-8. **Blackout is not a drain.** Drive the release predicate with
-   `cells_touched` rate **0** and `deltas_received` rate **0**: it must **not**
-   release, must run to the duration cap, and must emit the *unfinished
-   exchange* event — not the drained one. Then drive it with `cells_touched`
-   rate 0 and `deltas_received` rate **> 0**: it **must** release. These two
-   cases differ only in the arrival term, so the test fails the instant that
-   term is dropped or folded away — which is exactly how this defect entered
-   the design in the first place.
+8. **Blackout is not a drain.** Both cases hold the peer *believed present* and
+   both present a `deltas_received` rate of **0** at the moment of decision;
+   they differ only in whether the counter ever left its hold-start baseline.
+   (a) Counter never moves: the predicate must **not** release, must run to
+   the duration cap, and must emit the *unfinished exchange* event — not the
+   drained one. (b) Counter rises, then goes flat for `W`: it **must** release
+   and emit the drained event. The test fails the instant the baseline
+   difference is dropped and the predicate is reduced to a rate test — which
+   is exactly how this defect entered the design in the first place.
 9. **Counter liveness.** The per-source counters must keep publishing while
    nothing arrives. Assert a fresh sample with an unchanged `deltas_received`
    during a silent interval; a test that only checks values while data flows
@@ -1146,13 +1270,20 @@ an existing root would silently keep pre-fix cells.
 - **R2 is not satisfiable with existing signals.** The quantity that would
   answer it does not exist in the planner; it must be created in dscovox.
   **It is a pair, not a number** — `deltas_received` (arrival) *and*
-  `cells_touched` (novelty), published on a timer that does **not** depend on
-  the fused map being dirty. Adversarial review of this document found that a
-  novelty-only counter reads a blackout and a completed drain identically
-  (both zero), which would make Part 2 release fastest in precisely the failure
-  mode Parts 0 and 1 exist to fix, and record it as a clean exchange. Both
-  numbers are already computed side by side at `dscovox_node.cpp:437-438` and
-  already logged at `:601-604`; the design had simply dropped one of them.
+  `cells_touched` (fused cells written), published on a timer that does **not**
+  depend on the fused map being dirty. Adversarial review of this document
+  found that a novelty-only counter reads a blackout and a completed drain
+  identically (both zero), which would make Part 2 release fastest in precisely
+  the failure mode Parts 0 and 1 exist to fix, and record it as a clean
+  exchange. Both numbers are already computed side by side at
+  `dscovox_node.cpp:437-438` and already logged at `:601-604`; the design had
+  simply dropped one of them.
+- **The release test is a level, not a rate**, and implementation is what
+  established that. Both ends delta-encode, so arrival and novelty fall
+  together and no instantaneous pair of rates separates a drained peer from a
+  silent one. What separates them is whether `deltas_received` moved off its
+  hold-start baseline at all — so Part 2 differences the counter the way
+  `MapExchangeBaseline` already differences the census.
 - **R3 is small** and rides on whatever R2 produces. Its release predicate is
   now specified as a **rate threshold, not a zero test** (Part 2), because
   §2.10 measures **10 of 31** long meetings still gaining voxels at departure
