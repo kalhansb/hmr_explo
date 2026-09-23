@@ -1466,15 +1466,19 @@ that was fixed — it is the thing a later reader will otherwise re-raise.
    predicate now runs in `test_exchange_drain`, and the scan was retargeted at
    the node's call site.
 3. **Set `R` and `W`** from Part 1's per-peer log before `rendezvous_drain_release`
-   is enabled. It refuses to start otherwise, by design.
-4. **Final build → read the sha → restore the NV shim → `ctest` → commit all
-   five fingerprinted repos → fresh campaign root.** In that order; §8. Three
-   binaries changed in this window: `explo_planner_node` (the extraction
-   changes it even though its behaviour is meant to be unchanged), the
-   `hmr_sim` emulator, and scovox, which gains a test. The pull alone does
-   not produce any of them. The extraction also adds files to
-   `explo_planner`, so `git_explo_planner` moves and the campaign root must be
-   fresh (§8).
+   is enabled. It refuses to start otherwise, by design. **Open:** this waits on
+   the `ts4_33` campaign's log, and that campaign runs with the drain off.
+4. ~~**Final build → read the sha → restore the NV shim → `ctest` → commit all
+   five fingerprinted repos → fresh campaign root.**~~ — **done 2026-09-23** on
+   the run box at superproject `6e61300` (`explo_planner` `8efde01`): clean
+   fast-forward pull, `ctest` 31/31, NV shim restored and verified by sourcing,
+   `explo_planner_node` pinned at `b24df4d8cfba6160` in `ts4_chain33.sh`, fresh
+   root `ts4_33_n2`. The first cell, `ts4_33_n2_mtare_rendezvous_r20_ttl0_seed1`,
+   ran CLEAN with zero `-dirty`. Both of its meetings reconnected with the
+   partner audible, so the silent-partner wait did not run; it is unit-tested
+   only and not yet seen end to end. **Repeat this step after pulling `d7493c4`**
+   (`explo_planner` `f0fb134`, comment-only). It moves `git_explo_planner` and
+   the binary sha, so re-pin and move the probe root aside first.
 5. ~~**Decide test-plan 7 at N=2**~~ — **decided 2026-09-23 and implemented**;
    see *Shipped 2026-09-23* below. The decision: a finished robot still comes
    to the meeting, exchanges maps, and then says it is leaving; its partner
