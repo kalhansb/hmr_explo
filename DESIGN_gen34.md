@@ -1,7 +1,7 @@
 # Generation 34 design — working draft
 
-**Status:** design agreed (Kalhan, 2026-09-23); adversarial review done (§9), Q51–Q64 open. Next: settle Q51–Q64, then build in the order of §8.10. Decisions are Kalhan's, taken one
-question at a time; this document records each one as it lands.
+**Status:** design agreed (Kalhan, 2026-09-23); adversarial review done (§9); Q51–Q66 decided (Q51–Q61 and Q63–Q66 by Claude under Kalhan's delegation, 2026-09-23: "I'm going to let you decide these, I want a robust system that exchange maximum possible info when meet"). §8 revised in one pass with them and with §9.2. Next: build phase 1 (§8.10). Decisions before Q51 are Kalhan's, taken one
+question at a time.
 **Baseline:** gen 33 — `explo_planner` `62a069b`, superproject `c3c4443`, both
 committed locally and not pushed. The run box is on pin `5b3fe32b9d86c789`
 (gen 33 without the cell-12 fix).
@@ -98,20 +98,22 @@ closed on 2026-09-23** with Q8 and Q18–Q34 agreed.
 | Q48 | The campaign horizon (E36) | The horizon stays a measurement cut-off, not a robot rule, and robots do not know it. Q4's "not home by the mission limit" becomes "the homing drive ran out its 600 s bound". A run still exploring at the horizon is censored, not failed | **agreed** (Kalhan, 2026-09-23). Q4 amended to match |
 | Q49 | A finished robot and the last meeting (found while writing §8) | Q23 plus Q46 can deadlock. At N = 2, A finishes first and waits at the cell (Q46). B finishes later, knows A is finished, and goes straight home (Q23). A never learns that B finished, so it waits at the cell for the rest of the run. **Amend Q23:** a finished robot goes home only after a meeting where every robot reports finished. A robot that finishes still attends the next meeting, even if it knows the others are finished. Then everyone knows at once and they all go home together. Off and pursuit are unaffected, since they have no meetings | **agreed** (Kalhan, 2026-09-23) |
 | Q50 | Waiting at home with unexploited trees (Q35) | Wait for the whole team with no extra limit. Every teammate's exploring and homing are already bounded, so this wait can only hang after a teammate has already hard-failed. Only exploit-on runs ever wait: with no trees, a robot reports done on arrival. The hard-fail detector counts it as a planned wait | **agreed** (Kalhan, 2026-09-23) |
-| Q51 | How a robot knows the maps have crossed (§9, blocker) | Q18 compared running totals: one lost map piece keeps a pair's totals apart for the rest of the run, so every later exchange with that peer ends on the 120 s give-up (dscovox's count never resets and nothing is resent; `map_agreement.py` measured 0.1–3.6 % loss). Done was also one-sided. **Number the map pieces.** scovox stamps a sequence number on each frame; dscovox reports, per source, the newest number received and the gaps. Each beacon carries my newest sent and, per peer, my newest received. The exchange with a peer is done when **both** sides have received up to the number the other had sent when contact began. Gaps are logged as loss and never block done. No `exchanged` field is needed: both halves are read from the two beacons | open |
-| Q52 | Beacons lost while a map backlog drains (§9) | The emulator drains queued map data first from one shared airtime budget and drops best-effort messages while it is empty. After a long split every robot's beacons can vanish for tens of seconds, longer than the 10 s window. **The emulator keeps a small airtime reserve for best-effort messages**, so the reliable drain never takes the last slice. Links there are symmetric (`PairKey`), so presence stays "beacon heard". Record per-link `drop_airtime` in the smoke round with a threshold. Alternative: count arriving map data as hearing the peer, which leaves the radio alone but cannot confirm mutual contact (E2) while beacons are starved | open |
-| Q53 | How long a robot holds at a meeting (§9) | Three bounds overlap (window 120 s, no progress 120 s, total 600 s), a new contact restarts the no-progress clock so a flickering link holds forever, and Q32's drive is bounded by a record that ended with the contact. **One patience clock per booking:** 120 s from the last progress (a map piece received, or a missing attendee heard); a new contact does not reset it. A 600 s backstop per booking, not per contact. **Q32 kept, one mover:** of a pair that lost each other at the cell, only the higher id drives to the other's last heard position; the lower id holds | open |
-| Q54 | The meeting plan can split the team for good (§9, blocker) | At N = 3, robot 0 sees both echoes and leaves with the new plan; the other two lost each other before seeing each other's echo and keep the old one. Different cells for the rest of the run, since only a full meeting changes the plan. The design also lost today's 60 s start hold (`node:2725`, `4814`) and proposes once. **The plan carries a version and robot 0 is the only proposer; a robot adopts any higher version the moment it hears it, from any beacon, at any time.** Keep the 60 s start hold in every arm; robot 0 re-proposes each tick while everyone is in contact and no plan is agreed. A partial meeting keeps the standing plan (Q47) | open |
-| Q55 | What counts as "met" at N > 2 (§9) | One trunk kills a link (70 dB). With robots stopped about 10 m apart at the cell, a reviewer estimates some pair is blocked in about 40 % of N = 3 meetings; at a cell with a trunk near the centre every meeting is partial, and the cell never moves. **Met = every pair has completed a direct exchange at some moment inside this meeting**; a pair that finished and then lost each other still counts. Amends Q26 | open |
-| Q56 | When to leave and which slot (§9) | "Due" is recomputed each tick, so it turns false as the robot closes in (today it latches). After a split each robot books the first slot **it** can make, so at N = 3 they pick different slots. The lead assumes 0.5 m/s in a straight line; robots measure 0.40 m/s on longer paths and arrive near the window's end. **(a) Departure is stored and clears with the booking. (b) Book the first slot every robot can make, from each robot's last heard position and time. (c) The lead uses 0.40 m/s on the path distance from the cost grid, × 1.2** | open |
-| Q57 | Finished robots at the end of the run (§9, blocker) | (a) After the all-finished meeting, contact drops on the walk home, Book makes a new booking and Meet outranks Home: everyone turns back. Nothing stores "everyone finished". (b) One robot that never makes a meeting keeps the finished ones at the cell to the horizon, which counts as censored (the cell-12 shape). **(a) Store `team_finished`, set at a meeting where every beacon says finished; with it set nothing is booked and Home holds. (b) A finished robot goes home after 2 consecutive slots at which some robot never showed; the team can also learn "all finished" at home (homes are 3 m apart). (c) Q50's wait at home gets the 600 s homing bound** | open |
-| Q58 | When an exploit episode may start (§9, exploit-on) | The gate opens as soon as all are in contact, before the meeting's exchange and plan agreement, and exploit outranks the meeting; each robot opens it on its own view, so at N = 3 two can start while the third explores; a homing robot passing a teammate starts that teammate alone. **Start is a team event:** a beacon says "ready" when, from that robot's view, everyone is in contact, nobody is homing, and any meeting in progress is met. The episode starts when every beacon says ready; the pool rides the beacons, so all pool the same trees | open |
-| Q59 | Exploit rules that changed exploit's decisions (§9) | **Keep today's behaviour in all six:** (1) Q41: one shared tree order on every robot, by tree id, not nearest first (today's queue is arrival order; nearest-first splits a team across trees). (2) Q42: keep the barrier at 0; it already ends on the 5 s claim expiry of a silent peer and on the 300 s target timeout. (3) Q38: a failed vantage drive writes the blacklist, as today. (4) A tree leaves every pool only on a COMPLETE from anyone; PARTIAL stays local. (5) Q17 over §8.4 row 1: finish the active target, go home, the rest is exploited at home (Q35); remove the stand-down call from that path. (6) The pool is topped up each tick during an episode | open |
-| Q60 | How exploit is pinned before it moves, and where builds run (§9) | The gen-33 node defines `main()`, so no test can link it (`CMakeLists.txt:309`), and Q36 froze it. **One exception to Q36: move `main()` to its own file, no logic change.** A gtest then constructs the gen-33 node in-process, feeds it scripted map, pose and peer intents on a simulated clock, and records exploit's decisions; the same scripts run against the new code. Builds and unit tests run here in the `hmrexplo:humble` container if the run box is also on Humble; simulations stay on the run box | open |
-| Q61 | What the checker treats as a failure (§9, blocker) | (a) Q48 makes a run at the horizon censored, so a hung finished team passes; today `gate_g8.py:846` fails every run not ending all-done. (b) The detector trusts the robots' own events. (c) Run control reads the CSV `state` column and log text (`run_explo_sim_rviz.sh:2040`, `2125-2151`). **(a) At the horizon, a run fails if every robot has finished exploring and some robot is not home; it is censored only while someone still explores. (b) Every met, exchange-done, chase-contact and all-connected event is checked against the simulator's `link_states.csv`. (c) The new node keeps the CSV `state` column (DONE when done) and the "selected goal" and "Exploration complete" lines, pinned by a contract test, so one script runs both nodes; the hang threshold is resized** | open |
-| Q62 | Exploit in the run-box round (§9; reverses Q14) | The exploit path is mostly new wiring (sighting, trees in beacons, pooling, the gate, done at home) and no cell runs it; a gate that never opens gives zero episodes and nobody sees it. **Four smoke cells only: 4 arms × N = 3 × 1 seed, exploit on; pass = at least one episode and trees done = trees sighted.** No metrics, not part of the 36 | open |
-| Q63 | Simplifications (§9, G1) | 13 states became 8 activities plus about 17 sub-phases inside components; about 170 parameters became about 145. **(1) Booking and Chase each own an explicit phase; Mission reads only `active()`; Follow folds into Chase. (2) Delete row 6: a finished robot's booking is due at once, so Meet covers it. (3) Delete Q37's pause: one clock. (4) One speed, one safety factor, one stop distance (`follow_distance_m` and `meeting_attendee_stop_m` are both 10 m). (5) A booking clears as met or window-closed, with partial and missed as labels** | open |
-| Q64 | Chase details (§9) | **(1) Q33: chase the peer the gate priced (`leg_peer_id`); the gate prices only the nearest locatable peer (`reconnect_gate.cpp:110`) and stays unchanged. (2) Hybrid: no chase when the next departure is under 120 s away, so a chase is not always cut off by Meet. (3) The follow point needs clear line of sight to the peer (the vantage planner's test), else closer, down to 6 m; one trunk kills a link. (4) The gate keeps failing open; refusals are logged and counted, bounded per outage by the 900 s cut-off and the 90 s cooldown** | open |
+| Q51 | How a robot knows the maps have crossed (§9, blocker) | Q18 compared running totals: one lost map piece keeps a pair's totals apart for the rest of the run, so every later exchange with that peer ends on the 120 s give-up (dscovox's count never resets and nothing is resent; `map_agreement.py` measured 0.1–3.6 % loss). Done was also one-sided. **Number the map pieces.** scovox stamps a sequence number on each frame; dscovox reports, per source, the newest number received and the gaps. Each beacon carries my newest sent and, per peer, my newest received. The exchange with a peer is done when **both** sides have received up to the number the other had sent when contact began. Gaps are logged as loss and never block done. No `exchanged` field is needed: both halves are read from the two beacons | **decided** (Claude, under Kalhan's delegation, 2026-09-23): as recommended, with one simplification. Each robot's dscovox already subscribes to its own scovox directly, so the newest number in its own entry is the "sent" number; no extra topic. `ScovoxMapBinary` gets `seq`, `ScovoxFusionCounters` gets `newest_seq[]` and `seq_gaps[]` |
+| Q52 | Beacons lost while a map backlog drains (§9) | The emulator drains queued map data first from one shared airtime budget and drops best-effort messages while it is empty. After a long split every robot's beacons can vanish for tens of seconds, longer than the 10 s window. **The emulator keeps a small airtime reserve for best-effort messages**, so the reliable drain never takes the last slice. Links there are symmetric (`PairKey`), so presence stays "beacon heard". Record per-link `drop_airtime` in the smoke round with a threshold. Alternative: count arriving map data as hearing the peer, which leaves the radio alone but cannot confirm mutual contact (E2) while beacons are starved | **decided** (Claude, delegated, 2026-09-23): a variant of the reserve. New emulator parameter `best_effort_priority` (default false). When true, a best-effort message on an up link is always admitted and charged, so the balance can go negative and the map drain waits for it; beacons, intents and TeamWorld are small. The run script sets it for the gen-34 node. Per-link `drop_airtime` is still reported |
+| Q53 | How long a robot holds at a meeting (§9) | Three bounds overlap (window 120 s, no progress 120 s, total 600 s), a new contact restarts the no-progress clock so a flickering link holds forever, and Q32's drive is bounded by a record that ended with the contact. **One patience clock per booking:** 120 s from the last progress (a map piece received, or a missing attendee heard); a new contact does not reset it. A 600 s backstop per booking, not per contact. **Q32 kept, one mover:** of a pair that lost each other at the cell, only the higher id drives to the other's last heard position; the lower id holds | **decided** (Claude, delegated, 2026-09-23): as recommended. Progress is a sequence number rising from any attendee, or an attendee heard for the first time in this booking. The backstop runs from the later of the meeting time and departure |
+| Q54 | The meeting plan can split the team for good (§9, blocker) | At N = 3, robot 0 sees both echoes and leaves with the new plan; the other two lost each other before seeing each other's echo and keep the old one. Different cells for the rest of the run, since only a full meeting changes the plan. The design also lost today's 60 s start hold (`node:2725`, `4814`) and proposes once. **The plan carries a version and robot 0 is the only proposer; a robot adopts any higher version the moment it hears it, from any beacon, at any time.** Keep the 60 s start hold in every arm; robot 0 re-proposes each tick while everyone is in contact and no plan is agreed. A partial meeting keeps the standing plan (Q47) | **decided** (Claude, delegated, 2026-09-23): as recommended, plus: plan data may spread through relays (it is not presence); t0 and the interval are fixed by version 1 and only the cell changes; robot 0 re-solves a provisional plan while everyone is connected; at a met full meeting robot 0 issues version + 1 stamped `renewed_at_slot`, and the others leave only when every beacon shows it (or patience ends). Split recovery: each robot keeps its last two plans and the version each peer last showed directly; while a peer lags on a plan it still holds, slots alternate between the two cells by parity |
+| Q55 | What counts as "met" at N > 2 (§9) | One trunk kills a link (70 dB). With robots stopped about 10 m apart at the cell, a reviewer estimates some pair is blocked in about 40 % of N = 3 meetings; at a cell with a trunk near the centre every meeting is partial, and the cell never moves. **Met = every pair has completed a direct exchange at some moment inside this meeting**; a pair that finished and then lost each other still counts. Amends Q26 | **decided** (Claude, delegated, 2026-09-23): as recommended. The beacon carries `meeting_slot` and `met_mask`; a pair is met if either member lists the other for the same slot; a full meeting also needs the Q54 renewal |
+| Q56 | When to leave and which slot (§9) | "Due" is recomputed each tick, so it turns false as the robot closes in (today it latches). After a split each robot books the first slot **it** can make, so at N = 3 they pick different slots. The lead assumes 0.5 m/s in a straight line; robots measure 0.40 m/s on longer paths and arrive near the window's end. **(a) Departure is stored and clears with the booking. (b) Book the first slot every robot can make, from each robot's last heard position and time. (c) The lead uses 0.40 m/s on the path distance from the cost grid, × 1.2** | **decided** (Claude, delegated, 2026-09-23): (a), (b), (c) as recommended. Path distance is the allocator's cell-to-cell cost (`GlobalAllocator::costMm`), straight line without a cell world. A robot that books a different slot from the rest misses and books the next, so a mismatch heals itself |
+| Q57 | Finished robots at the end of the run (§9, blocker) | (a) After the all-finished meeting, contact drops on the walk home, Book makes a new booking and Meet outranks Home: everyone turns back. Nothing stores "everyone finished". (b) One robot that never makes a meeting keeps the finished ones at the cell to the horizon, which counts as censored (the cell-12 shape). **(a) Store `team_finished`, set at a meeting where every beacon says finished; with it set nothing is booked and Home holds. (b) A finished robot goes home after 2 consecutive slots at which some robot never showed; the team can also learn "all finished" at home (homes are 3 m apart). (c) Q50's wait at home gets the 600 s homing bound** | **decided** (Claude, delegated, 2026-09-23): (a) and (b) as recommended. `team_finished` also spreads by beacon (finished never un-finishes, so it is a fact). (c) is moot in phase 1: with exploit off there is no wait at home (Q66) |
+| Q58 | When an exploit episode may start (§9, exploit-on) | The gate opens as soon as all are in contact, before the meeting's exchange and plan agreement, and exploit outranks the meeting; each robot opens it on its own view, so at N = 3 two can start while the third explores; a homing robot passing a teammate starts that teammate alone. **Start is a team event:** a beacon says "ready" when, from that robot's view, everyone is in contact, nobody is homing, and any meeting in progress is met. The episode starts when every beacon says ready; the pool rides the beacons, so all pool the same trees | **deferred** to the exploit port (phase 2, Q66). Recorded as the rule that port starts from |
+| Q59 | Exploit rules that changed exploit's decisions (§9) | **Keep today's behaviour in all six:** (1) Q41: one shared tree order on every robot, by tree id, not nearest first (today's queue is arrival order; nearest-first splits a team across trees). (2) Q42: keep the barrier at 0; it already ends on the 5 s claim expiry of a silent peer and on the 300 s target timeout. (3) Q38: a failed vantage drive writes the blacklist, as today. (4) A tree leaves every pool only on a COMPLETE from anyone; PARTIAL stays local. (5) Q17 over §8.4 row 1: finish the active target, go home, the rest is exploited at home (Q35); remove the stand-down call from that path. (6) The pool is topped up each tick during an episode | **deferred** to the exploit port (phase 2, Q66). All six kept as the starting rule |
+| Q60 | How exploit is pinned before it moves, and where builds run (§9) | The gen-33 node defines `main()`, so no test can link it (`CMakeLists.txt:309`), and Q36 froze it. **One exception to Q36: move `main()` to its own file, no logic change.** A gtest then constructs the gen-33 node in-process, feeds it scripted map, pose and peer intents on a simulated clock, and records exploit's decisions; the same scripts run against the new code. Builds and unit tests run here in the `hmrexplo:humble` container if the run box is also on Humble; simulations stay on the run box | **decided** (Claude, delegated, 2026-09-23): no characterisation harness. The new node is carved from a **copy** of the gen-33 file: goal selection, map ingest, exploration driving, metrics and the event log stay verbatim, and the reconnection, exploit and homing machinery is deleted from the copy. Q36 stays: the gen-33 node is not edited. Builds and unit tests run here in `hmrexplo:humble`; the run box is on Humble too (`run_explo_sim_rviz.sh:899`) |
+| Q61 | What the checker treats as a failure (§9, blocker) | (a) Q48 makes a run at the horizon censored, so a hung finished team passes; today `gate_g8.py:846` fails every run not ending all-done. (b) The detector trusts the robots' own events. (c) Run control reads the CSV `state` column and log text (`run_explo_sim_rviz.sh:2040`, `2125-2151`). **(a) At the horizon, a run fails if every robot has finished exploring and some robot is not home; it is censored only while someone still explores. (b) Every met, exchange-done, chase-contact and all-connected event is checked against the simulator's `link_states.csv`. (c) The new node keeps the CSV `state` column (DONE when done) and the "selected goal" and "Exploration complete" lines, pinned by a contract test, so one script runs both nodes; the hang threshold is resized** | **decided** (Claude, delegated, 2026-09-23): (a), (b), (c) as recommended. The checker is a new script, `gen34_check.py` |
+| Q62 | Exploit in the run-box round (§9; reverses Q14) | The exploit path is mostly new wiring (sighting, trees in beacons, pooling, the gate, done at home) and no cell runs it; a gate that never opens gives zero episodes and nobody sees it. **Four smoke cells only: 4 arms × N = 3 × 1 seed, exploit on; pass = at least one episode and trees done = trees sighted.** No metrics, not part of the 36 | **decided** (Kalhan, 2026-09-23: "we are not testing exploitation, it just should not interfere with exploration when it's turned off"): no exploit cells. See Q66 |
+| Q63 | Simplifications (§9, G1) | 13 states became 8 activities plus about 17 sub-phases inside components; about 170 parameters became about 145. **(1) Booking and Chase each own an explicit phase; Mission reads only `active()`; Follow folds into Chase. (2) Delete row 6: a finished robot's booking is due at once, so Meet covers it. (3) Delete Q37's pause: one clock. (4) One speed, one safety factor, one stop distance (`follow_distance_m` and `meeting_attendee_stop_m` are both 10 m). (5) A booking clears as met or window-closed, with partial and missed as labels** | **decided** (Claude, delegated, 2026-09-23): (1)–(5) accepted. One travel speed, 0.40 m/s. Two safety factors, one per question: `nav_safety_factor` sizes a Leg's budget, `depart_safety` (1.2) the meeting lead |
+| Q64 | Chase details (§9) | **(1) Q33: chase the peer the gate priced (`leg_peer_id`); the gate prices only the nearest locatable peer (`reconnect_gate.cpp:110`) and stays unchanged. (2) Hybrid: no chase when the next departure is under 120 s away, so a chase is not always cut off by Meet. (3) The follow point needs clear line of sight to the peer (the vantage planner's test), else closer, down to 6 m; one trunk kills a link. (4) The gate keeps failing open; refusals are logged and counted, bounded per outage by the 900 s cut-off and the 90 s cooldown** | **decided** (Claude, delegated, 2026-09-23): all four, as recommended |
+| Q65 | Proximity pauses at meetings (Kalhan: "can we ignore the closeness stop when meets are active") | Between two robots whose beacons both say Meet, skip the proximity pause. Each attendee drives to its own spot on a 3 m ring around the cell centre, angle by fleet id, stepped outward if the spot is blocked; arrival within 1.0 m. Drop Q22's 10 m attendee stop. The tick event logs the nearest peer's distance; under 1.0 m is a hard fail | **decided** (Claude, delegated, 2026-09-23) |
+| Q66 | Exploit in the new node (Kalhan: "we are not testing exploitation, it just should not interfere with exploration when it's turned off") | Phase 1: the new node runs exploit-off only, and `exploitation_enabled=true` is fatal at startup. Exploit-on runs use the gen-33 node until the port (phase 2, which starts from Q58 and Q59). Deleting the gen-33 node waits for that port | **decided** (Claude, delegated, 2026-09-23) |
 
 
 ### 3.1 Q1 in detail: what gets rebuilt
@@ -482,186 +484,230 @@ three kinds:
 
 ## 8. Design
 
-Agreed by Kalhan on 2026-09-23. It is built from every decision in §3 and
-every case in §7.
+Agreed by Kalhan on 2026-09-23 and revised in one pass after the review (§9),
+with Q51–Q66 and the corrections K1–K22. This is phase 1: all four arms,
+exploit off (Q66).
 
 ### 8.1 Shape
 
 ```
-                 ROS node shell (new executable)
-   map, pose, fusion counters, beacons, intents, released trees
-                              │  one Inputs struct per tick
+        gen-34 node: a new executable, carved from a copy of the gen-33 file
+   map, pose, fusion counters (with sequence numbers), beacons, intents
+                              │  one TeamInputs struct per tick
                               ▼
-   ┌─────────────────────────── Mission ───────────────────────────┐
-   │  Presence   Exchange   Booking   Chase   Exploit gate + pool   │
-   │  pure C++, no ROS; each owns its own memory                    │
-   │  activity = the first line of the priority list that holds     │
-   └────────────────────────────────────────────────────────────────┘
-                              │  a target, messages, events
+   ┌───────────────────── TeamCore (pure C++, no ROS) ─────────────────────┐
+   │  Presence   Exchange   Plan   Booking   Chase                          │
+   │  activity = the first line of the priority list that holds (§8.4)      │
+   └────────────────────────────────────────────────────────────────────────┘
+                              │  activity, drive target, beacon fields, events
                               ▼
-        Leg (all driving)   GoalSelector (lifted)   Exploit (moved)
+   Explore: gen-33 PLAN → NAVIGATE → INTEGRATE → LOG_STEP, verbatim
+   Every other drive: Leg          Both: the proximity guard
                               │
                               ▼
-            goal topic, beacon, intents, jsonl events
+          goal topic, TeamBeacon, RobotIntent, jsonl events, CSV
 ```
 
-**Commitments are stored; the activity is not.** Each component holds its own
-commitments: a booking, a chase, an exploit episode, an exchange record. Each
-commitment has one place that sets it and one that clears it. Every tick,
-Mission reads the commitments and picks the activity from a fixed priority
-list (§8.4). Nothing stores "what I was doing". So an interrupted activity
-resumes by re-checking without extra code (§4.4 principle 1), and there is no
-activity flag left to go stale.
+**Carved, not rewritten (Q60).** The new node starts as a copy of
+`explo_planner_node.cpp`. These stay verbatim: goal selection, map ingest, the
+exploration drive (`doNavigate`, `failGoal`), the coverage criterion, the step
+budget, metrics, the event log and the claim stream. These are deleted from
+the copy: exploit, rendezvous, pursuit, the reconnect trigger and dispatch,
+RETURN_NAV and RETURN_SYNC, the link gate, done-seek, hold escalation,
+TeamWorld and TeamModel. The gen-33 node itself is not touched (Q36).
 
-Stability comes from the inputs, not from latches. Presence changes only after
-10 s of silence (Q43), and each commitment changes only on its own event.
+**Team logic is one pure library, TeamCore.** Each component is unit-tested
+alone. N cores also run together in an in-process harness (§8.10).
+
+**Commitments are stored; the activity is not.** Each component holds its own
+commitments: a booking, a chase, an exchange record, the plan. Each has one
+place that sets it and one that clears it. Every tick, TeamCore reads the
+commitments and picks the activity from a fixed priority list (§8.4). Nothing
+stores "what I was doing", so an interrupted activity resumes by re-checking
+and there is no activity flag to go stale. Stability comes from the inputs:
+presence changes only after 10 s of silence (Q43), and each commitment changes
+only on its own event.
 
 ### 8.2 The beacon
 
-A new message, `TeamBeacon`, on a new topic `exploration/team_beacon`. It is
-sent once a second from its own timer, in every state (rule 6: a beacon that
-never goes quiet). The radio emulator carries it best-effort, as it carries
-`TeamWorld` today. `TeamWorld` itself stays untouched for the frozen gen-33
-node.
+`explo_planner_msgs/TeamBeacon` on `exploration/team_beacon`. It is sent once
+a second from its own timer, in every state including DONE (rule 6). The new
+node never shuts itself down; the run script stops the run. The emulator
+carries the beacon best-effort, with priority over map data (Q52).
 
 | Field | Used by |
 |---|---|
-| `robot_id`, `stamp` (shared sim clock), `position` | Presence; Chase (last heard position) |
-| `hears`: robots heard directly in the last 10 s | Presence: mutual contact, all connected (E2, Q39) |
-| `activity`, `finished` | Booking (Q49), Chase, logs |
-| `map_published`: map deltas this robot has sent | Exchange (Q18) |
-| `map_received[]`: map deltas received from each robot | Exchange |
-| `exchanged`: robots this contact's exchange is done (or given up) with | The N > 2 "met" test (Q26) |
-| `plan` (cell, interval, first meeting time, version) and `plan_echo` | Booking agreement (R1, Q47) |
-| `trees[]`: id, centre, radius, done | Exploit pool (Q40, Q41) |
-| `cells[]`, `tour[]` | Global allocator, cell world, intercept predictor (content unchanged) |
+| `robot_id`, `team_hash`, `grid_hash` | Identity; the grid check before any cell id is used (K11) |
+| `header.stamp` (shared sim clock), `position` | Presence, Chase, allocation, separation |
+| `goal`, `has_goal` | Chase trail: the peer's last announced goal |
+| `hears_mask` | Mutual contact (E2) |
+| `activity`, `finished`, `team_finished`, `home` | Booking, Mission, logs |
+| `map_sent_seq`, `map_rcvd_seq[]` (by fleet id) | Exchange (Q51) |
+| `plan_version`, `plan_cell`, `plan_center`, `plan_t0_sec`, `plan_interval_sec`, `plan_renewed_at_slot`, `plan_provisional` | Plan (Q54) |
+| `meeting_slot`, `met_mask` | Met (Q55) |
+| `cells[]`, `my_tour[]` | Cell world merge, allocator, intercept predictor; same content as TeamWorld's |
 
-Dropped compared with `TeamWorld`:
-- every relayed field: `robot_positions`, `robot_last_heard_sec`,
-  `robot_finished`, `robot_mode` (Q8);
-- `team_incomplete`, `appointment_inbound*` and `rendezvous_provisional` (Q24,
-  Q47).
-
-`RobotIntent` is unchanged. Exploration claims and exploit claims work as
-today (G4).
+`TeamWorld` stays unchanged for the gen-33 node (K12). `RobotIntent` is
+unchanged: exploration claims work as today.
 
 ### 8.3 Components
 
-**Presence: who is here** (Q8, Q39, Q43)
-- It keeps the arrival time of each robot's latest beacon and that beacon's
-  `hears` list.
+**Presence** (Q8, Q43, E2)
+- It keeps, for each robot, the local receipt time of its last beacon and
+  that beacon.
 - `present(j)`: j's beacon arrived in the last 10 s.
-- `inContact(j)`: present(j), and j's beacon lists me (E2).
-- `allConnected()`: every pair of robots is in contact. It is judged from my
-  own view plus the `hears` lists of the robots I hear. At N = 2 it is simply
-  `inContact(other)`.
-- `lastHeard(j)`: time and position, for chases (P2, Q32).
+- `inContact(j)`: present(j), and j's `hears_mask` names me.
+- `pairInContact(a, b)`: both present, and each one's beacon names the other.
+  `allConnected()`: every pair in contact.
+- `lastHeard(j)`: time, position, goal and finished, from direct beacons only.
+- The allocator and the separation term take each peer's last directly heard
+  position and its age (K2). At N ≥ 3 a peer known only through a relay drops
+  out of allocation: a consequence of Q8.
 - Nothing else in the node decides presence (rule 1).
 
-**Exchange: have the maps crossed** (Q18, Q27)
-- It keeps one record per peer per contact: from `inContact` turning true
-  until it turns false.
-- At contact start it records the peer's `map_published` from the peer's first
-  beacon, and my own count. The exchange is done when I have received the
-  peer's recorded count and the peer reports receiving mine.
-- Progress means either counter moving. No progress for 120 s, or 600 s in
-  all, means "gave up": logged as "exchange incomplete" and treated as finished
-  for leaving.
-- Each peer's status is none, running, done or gave up. Done and gave up last
-  for the rest of that contact (E3). A new contact records new counts (E8).
-- `exchangedWith(j)` and `exchangedAll(set)` are the only completion tests.
-- Received counts come from dscovox's `ScovoxFusionCounters`; the sent count
-  comes from a new counter on scovox_node (§8.9).
+**Exchange** (Q18, Q27, Q51)
+- Map frames carry sequence numbers (§8.9).
+  - My "sent" number is the newest number in my own dscovox's entry for me,
+    since it subscribes to my scovox directly.
+  - "Received from j" is my dscovox's newest number from j.
+- It keeps one record per peer per contact, from `inContact` turning true until
+  it turns false. At the start it stores two targets: the peer's
+  `map_sent_seq` from that beacon, and my own sent number.
+- **Done** when my received-from-j has reached its target and j's beacon
+  reports received-from-me at or past mine. It is two-sided.
+- Gaps (lost frames) are counted and logged but never block done, because any
+  later frame carries the newest number past the target.
+- **Progress** means either number rising. No progress for 120 s, or 600 s
+  since the contact began, is **gave up**.
+- Done and gave-up stand for the rest of the contact (E3). A new contact starts
+  a new record (E8).
+- `exchanged(j)` is the one completion test.
+
+**Plan** (R1, Q47, Q54)
+- A plan has: a cell and its centre; a first meeting time `t0` on the shared
+  sim clock (E20); an interval (300 s); a version; `renewed_at_slot`; and a
+  provisional flag. Slot k is at `t0 + k × interval`.
+- **Proposing.** Robot 0 is the only proposer.
+  - The first time everyone is connected, it proposes version 1 with
+    `RendezvousScheduler::solve`. If there is no tour yet, it uses the
+    centroid of the robots' cells, marked provisional.
+  - While the plan is provisional and everyone is connected, robot 0 re-solves
+    every 5 s. It issues a new version once the solve is no longer
+    provisional.
+  - `t0` and the interval are fixed by version 1. Later versions change only
+    the cell.
+- **Adopting.** Any robot adopts a higher version the moment it hears it, from
+  any beacon, relayed or not. Plan data is not presence. Each robot keeps its
+  current plan and the one before it.
+- **Renewal.** At a met full meeting for slot k, robot 0 issues version + 1
+  with `renewed_at_slot = k` and a fresh cell from the solver. If the solve
+  fails, the new version keeps the same cell.
+- **Split recovery.** Each robot records the version each peer last showed
+  directly. While some peer last showed an older version that I still hold,
+  slots alternate between the two cells: even slots use mine, odd slots the
+  older one. This lasts until that peer is heard showing mine.
 
 **Booking** (rendezvous and hybrid only)
-- **Plan.** Cell, interval (300 s), first meeting time on the shared sim clock
-  (E20), and a version. Robot 0 proposes it with the existing
-  `RendezvousScheduler::solve` and `RendezvousHandshake` (R1). A plan is
-  proposed only at the start and at a meeting where all N robots are present.
-  It becomes active once every robot echoes it; if that doesn't happen before
-  the meeting ends, the old plan stays (Q47).
-- **Book.** Whenever not all robots are in contact and no booking is held,
-  book the first slot T whose departure time has not yet passed. Departure
-  time is T minus travel time × 1.2, at 0.5 m/s (R2, R4). Attendees are always
-  the whole team (E13).
-- **Arrive.** At the cell (Leg tolerance), or within 10 m of an attendee
-  already there (Q22). At N > 2, keep closing in until in contact with every
-  attendee present (Q26).
-- **Met.** Every attendee is in contact with every other, and every pair has
-  exchanged; at N = 2, the pair (Q26). If all N are present, agree the next
-  plan. Then the booking clears.
-- **Window.** At T + 120 s the meeting is over for anyone without contact.
-  Robots that are present finish their own exchange (bounded by Q27); then the
-  booking clears as "partial" or "missed" (Q29, Q45).
-- **Contact lost at the cell before the exchange ends.** Drive to the peer's
-  last heard position and stop on contact. If there's no contact there, go
-  back to the cell. Bounded by the 120 s no-progress rule (Q28, Q32).
-- **Chance encounter.** At N = 2 the booking clears once maps are exchanged
-  (R3, Q25). At N > 2 an encounter never clears it (Q26).
-- **Finished robot.** It waits at the cell between meetings (Q46), and goes
-  home after a meeting where every robot reports finished (Q49).
-- **Stuck on the way.** Escape moves with no count limit, inside the window
-  (Q29). An unreachable cell is tried again at the next slot (Q44).
-- One place books; one `clear(reason)` clears, with reason met, partial,
-  missed or cancelled.
+- **Book** when all of these hold: a plan exists; no booking is held; the team
+  is not all connected; `team_finished` is not set.
+  - The slot is the first one every robot can make. For each robot, the time
+    left before the slot must cover its lead from its last heard position
+    (mine: my current position).
+  - Lead = path distance to the cell ÷ 0.40 m/s × 1.2 (Q56). Path distance is
+    `GlobalAllocator::costMm` between cells, or the straight line without a
+    cell world.
+- **Depart** when `now + lead ≥ slot time`, or at once if this robot has
+  finished (Q63(2)). Departure is latched and clears with the booking.
+- **Spot** (Q65). Each attendee drives to its own spot on a 3 m ring around the
+  cell centre, at angle 2π·id/N. If the map shows the spot blocked, it steps
+  outward 1 m at a time, up to 6 m. Arrived means within 1.0 m.
+- **Met** (Q55).
+  - While my booking is departed, I set bit j of `met_mask` when
+    `exchanged(j)` holds.
+  - A pair is met if either member lists the other for the same slot.
+  - The meeting is met when every pair of the N robots is met.
+  - A full meeting also waits for the renewal: every beacon must show
+    `renewed_at_slot = k`, bounded by patience.
+- **Patience** (Q53). One clock per booking, started at arrival.
+  - It resets on progress: a sequence number from any attendee rising, or an
+    attendee heard for the first time in this booking. A new contact alone
+    does not reset it.
+  - 120 s without progress while holding ends the booking as `patience`.
+  - A backstop 600 s after the later of the slot time and departure ends it
+    as `backstop`.
+- **Window** (Q29, Q45). At slot time + 120 s, if the meeting is not met:
+  - A robot with no exchange running ends the booking: `partial` if some
+    attendee met it, `missed` if none did.
+  - A robot with an exchange still running keeps holding until it is done or
+    patience runs out.
+- **Reconnect** (Q32, Q53).
+  - Trigger: I am holding at the spot, an attendee I was in contact with
+    during this booking is no longer in contact, and our pair is not met.
+  - Only the higher id of the pair moves. It drives to the other's last heard
+    position and stops on contact. If it reaches that position without
+    contact, it goes back to its spot. The lower id holds.
+  - Once per lost contact.
+- **Encounter** (Q25, Q26). A booking that has not departed is cancelled when
+  all N robots are connected and every pair has exchanged. A partial encounter
+  never cancels one.
+- **Missed streak** (Q57b). The count of consecutive bookings that ended with
+  some attendee never heard. Any other ending resets it.
+- **Clearing.** One `clear(reason)`, with reason met, partial, missed,
+  patience, backstop, encounter or team-finished.
 
 **Chase** (pursuit and hybrid only)
-- **Trigger** (P1, Q20, Q21, Q33). All must hold:
-  - the team has been together at least once;
-  - the peer has been unheard for at least 90 s;
-  - its last contact was no more than 900 s ago;
-  - at least 90 s have passed since the last chase ended — now its own knob;
-    gen 33 reused the silence gate for this;
+- **Trigger.** All of these must hold:
+  - the team was all connected at least once;
+  - a peer has been silent for at least 90 s, and its last contact was at most
+    900 s ago;
+  - that peer's last beacon did not say finished (K9);
+  - at least 90 s have passed since the last chase ended;
   - this robot has not finished;
-  - the value gate (`evaluateReconnectGate`) prices every missing peer, and the
-    chase goes to the best priced.
-
-  There is no count cap.
-- **Target** (P2). The intercept (`PursuitPredictor::predict`) first. Then the
-  trail: the peer's last announced goal, then its last heard position. The
-  chase fails when these goal points run out (P3), or at 600 s in total, the
-  outer limit.
-- **Caught** (P4, Q19, Q30). `inContact(peer)` turns the chase into a follow.
-  The goal is a point about 10 m behind the peer, on the line from it to me,
-  updated with each beacon; the peer carries on as it was. The follow ends
-  when `exchangedWith(peer)` is true, wherever the peer goes. If contact is
-  lost, the robot goes back to chasing, and the 600 s keeps running (Q19).
-- **Failed** → explore (P5). Mutual chases need no special rule (Q34).
-- One place starts a chase; one place clears it, with reason done, failed or
+  - in hybrid, no booking has departed, and the next departure is more than
+    120 s away (Q64(2));
+  - the value gate (`evaluateReconnectGate`, unchanged) agrees. It prices the
+    nearest locatable missing peer, and the chase goes to that peer (Q64(1)).
+    It fails open when the allocator refuses (Q64(4)). Refusals are logged and
+    counted.
+- **Target** (P2). The intercept (`PursuitPredictor::predict`) comes first,
+  then the peer's last announced goal, then its last heard position.
+  - Each point is one Leg. Reaching or failing a point moves on to the next.
+  - Running out of points is `failed`.
+  - The whole chase has a 600 s limit.
+- **Follow** (Q19, Q30).
+  - `inContact(peer)` turns the chase into a follow. The goal is a point 10 m
+    from the peer, on the line from it to me, refreshed on each beacon. If
+    that line is blocked on the map, the point is pulled in, down to 6 m
+    (Q64(3)).
+  - The follow ends when `exchanged(peer)` holds or the exchange gives up.
+  - If contact is lost, the robot goes back to chasing from the peer's last
+    heard position, and the 600 s limit keeps running.
+- **Clearing.** One `clear(reason)`, with reason done, failed, limit or
   pre-empted.
 
-**Exploit gate and pool** (Q35, Q38–Q42)
-- **Sighting** (Q40, E32). The node keeps its own trail, one point every
-  metre. The scheduler releases trees on a sim-only topic. A released tree
-  becomes known when any trail point is within sensor range of it (20 m,
-  `fov_max_range`), whether that was before or after the release.
-- **Pool.** Trees I know, plus trees in peers' beacons, minus those done.
-- **Start** an episode when `allConnected()` holds, the pool is not empty and
-  I am not homing (Q35). The pool goes to `TargetQueue`, nearest first (Q41).
-- **Run.** The moved exploit code, with its decisions unchanged. Its driving
-  goes through Leg. The dwell barrier's wait is bounded at 120 s. Losing
-  contact doesn't stop the episode (Q42).
-- **End.** When the queue is empty, the gate re-checks (E34). Exploit steps
-  have their own counter. The failed-goal blacklist stays shared, and exploit
-  only reads it (Q38).
-
-**Leg: the only code that drives** (S3, R5, §3.1)
-- Input: a point, a tolerance and the caller's time bound. Output: driving,
-  arrived, escaping or failed.
-- It publishes the goal (open loop, re-published) and judges arrival from the
+**Leg: every drive that is not an exploration goal** (§3.1)
+- Input: a point, a tolerance and a caller-owned bound. It reports driving,
+  arrived or holding.
+- It publishes the goal, re-published as today, and judges arrival from the
   pose.
-- One watchdog: no progress for the watchdog time triggers an escape move
-  (today's escape picker), then a retry. Escapes are unlimited; the caller's
-  bound ends the leg. The watchdog time is set once, replacing today's five
-  values.
-- One budget formula: a base, plus distance ÷ speed × `nav_safety_factor`
-  (3 in the yaml).
-- The proximity pause goes through the existing `ProximityGuard`.
+- Its watchdog is `progress_window_sec` / `progress_min_distance_m`. When it
+  fires, the robot takes one escape move to a free point 1.5–6 m away, using
+  gen 33's escape picker, then resumes. Escapes are unlimited; the caller's
+  bound ends the leg.
+- There is no blacklist. Exploration goals keep gen 33's drive with its
+  budget, watchdog, rotation deadline and blacklist, verbatim.
 
-**GoalSelector.** `doPlan`'s ~850 lines of goal selection, lifted unchanged.
-Map, pose, claims, cell world and blacklist go in; a goal, or "none left",
-comes out. The coverage latch (`maybeLatchCoverageDone`), which decides
-per-robot "exploration done", moves with it unchanged.
+**Proximity** (S3, Q65)
+- Gen 33's `ProximityGuard` and PROXIMITY_HOLD cover every drive.
+- Exempt: a peer whose latest beacon says Meet, while I am in Meet too.
+- The tick event logs the nearest peer's distance. Under 1.0 m is a hard fail.
+
+**Goal selection.** `doPlan`'s goal selection is kept verbatim. "No
+candidates" retries next tick (K2, K4). The coverage latch keeps only its
+criterion (K3); the endings belong to Mission.
+
+**Finished** (K4). The coverage latch or the step budget, latched once. It is
+the only source of the beacon's `finished`.
 
 ### 8.4 Mission: the priority list
 
@@ -669,27 +715,29 @@ Every tick, the first line that holds is the activity:
 
 | # | Activity | Holds when | Arms |
 |---|---|---|---|
-| 1 | Exploit | an episode is running | all (exploit-on runs only) |
-| 2 | Meet | a booking is due, or the robot is holding at the cell for an exchange | rendezvous, hybrid |
-| 3 | Follow | a chase has caught its peer and the exchange isn't done | pursuit, hybrid |
-| 4 | Chase | a chase is running | pursuit, hybrid |
-| 5 | Explore | goals remain | all |
-| 6 | Wait at cell | finished, and a booking is still needed (Q46, Q49) | rendezvous, hybrid |
-| 7 | Home | finished: drive home within the 600 s limit | all |
-| 8 | At home | home: wait for the team only if trees remain (Q35, Q50); otherwise report done | all |
+| 1 | Meet | a booking has departed | rendezvous, hybrid |
+| 2 | Chase | a chase is held; it follows once in contact | pursuit, hybrid |
+| 3 | Explore | not finished | all |
+| 4 | Wait | finished; a plan exists; `team_finished` not set; missed streak under 2; no booking, because the team is all connected | rendezvous, hybrid |
+| 5 | Home | finished, not yet home | all |
+| 6 | Done | home, or homing gave up | all |
 
-- **1 above 2:** exploit always wins (Q16). The gate opens only when everyone
-  is together, so it never pulls a robot away from a meeting.
-- **2 above 3 and 4:** a due meeting ends a chase (H3). At N = 2, a meeting
-  falling due while in contact with the peer is the meeting itself: they hold
-  where they are until the maps are exchanged (E18).
-- **Exchange runs in the background** in every activity, so a chance
-  encounter while exploring still swaps maps.
-- **Clocks while exploiting:** the chase and follow clocks pause; team
-  deadlines (the meeting time and its window) keep running (Q37).
-- **Done** is reported only when home with no unexploited tree. So the run
-  script's stop-on-done can't end a run just before the team's exploit at
-  home.
+- **Meet above Chase:** a due booking ends a chase (H3).
+- **Finished robots at meetings.** A finished robot's booking departs at once
+  (Q63(2)), so Meet covers "wait at the cell" (Q46). Wait covers the case
+  where the team is together and nothing is booked.
+- **`team_finished`** (Q57a). It is set when I hear every robot directly and
+  every beacon says finished, or when any beacon carries it. It is never
+  cleared. Once it is set, nothing is booked and a finished robot goes Home.
+- **Missed streak** of 2 or more while finished: Home (Q57b).
+- **No plan** (E10). Rendezvous behaves as off; hybrid behaves as pursuit
+  (H0).
+- **Background.** Exchange runs in every activity, so a chance encounter while
+  exploring still swaps maps.
+- **Home.** A Leg to the recorded start pose, 1 m tolerance, 600 s bound. A
+  give-up parks the robot and ends DONE with result `timeout` (K5).
+- **Done.** The CSV state is DONE, the beacon keeps going, and the node stays
+  up.
 
 ### 8.5 Arms
 
@@ -700,125 +748,150 @@ Every tick, the first line that holds is the activity:
 | rendezvous | on | — |
 | hybrid | on | on |
 
-One `arm` parameter (Q13); these four names replace the six `mtare_*`
-tokens.
+One `arm` parameter (Q13). The stamp is the arm string. These four names
+replace the six `mtare_*` tokens for the new node.
+`exploitation_enabled=true` is fatal at startup (Q66).
 
-### 8.6 What goes away
+### 8.6 What goes away (in the new node)
 
 | Gen-33 mechanism | Why |
 |---|---|
-| Relay closure, relayed masks, "finished counts as present" | Q8, Q24; the root of cell 12 |
+| Relay closure, relayed masks, "finished counts as present"; TeamModel | Q8, Q24; the root of cell 12 |
 | The 6-chase cap; one chase per booking | Q20, Q31 |
 | Standing and waiting 30 s after a failed chase | P5 |
-| The unbounded appointment wait, the 420 s finished hold, the 30 s meeting hold, the 6 s "together" confirm | Q29, Q27, Q18: replaced by the window and the exchange |
+| The unbounded appointment wait, the 420 s finished hold, the 30 s meeting hold, the 6 s "together" confirm | Q29, Q53, Q18: replaced by the window, patience and the exchange |
 | One appointment per outage (`rendezvous_spent_`) | Q29: book again after every meeting |
-| Continuous re-proposal while connected | Q47 |
-| Five drive budgets and watchdogs | One Leg |
+| Continuous re-proposal; `RendezvousHandshake` | Q47, Q54, K7 |
+| Five drive budgets and watchdogs for manoeuvres | One Leg |
 | The `_mdp` arms | P2 |
-| The ungated `/exploration/targets` bus | Q40 |
 | A per-node mission clock for team deadlines | E20 |
+| Done-seek coast, link gate, hold escalation, mid-run info trigger | Replaced by Mission and Chase |
+| Exploit | Phase 2 (Q66) |
+| Shutting the node down at DONE | Rule 6: the beacon never goes quiet |
 
 ### 8.7 Parameters
 
-Goal-selection and exploit parameters keep their names and defaults, since
-that code moves unchanged. The reconnection parameters are replaced by:
+Goal-selection, exploration-drive, proximity and claim parameters keep their
+names and defaults, since that code is copied unchanged. So do
+`mission_start_hold_sec` (60), `mission_home_tol_m` (1.0) and
+`mission_return_max_sec` (600, the homing bound). The reconnection parameters
+are replaced by:
 
 | Parameter | Value | From |
 |---|---|---|
 | `arm` | off, pursuit, rendezvous, hybrid | Q13 |
 | `presence_window_sec` | 10 | Q43 |
 | `beacon_hz` | 1 | rule 6 |
+| `team_beacon_pub_topic`, `team_beacon_sub_topics` | `exploration/team_beacon`; per-peer relays | §8.2 |
+| `exchange_stall_sec`, `exchange_total_sec` | 120, 600 | Q27 |
 | `chase_silence_sec` | 90 | P1 |
 | `chase_cooldown_sec` | 90 | P1, now its own knob |
 | `chase_max_contact_age_sec` | 900 | Q21 |
 | `chase_limit_sec` | 600 | P3 |
-| `follow_distance_m` | 10 | Q19 |
-| `exchange_stall_sec`, `exchange_total_sec` | 120, 600 | Q27 |
+| `chase_departure_margin_sec` | 120 | Q64(2) |
+| `follow_distance_m`, `follow_min_distance_m` | 10, 6 | Q19, Q64(3) |
 | `meeting_interval_sec` | 300 | R1 (sim value) |
 | `meeting_window_sec` | 120 | Q29 |
-| `meeting_attendee_stop_m` | 10 | Q22 |
-| `depart_safety`, `travel_speed_m_s` | 1.2, 0.5 | R4 (today's defaults) |
+| `meeting_patience_sec`, `meeting_backstop_sec` | 120, 600 | Q53 |
+| `meeting_ring_m`, `meeting_arrive_m` | 3.0, 1.0 | Q65 |
+| `travel_speed_mps`, `depart_safety` | 0.40, 1.2 | Q56, Q63 |
+| `finished_missed_slots` | 2 | Q57 |
 | `leg_arrive_m` | 1.5 | the sim value |
-| `home_limit_sec` | 600 | S4, Q48 |
-| `exploit_dwell_sync_max_wait_sec` | 120 | Q42 |
+| `tick_event_period_sec` | 2 | K20 |
 
 Each answers one question (rule 10). All are read through `dp()` so
-`equiv_gate` sees them.
+`equiv_gate` sees them (K17).
 
 ### 8.8 Logging and measurement
 
-- **Contract.** jsonl schema 13 is the only analysis contract (Q6). The
-  analysis scripts move to it in the same change.
+- **Contract.** jsonl schema 13 for the new node; gen 33 stays at 12. Readers
+  refuse a schema newer than theirs (K21).
 - **Events:**
-  - activity change: from, to, reason;
-  - booking: booked, departed, arrived, met, partial, missed, cancelled, plan
-    agreed;
-  - exchange, per peer with counts: start, done, gave up;
-  - chase: start (with its price and target kind), contact, follow, done,
-    failed;
-  - exploit: episode start (with the pool), tree done, episode end;
-  - exploration done;
-  - homing: start, arrival, give-up;
-  - run end.
-- **Firing counts.** The run-end record holds every mechanism's firing count
-  (rule 3):
-  - intercept used, trail used;
-  - follows;
-  - exchanges done and given up;
-  - meetings met, partial and missed;
-  - escapes;
-  - exploit episodes.
-- **Metrics (Q4):**
-  - per robot: exploration-done time, home-arrival time;
-  - team: exploration-done time, homing time (last robot home);
-  - coverage, exchange completion rate, time spent in meetings and chases.
-- **Hard-fail detector** (Q4, Q48). It reads the events. Planned waits are
-  the meeting window, the exchange hold, waiting at the cell, the dwell
-  barrier and waiting at home.
+  - `team_activity`: from, to, reason;
+  - `plan`: proposed, adopted, renewed, with version and cell;
+  - `booking`: booked, departed, arrived, then one ending (met, partial,
+    missed, patience, backstop, encounter, team-finished);
+  - `exchange`, per peer: start, done, gave up, with targets, sequence numbers
+    and gaps;
+  - `chase`: start (with the gate's price and the target kind), contact,
+    point, then one ending (done, failed, limit, pre-empted);
+  - `homing`: start, arrived, gave up;
+  - `tick` every 2 s: pose, activity, Leg status, nearest peer distance, the
+    current wait's start and bound (K20);
+  - `exploration_complete` and `run_end`, as today. `run_end` carries every
+    mechanism's firing count (rule 3).
+- **Kept for run control and the scripts** (Q61(c)): the CSV `state` column,
+  where DONE means done, and the "selected goal" and "Exploration complete"
+  lines. A contract test pins them. New state names: MEET, CHASE, FOLLOW,
+  WAIT, RETURN_HOME.
+- **Checker** (Q61). `gen34_check.py` reads the events and the simulator's
+  `link_states.csv`. Its checks:
+  - every met pair had a live link while it exchanged;
+  - no wait outlives its bound;
+  - no activity is reversed within its dwell more than twice in a row;
+  - a robot is never closer than 1.0 m to a peer;
+  - at the horizon, a run whose robots have all finished must have every
+    robot home.
+  - It also checks that firing counts are non-zero per arm (§9.4).
 
 ### 8.9 Changes outside `explo_planner`
 
-- **scovox:** a sent-delta counter on `scovox_node`, in the same unit dscovox
-  counts on receipt ("deltas as presented") (Q6).
-- **hmr_sim:** add `exploration/team_beacon` to the emulator's best-effort
-  topics.
+- **scovox** (Q51):
+  - `scovox_msgs`: `ScovoxMapBinary` gets `uint64 seq`;
+    `ScovoxFusionCounters` gets `uint64[] newest_seq` and `uint64[] seq_gaps`.
+  - `scovox_node` stamps 1, 2, … on each frame as it goes on the wire, so
+    deferred chunks keep wire order.
+  - `dscovox` keeps each source's newest number and a count of skipped
+    numbers.
+- **hmr_sim** (Q52): the emulator parameter `best_effort_priority`.
 - **Run scripts:**
-  - a flag picks the gen-33 or gen-34 node (Q36);
-  - the four arm names;
-  - the target scheduler publishes on a sim-only topic.
-- **Analysis:** jsonl schema 13, with the gate pins updated to match.
+  - `NODE=gen34|gen33` picks the executable (Q36);
+  - `ARM` takes the four names;
+  - the beacon is wired into the emulator's best-effort list, the per-peer rx
+    topics, the bag list and the leakage gate's list (K15);
+  - `best_effort_priority` is on for gen 34.
+- **Analysis:** `event_log.py` refuses a newer schema, and `gen34_check.py` is
+  added.
 
-### 8.10 Build order
+### 8.10 Build order (phase 1)
 
 All four arms are built before the run box sees anything (Q2).
 
-1. Characterisation tests of today's exploit and goal selection (Q7 layer 1).
-2. Copy goal selection and exploit into the new library code. The gen-33 node
-   is not edited (Q36); the copies are deleted together with it.
-3. Presence, Exchange, Booking, Chase, Leg and Mission, each with unit tests
-   (layer 2).
-4. The in-process harness: N cores, a toy world, a range-and-trees radio. It
-   runs the property tests and replays cell 12, the gen-26 chain and the gen-27
-   stand-short (layers 3–5).
-5. The node shell, the beacon, the scovox counter, sighting, jsonl 13 and the
-   analysis scripts.
-6. Mutation testing of Mission and its components (layer 6).
-7. Commit. Push when told. The run box runs a smoke round first (one seed per
-   arm at N = 3), then the 36 cells (Q5). Experiments run only on the run box.
+1. scovox sequence numbers; the emulator parameter.
+2. `TeamBeacon`.
+3. TeamCore (Presence, Exchange, Plan, Booking, Chase, Mission) with unit
+   tests.
+4. The in-process harness: N cores, a 2-D toy world, and a radio with range,
+   trunks, drops and backlog. Property tests over at least 1,000 seeded
+   missions per arm per N; replays of the cell-12 shape (Q57) and the plan
+   split (Q54).
+5. The carved node, with the beacon, the Leg and the proximity exemption.
+6. Run scripts and the checker.
+7. Build and test in the `hmrexplo:humble` container.
+8. Code review by Fable 5.1 agents; verified findings fixed, rebuilt and
+   retested.
+9. Commit locally. Push when told. On the run box: a smoke round (one seed per
+   arm at N = 3), then the 36 cells (Q5).
+
+Dropped or deferred from Q7:
+- Layer 1, the characterisation tests, is dropped. Exploit does not move in
+  phase 1, and goal selection is copied verbatim.
+- Layer 6, mutation testing, is deferred to after the smoke round.
 
 ### 8.11 Risks
 
 | Risk | How it is watched |
 |---|---|
-| Sent and received counts use different units, or dscovox rejects a frame. Exchanges then never complete, and every meeting ends on Q27's bound | A unit test with real binaries; "exchanges done" must be non-zero in every cell |
-| The beacon carries `cells[]`, which grows with the map, and at N = 4 it competes with the maps for airtime | The emulator's airtime stats in the smoke run |
+| The map backlog drain starves beacons | `best_effort_priority`; the smoke round reports `drop_airtime` per link |
+| A spot ring near trunks is fully blocked | Stepped outward to 6 m, then the Leg's escapes and patience bound it |
+| The harness radio is a toy, so tree effects at N ≥ 3 are only approximated | Harness trunks on the link; the smoke round |
+| Goal selection exists twice until the gen-33 node is deleted | Deleted after the exploit port (Q66) |
 | A shared sim clock works in simulation; real robots would need synchronised clocks | Out of scope; noted here |
-| Goal selection and exploit exist twice until the gen-33 node is deleted | Deleted after the first run-box round (Q36) |
-| Following at 10 m vs the 5 m proximity pause in narrow rows | Harness scenarios |
+| Gen-34 runs use a different radio priority from gen 33 | No comparison is required (§2) |
 
 ### 8.12 Open
 
-Q51–Q64, from the adversarial review (§9). §8 is revised in one pass once they are settled, together with the corrections in §9.2.
+None for phase 1. Phase 2 ports exploit, starting from Q58 and Q59.
 
 ---
 
