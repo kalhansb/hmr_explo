@@ -1595,20 +1595,32 @@ only; `explo_planner_msgs` is rebuilt with it. No new parameter.
    gen-28 resume ("the settle that stopped me here has lapsed") should have sent
    both on to the cell. It did not, because its "team is together" test counts a
    finished peer as reachable (`reachablePeerCount`). Neither robot released and
-   neither moved. Both stood out the 420 s bound, left within 1 s of each other,
-   and did not exchange maps.
+   neither moved. Both stood from ~700 s to ~1455 s t_sim and left without
+   exchanging maps. The bound is floored at `t_meet`, and they arrived about
+   335 s early, so the stand was that wait plus the 420 s bound: ~755 s, not
+   420 s. The logs' run of "0s of 420s" lines before the count rises is that
+   floor (`on_it` is clamped at 0 before `t_meet`), not the stamp re-arming.
 
    Gen 33 made the finished channel false for the release (the veto) but left it
    true for the resume. The two tests are meant to negate each other (notes:
-   `return-sync-conversion-reversible`). The cost is 420 s per occurrence, about
-   30 % of that cell. It is bounded, and it happened once in the first 19 cells.
+   `return-sync-conversion-reversible`). The cost is the time left to `t_meet`
+   plus the 420 s bound, ~755 s in cell 12. It is bounded, and it happened once
+   in the first 19 cells.
    It can recur at any N wherever a finished peer is out of earshot.
 
-   **Confirm on the cell's logs before fixing.** Both planner logs should show
-   "team settled while driving to ... joining the barrier from here" and no
-   "the settle that stopped me here has lapsed" afterwards. If either robot
-   parked by `return-budget` or `return-no-progress` instead, this diagnosis
-   does not apply to it.
+   **Confirmed on the logs (2026-09-23, `ts4_33_n2_mtare_rendezvous_r20_ttl0_seed3`).**
+   - atlas joined from the road at `planner_atlas.log:194` (t_sim 698.7,
+     36.13 m). It never resumed. It held from `:197` (701.1) and expired at
+     `:408` (1456.0).
+   - bestla joined at `planner_bestla.log:205` (697.1, 35.56 m). One second
+     later the gen-28 resume fired at `:208` ("lapsed (0/1 present)"): at that
+     moment bestla did not yet count atlas as finished. It drove 7.6 m, joined
+     again at `:212` (718.8, 28.00 m), and never resumed after that. It held
+     from `:215` (722.5) and expired at `:421` (1454.2).
+   - Neither log has a `return-budget`, `return-no-progress` or arrival line.
+
+   bestla's two entries are the mechanism in one log. The resume worked while
+   the partner was not known to be finished, and was blocked once it was.
 
    **Rejected fix (first proposal, 2026-09-23):** hold only for a finished peer
    last heard with `appointment_inbound` set. It fails three ways:
