@@ -815,6 +815,13 @@ makes homing resumable, there is no TTL to rescue the encoding.
 > **Neither may read `state_` directly.** Per §3.3 this is also the predicate
 > the `finished`-consumer table above is already written against, so the two
 > stay consistent by construction.
+>
+> **Amended 2026-09-23 (§10, item 5): `DONE` also waits for the meeting.** A
+> finished robot keeping its appointment publishes below `HOMING` until the
+> appointment manoeuvre ends, and `DONE` from then on, latched in its own
+> `done_announced_` (`announcedMode`, `meeting_attendance.hpp`). `DONE` still
+> implies `finished`; `finished` no longer implies `DONE`. Every consumer
+> above ORs `finished` in, so none of them moves.
 
 Consumers:
 
@@ -912,6 +919,12 @@ Sites 4–6 are a **single atomic change** — they are three views of one set.
 > of its input, and that is a larger change than gen 33's scope. **Do not
 > attempt it by widening `peerAccounted`; that is the path this correction
 > closes.**
+>
+> §10 item 5 (2026-09-23) reads `mode` at the appointment barrier and is
+> **not** this deferred half. It is a veto: it can only make the barrier wait
+> *longer*, for a finished peer still coming, and it stands down when that
+> peer says `HOMING` or `DONE`. An **unfinished** homing peer is still waited
+> for exactly as before, so the window named here is still open.
 
 **Honest scope limit:** the relay needs a third robot. At N=2 this degrades to
 last-contact-only, which is information the robot already has. Part 3's value is
@@ -925,7 +938,7 @@ the root of the original A3 defect:
 
 | question | correct signal | why |
 |---|---|---|
-| "Should I stop waiting?" | `accountedPeerCount` — **keep channel 3** | A finished peer never arrives; without it the barrier hangs to the duration cap |
+| "Should I stop waiting?" | `accountedPeerCount` — **keep channel 3** | A finished peer never arrives; without it the barrier hangs to the duration cap. **Stale since gen 32** — a finished robot with an appointment standing *does* arrive (`keepAppointmentOnFinish`). Channel 3 is kept for every consumer; the appointment barrier alone now waits for a finished peer that has not said it is leaving (§10, item 5) |
 | "Is someone here to trade maps with?" | `p.direct \|\| p.via_relay` | Must be a radio statement. Channel 1 is state-gated; channel 3 may be third-hand *"with no contact of any kind"* |
 
 Two corrections to an earlier draft of that second row, which read
@@ -943,6 +956,12 @@ Two corrections to an earlier draft of that second row, which read
 Presence gates whether the hold **starts**; arrival gates whether it **stays**.
 They cover each other: if a peer reaches us some way `direct` cannot see, the
 arrival counter moves anyway and the hold persists regardless.
+
+A third question joined these on 2026-09-23 (§10, item 5): **"is somebody
+still coming?"** It is answered by the peer's own word: a `finished` peer below
+`HOMING` that cannot be heard is still on its way to the meeting, and one at
+`HOMING` or above has said it is leaving. It is asked only by the appointment
+barrier, as a veto, and never through `accountedPeerCount`.
 
 #### Shipping order — what happens between the parts
 
@@ -1194,7 +1213,11 @@ relink the node)**
 6. Pursuit re-price: a `HOMING` peer is scored, not skipped, and its intercept
    is home rather than the predicted trail.
 7. Exchange presence: a `finished` peer with no fresh `direct` does **not** open
-   a hold (the A3 regression).
+   a hold (the A3 regression). *As decided 2026-09-23 (§10, item 5):* a
+   finished peer that has **said it is leaving** is not waited for — at N=2
+   the hold ends at its first window as "every peer has said it is leaving";
+   a finished peer that has **not** said so is still coming, and the barrier
+   waits for it (bounded) before any hold opens.
 8. **Blackout is not a drain.** Both cases hold the peer *believed present* and
    both present a `deltas_received` rate of **0** at the moment of decision;
    they differ only in whether the counter ever left its hold-start baseline.
@@ -1452,23 +1475,10 @@ that was fixed — it is the thing a later reader will otherwise re-raise.
    not produce any of them. The extraction also adds files to
    `explo_planner`, so `git_explo_planner` moves and the campaign root must be
    fresh (§8).
-5. **Decide test-plan 7 at N=2 — open, not a defect to fix quietly.** Test 7
-   reads "a `finished` peer with no fresh `direct` does **not** open a hold".
-   What shipped does not skip the hold. It **waits through it** and
-   ends it as unfinished. At N=2 with a finished partner that has gone
-   silent, the barrier releases on `finished` and the hold opens; the drain
-   then finds no peer present, so it examines none, and F1's backstop refuses
-   to call that a drain. The robot stands to the cap and logs UNFINISHED
-   EXCHANGE. That is F1 working as designed (nobody read is not everybody
-   drained), and it is pinned by `ExchangePresence.NobodyReadIsNotEverybodyDrained`.
-   At N≥3 test 7's intent holds: the finished, absent peer is not waited for,
-   and the hold drains on the peer that is present
-   (`AFinishedPeerThatIsNotHereIsNotWaitedFor`). Reading test 7 literally at
-   N=2 would mean either not opening the hold when every counted peer is
-   `finished` and absent, or releasing it drained on zero examined, and the
-   second is F1's defect. Which one, if either, is a design call. Until it is
-   made, the cost is up to one cap-length stand per N=2 meeting whose partner
-   finished and left, logged as UNFINISHED.
+5. ~~**Decide test-plan 7 at N=2**~~ — **decided 2026-09-23 and implemented**;
+   see *Shipped 2026-09-23* below. The decision: a finished robot still comes
+   to the meeting, exchanges maps, and then says it is leaving; its partner
+   waits for it until it does.
 
 **`--packages-up-to` still appears** in `docs/user_manual.md:178,182`,
 `docs/ros_api.md:49,516`, `explo_planner/doc/dscovox_exploration_run.md:41,65`,
@@ -1478,6 +1488,55 @@ field and dry-run ones build in a scratch workspace with SCovox as an
 underlay, where `--packages-up-to` reaches only the two planner packages and
 pins nothing. `ros_api.md:49` is the one generic `<ws>` instance, and it is
 the same stale line as the READMEs if anyone wants it consistent.
+
+### Shipped 2026-09-23 — item 5: a finished robot still comes to the meeting
+
+**The defect.** Since gen 32 a robot that finishes with an appointment standing
+drives to the agreed cell (`keepAppointmentOnFinish`), but it announced
+`finished` — and `DONE` — at saturation, before the drive. The partner's
+barrier admits a finished peer as accounted for (`peerAccounted`, "never
+arrives"), and the inbound veto works only while the peer is heard. A partner
+that heard `finished` once and then lost the radio released after the settle
+and left; the keeper reached an empty cell and stood out its cap. At N=2 the
+same path opened the drain hold on nobody (the old item 5).
+
+**The protocol, as decided.** A finished robot comes to the meeting,
+exchanges, and then says it is leaving. Its partner waits for a finished peer
+until that peer says so.
+
+| Piece | What landed | Where |
+|---|---|---|
+| Publisher | `mode` stays below `HOMING` while the robot keeps its appointment (`appointment_manoeuvre_`); `DONE` once the manoeuvre ends, latched in `done_announced_`. `finished` is unchanged | `announcedMode`, `meeting_attendance.hpp/.cpp`; `publishTeamWorld` |
+| Barrier | `manoeuvreReleaseEligible`'s appointment branch gains `&& !holdingForFinishedPeer()`: hold while some peer is `finished`, below `HOMING`, and not heard (not direct, not one-way, not in the closure). **A veto, not a change to `peerAccounted`** (Part 3's correction). Appointment manoeuvres only | `finishedPeerStillComing`; node `holdingForFinishedPeer` |
+| Bound | `rendezvous_latched_hold_sec`, from `max(first barrier tick, t_meet)` — the R-3 floor. One stamp per appointment manoeuvre, kept across resumed legs (a per-leg restart would let a stop-short/resume cycle wait forever), cleared when the manoeuvre ends. Logged while it holds (throttled) and once when it runs out, above the release gate so the line is reached | node `doReturnSync`, `transitionTo`, `startReturnTo` |
+| Drain | New `DrainStep::kAllPeersLeaving`: nobody present (`direct`/`via_relay`, counted independently of measurability) and every peer at `HOMING` or above → release at the first full window, logged as its own outcome, neither drained nor unfinished | `exchange_drain.hpp/.cpp`; node drain branch |
+
+**Tests.** Run: `test_meeting_attendance` (12 tests — the keeper's
+lifecycle, the DONE latch, exhaustive monotonicity under latched inputs, and
+`finishedPeerStillComing` on a real `TeamModel`: silent, `HOMING`/`DONE`,
+direct, one-way, unfinished, closure, relayed level, self/unconfigured);
+`test_exchange_drain` gains six `AllPeersLeaving.*`, including a leaving peer
+still **here** being read on its counter, measured and unmeasured.
+Scan: `Gen33MeetingAttendance.*` (4). Mutations M44–M64, ledgers in each file.
+
+**What it costs.**
+- A partner now waits up to one cap longer for a finished peer that turned for
+  home out of range without its `DONE` reaching it — at N=2 there is no relay.
+  That is the price of not leaving a peer that is still coming.
+- **With the drain on,** a no-show pays that bound and then the drain cap on
+  top (the hold opens only once the veto runs out, and it examines nobody,
+  so it runs to its cap as UNFINISHED — `NobodyReadIsNotEverybodyDrained`).
+  Up to 2× the cap. With the drain off, as the campaign runs now, it is the
+  bound plus the fixed settle.
+- The manoeuvre classifier still labels a release after the bound ran out
+  "reconnected" when the absent peer is finished — the accepted residual
+  `reachablePeerCount` already names. The WARN line is what tells that meeting
+  apart in the log.
+
+**Runtime change.** `explo_planner_node` changes behaviour at the
+appointment barrier and on the wire (`mode`), so `git_explo_planner` moves and
+the campaign root must be fresh (§8). `TeamWorld.msg` changed in comments
+only; `explo_planner_msgs` is rebuilt with it. No new parameter.
 
 ### Not shipped, deliberately
 
