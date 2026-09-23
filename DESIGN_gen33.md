@@ -1600,15 +1600,15 @@ only; `explo_planner_msgs` is rebuilt with it. No new parameter.
    first.) Neither robot released and
    neither moved. Both stood from ~700 s to ~1455 s t_sim and left without
    exchanging maps. The bound is floored at `t_meet`, and they arrived about
-   335 s early, so the stand was that wait plus the 420 s bound: ~755 s, not
-   420 s. The logs' run of "0s of 420s" lines before the count rises is that
+   335 s early, so the stand was that wait plus the 420 s bound: 664 s (atlas)
+   and 644 s (bestla) of sim time, 755 s wall. The logs' run of "0s of 420s" lines before the count rises is that
    floor (`on_it` is clamped at 0 before `t_meet`), not the stamp re-arming.
 
    Gen 33 made the finished channel false for the release (the veto) but left it
    true for the resume and for the settle conversion. The release and resume
    tests are meant to negate each other (notes:
    `return-sync-conversion-reversible`). The cost is the time left to `t_meet`
-   plus the 420 s bound, ~755 s in cell 12. It is bounded, and it happened once
+   plus the 420 s bound, ~660 s of sim time in cell 12. It is bounded, and it happened once
    in the first 19 cells.
    It can recur at any N wherever a finished peer is out of earshot.
 
@@ -1637,7 +1637,7 @@ only; `explo_planner_msgs` is rebuilt with it. No new parameter.
      for.
 
    **First fix — committed locally 2026-09-23 (explo_planner `0b6a38d`), not
-   pushed. A NO-OP; see the review below. Do not push it as is.** In
+   pushed. A NO-OP (see the review below), replaced by `62a069b`.** In
    `doReturnSync`'s resume test, treat a peer that the veto holds for as not
    together:
    `!teamSettled(active) && (!teamComplete(reachablePeerCount(),
@@ -1687,19 +1687,41 @@ only; `explo_planner_msgs` is rebuilt with it. No new parameter.
      the latched cap. Gen 32 already had this path; it needs campaign data
      before anyone designs for it.
 
-   **Fix to replace `0b6a38d` (proposed, not written).** One
-   appointment-scoped predicate, "together" = `teamSettled(active) &&
-   !holdingForFinishedPeer()`, used in three places:
-   1. The settle conversion's read in `doReturnNav`.
-   2. The heartbeat dwell that clocks it. That dwell also gates
-      `rendezvous_spent_` and the supersede; `holdingForFinishedPeer()` is
-      false outside an appointment manoeuvre, so neither changes.
-   3. The resume, as `!together && !reachable-with-the-veto`, i.e.
-      `(!teamSettled && !reachable) || holdingForFinishedPeer()`.
+   **Replacement fix — committed locally 2026-09-23 (explo_planner `62a069b`),
+   not pushed.** Two pure functions in `meeting_attendance`, both taking the
+   veto as `holding`:
+   - `walkerJoinsBarrier(settled, holding)` = `settled && !holding`. Used by
+     the settle conversion's read in `doReturnNav`, and by the heartbeat window
+     that clocks it. That window also gates `rendezvous_spent_` and the
+     supersede. The veto is false outside an appointment manoeuvre, so neither
+     changes.
+   - `walkerResumesDrive(settled, reachable, holding)` =
+     `!((settled || reachable) && !holding)`, the release's "together" half
+     negated with the veto included. Used by the resume in `doReturnSync`.
 
-   The release already has the veto. After the bound runs out the veto is
-   false, so the conversion and the door behave as before. Tests: extract the
-   conversion, resume and release decisions into a pure function over
-   (teamSettled, reachable, holding, arrived), with a cell-12 row, and a no-flip
-   property: resume true implies conversion false on the same inputs. Keep scan
-   assertions that the node calls it at all three sites.
+   The release is unchanged and already has the veto. The two moves are never
+   both true on one reading, so the walker cannot flip each tick. Once the bound
+   runs out the veto is false, and everything behaves as before. On cell 12
+   both walkers drive on at the first unheard tick and do not stop again until
+   they hear each other for the dwell or reach the cell.
+   - Tests: `WalkerMoves` (4 tests: a cell-12 row, an exhaustive no-flip check,
+     the release's negation, and gen 28 unchanged without the veto), plus the
+     scan `Gen33MeetingAttendance.TheWalkerAppliesTheVetoAtAllThreeSites`. The
+     gen-23 heartbeat scan and the gen-28 resume scan now follow the new calls.
+   - Mutations M65–M70 each fail, and the sources were restored byte-exact.
+     ctest 31/31.
+   - Not tested here: the drive itself. The first cell on a new binary is the
+     check (below).
+
+   **Campaign sweep (2026-09-23, 14 rendezvous/hybrid cells: 10 in n2, 4 in
+   n3).** A stop on the road with the partner unheard, a finished robot waiting
+   alone, and a "stopped waiting for" line all occur in cell 12 only.
+   `superseded` with `mutual=false` occurs nowhere. The veto held for a finished
+   peer in two n3 hybrid cells, and both times the peer arrived; neither robot
+   had stopped on the road.
+
+   **Runtime change.** `explo_planner_node` changes at the conversion, the
+   heartbeat window and the resume, so it needs a re-pin and a fresh root.
+   Check the first rendezvous cell on the new binary for any resume line
+   naming a finished peer, and for anything that flips between "joining the
+   barrier from here" and "has lapsed" faster than the dwell.
