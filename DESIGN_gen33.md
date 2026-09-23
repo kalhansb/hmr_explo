@@ -1584,3 +1584,54 @@ only; `explo_planner_msgs` is rebuilt with it. No new parameter.
    `rendezvous_settle_sec_ + kRendezvousReagreeWaitSec`. Add a unit test for the
    race in `RendezvousHandshake` and a scan test pinning the severity split. The
    fix changes `explo_planner_node`, so it needs a re-pin and a fresh root.
+
+2. **Two finished robots stop short of the cell, and each waits out the bound
+   for the other (found 2026-09-23, `ts4_33_n2` cell 12, rendezvous seed 3).**
+   Both robots finished and drove to the agreed cell. They came into contact on
+   the road and joined the barrier from there, 28–36 m short (the settle
+   conversion, "joining the barrier from here"). The link died before the
+   barrier released. From then on, each saw a peer that was finished, below
+   `HOMING` and not heard, so `holdingForFinishedPeer` vetoed the release. The
+   gen-28 resume ("the settle that stopped me here has lapsed") should have sent
+   both on to the cell. It did not, because its "team is together" test counts a
+   finished peer as reachable (`reachablePeerCount`). Neither robot released and
+   neither moved. Both stood out the 420 s bound, left within 1 s of each other,
+   and did not exchange maps.
+
+   Gen 33 made the finished channel false for the release (the veto) but left it
+   true for the resume. The two tests are meant to negate each other (notes:
+   `return-sync-conversion-reversible`). The cost is 420 s per occurrence, about
+   30 % of that cell. It is bounded, and it happened once in the first 19 cells.
+   It can recur at any N wherever a finished peer is out of earshot.
+
+   **Confirm on the cell's logs before fixing.** Both planner logs should show
+   "team settled while driving to ... joining the barrier from here" and no
+   "the settle that stopped me here has lapsed" afterwards. If either robot
+   parked by `return-budget` or `return-no-progress` instead, this diagnosis
+   does not apply to it.
+
+   **Rejected fix (first proposal, 2026-09-23):** hold only for a finished peer
+   last heard with `appointment_inbound` set. It fails three ways:
+   - "Not last heard inbound" includes a peer whose finish arrived by relay, or
+     that has not been heard since it finished. That is item 5's own case, so
+     the proposal would reopen item 5.
+   - It depends on which packet was the last before the link died, so one robot
+     can still hold the full bound.
+   - Both robots would go home 30 m apart without the exchange the meeting was
+     for.
+
+   **Fix (next build, not mid-campaign):** in `doReturnSync`'s resume test,
+   treat a peer that the veto holds for as not together:
+   `!teamSettled(active) && (!teamComplete(reachablePeerCount(),
+   rendezvous_expected_peers_) || holdingForFinishedPeer())`.
+   Replayed on cell 12, both robots resume, drive the last ~30 m toward the
+   cell, re-acquire each other, settle and exchange. A robot whose peer never
+   appears reaches the cell and waits out the rest of the same bound: the stamp
+   is kept across resumed legs, so the fix adds no time. Add a scan assertion
+   that the resume reads `holdingForFinishedPeer()`. The existing gen-28
+   assertions in `test_gen23_contagion.cpp` still hold. This changes
+   `explo_planner_node`, so it needs a re-pin and a fresh root.
+
+   **Not covered:** a robot parked by budget or no-progress does not resume (by
+   design, since the resume would re-park), so two parked finished robots can
+   still stand off for the bound.
