@@ -18,3 +18,7 @@
 	path = ws/src/simple_nav_3d
 	url = https://github.com/kalhansb/simple_nav_3d.git
 	branch = main
+[submodule "ws/src/traversability_mapping"]
+	path = ws/src/traversability_mapping
+	url = https://github.com/errorcodecritical/traversability_mapping.git
+	branch = ros2
