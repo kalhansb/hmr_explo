@@ -1012,3 +1012,224 @@ each.
 This machine has no ROS on the host, but Docker has the project image
 `hmrexplo:humble` (ROS Humble, colcon). Builds and unit tests can run here in
 that container; simulations still run only on the run box (Q60).
+
+---
+
+## 10. Implementation notes (phase 1 build, 2026-09-23)
+
+This section records three things:
+- what the build settled that §8 left open;
+- where the build departs from §8 and §9.4;
+- what the code review after the build found.
+
+### 10.1 Node and wiring
+
+- **One node.** Gen 34 is the only planner that is built. Its node is
+  `explo_planner_node` (`explo_planner/src/explo_planner_node.cpp`). This
+  replaces the separate executable of §8.1 and Q36. That plan was dropped once
+  gen 33 was no longer needed (user, 2026-09-23).
+- **Gen 33 kept as a reference.** Gen 33's node source is kept, unbuilt, in
+  `ws/src/explo_planner/backup/gen33/`. It is the reference for the phase-2
+  exploit port (Q58, Q59, Q66). The tests that only read that source are kept
+  with it: `test_gen20_rendezvous` to `test_gen23_contagion`, and the
+  `test_endpoint` version whose group C scanned it.
+- **Gen-33-only libraries.** The library components that only gen 33 used stay
+  built and tested. Removing them is left for the port.
+- **Exploit refused.** `exploitation_enabled=true` is refused at construction
+  (Q66).
+- **Beacon topic.** The default publish topic is the shared bus
+  (`exploration/team_beacon`). The run scripts wire each robot's
+  subscriptions through the emulator's `rx/<peer>/` relays
+  (`team_beacon_sub_topics`), as gen 33 did for `team_world`.
+- **Leg after a proximity hold.** A Leg that resumes after a hold is a new
+  leg: it republishes its point and restarts its watchdog window. TeamCore's
+  time bound for the activity keeps running through the hold.
+- **Fusion counters.** The node reads the dscovox fusion counters from
+  `/<robot>/dscovox_node/fusion_counters`, and the scripts pass nothing for it.
+  - Until the first sample arrives, the map sequence numbers are unmeasured
+    (`TickInputs::seq_valid` is false), and no exchange starts. Without this
+    rule every number reads 0. Then `0 >= 0` would make every contact a
+    finished exchange, and every meeting would count as met at once.
+  - After 20 s without a sample, the node warns and names the topic.
+
+### 10.2 Run scripts
+
+- **Arm.** `run_explo_sim_rviz.sh` always runs `explo_planner_node`.
+  `ARM=off|pursuit|rendezvous|hybrid` picks the arm, and the default is hybrid.
+  - The `NODE` switch is gone. It also collided with the `NODE` variable that
+    npm exports.
+  - `run_campaign.sh` has no `--node` and checks the arm name.
+  - Its resume guard matches the manifest's `node=` and `arm=` lines.
+- **Pinned stack.** The run script pins the stack it runs on:
+  `RECONNECT_MODE=mtare_off`, `EXPLOIT=0`, `DONE_SEEK=0`, `MISSION_RETURN=1`,
+  `LINK_GATE=0`, the `team_beacon` topic, and the emulator's
+  `best_effort_priority:=true`.
+  - A conflicting value is refused, not overridden.
+  - `run_campaign.sh` refuses `--mission-return 0`. It also refuses the gen-33
+    knobs `LINK_GATE`, `MIDRUN_SILENCE`, `DONE_SEEK` and `EXPLOIT` in `--env`.
+  - The campaign's mid-run guard, its suffix parsing and its per-cell m-tare
+    case are removed.
+- **Gen-33 machinery.** The run script still carries gen 33's arm-token and
+  knob machinery, pinned to the values above. Removing it is a cleanup for
+  phase 2.
+- **Manifest.** The manifest keeps `node=gen34` as a label, so that readers can
+  refuse a gen-33 cell.
+  - It adds `planner_exe=`, `arm=`, `team_exchange_topic=` and
+    `best_effort_priority=`.
+  - The gen-33 lines stay, at their pinned values.
+- **Guard calib.** `campaign_guard_calib.sh` covers the arms, the refusals, the
+  pins, the stack readback against the campaign's expectations, and the resume
+  guard: 177 known-answer cases.
+- **Hang heartbeat.** The heartbeat is 50 s (gen 33 used 40 s). A meeting that
+  follows a chase can hold back the "selected goal" lines for longer.
+
+### 10.3 Readers
+
+- **event_log.py** refuses schema 13 (`MAX_SCHEMA = 12`) and points to
+  `gen34_check.py`.
+- **gate_g8.py** and its calib pin schema 12, which is gen 33's stamp
+  (`kSchemaVersion`). Gen 34 stamps `kGen34SchemaVersion = 13`.
+- **Gen-33 tools.** `gate_g8.py`, `equiv_gate.py` and their calibs check gen-33
+  campaigns only, as does `rendezvous_agreement_calib.py`. They read gen 33's
+  node from `backup/gen33/`.
+  - equiv_gate_calib's 360° FOV case fails. Gen 33 sets `fov_hfov` with
+    `dp_f`, which the gate's parser does not read. It failed the same way
+    before gen 34.
+  - Both calibs report UNRESOLVED when there is no campaign root
+    (`~/hmr_campaign`).
+
+### 10.4 The checker (`sim/gen34_check.py`)
+
+The checker reads schema 13 only, and gen-34 manifests only (`node=gen34`).
+
+**Exit codes:**
+- 0: clean.
+- 1: hard fail. This outranks a refused cell in the same root.
+- 2: usage error, or a cell refused.
+- 3: nothing failed, but something could not be checked.
+
+| Check | Hard fail when |
+|---|---|
+| bounds | a stamped bound differs from the checker's own copy (§8.7 values) |
+| contact | an exchange done, booking pair_met, chase contact or all-connected tick has no live link in `link_states.csv` within W + 1.5 s before it (2W + 1.5 s for a pair the robot only hears about) |
+| waits | a tick is more than 1 s past its wait bound; homing gave_up or no-home |
+| flipflop | more than 6 activity changes in any 60 s; more than two short stints (under 3 s) in a row |
+| proximity | a pair under 1.0 m in the link trace |
+| progress | under 0.5 m of movement in 120 s while exploring or driving a leg (holds, WAIT, DONE and arrived legs excluded) |
+| horizon | censored with every robot finished but not all home; all_done with a robot not home |
+| giveups | exchange give-ups above max(1, 25 % of non-trivial exchanges) |
+| firing (per arm) | a required mechanism never fired across the arm's cells |
+
+**Trivial exchanges.** An exchange is trivial when both sides already held
+each other's maps at contact. Non-trivial exchanges are
+`exchange_done - exchange_done_trivial`.
+
+**Required mechanisms:**
+- Every arm needs a non-trivial exchange and `homing_arrived`.
+- Pursuit and hybrid also need `chase_start`, `chase_first_intercept`,
+  `activity_follow` and `chase_done`.
+- Rendezvous and hybrid also need `plan_firmed`, `booking_departed` and
+  `booking_full_met`.
+
+The other mechanisms fire only in some geometries, so they are reported, not
+failed:
+- trail and goal chase points;
+- the Q32 reconnect move;
+- Leg escapes;
+- window expiries;
+- declined chases;
+- plan renewals.
+
+**Calibration.** `sim/gen34_check_calib.py` runs the checker on these inputs:
+- a clean hand-written cell;
+- one planted defect per check;
+- near-miss cases that must stay clean;
+- a root with one refused cell and one failing cell (expected exit 1).
+
+The calib also checks the checker's schema, bounds and mechanism names against
+the node and TeamCore sources.
+
+**Departure from §9.4.** There is no stamped per-activity dwell parameter. The
+flip-flop rule is the harness's P4 (at most 6 changes in 60 s; a short stint
+is under 3 s). The checker holds these as its own constants.
+
+### 10.5 Code review after the build
+
+Four Fable 5.1 reviewers read the build. Three were steered: node integration,
+the scripts and checker, and TeamCore with Leg. One was unsteered. Every
+finding below was checked against the code before it was fixed or deferred.
+
+**Fixed:**
+
+| Finding | Fix | Test |
+|---|---|---|
+| With no counters sample yet, every contact read as a finished exchange | `seq_valid` (10.1) | `UnmeasuredSeqStartsNoExchange` |
+| A fully met booking whose renewal went unseen was held to `full_met + patience`. That is past the backstop that `wait_bound` and the drive's deadline report, so the checker would hard-fail a healthy run | the backstop also ends that wait | `BackstopCapsTheWaitForAnUnseenRenewal` |
+| A firming re-solve after a provisional renewal reset `renewed_at_slot` to -1, which lost the proof that the slot was met. Attendees fell back to patience, and a robot whose booking ended by encounter could book the met slot again | a firming re-solve carries the predecessor's value (`TeamBeacon.msg` says so) | `FirmingKeepsTheRenewedSlot` |
+| `team_finished` ended only a booking not yet departed, so Meet outranked Home until the window or the backstop (Q57a) | it ends any booking | `TeamFinishedEndsADepartedBookingToo` |
+| The chase's 900 s cut-off counted from the last beacon heard, not from the last contact (§8.3) | the cut-off counts from `last_contact` | `OneWayHearingDoesNotRenewTheContactAge` |
+| Done was not terminal: a plan adopted after a no-plan homing pulled a robot at home back into Wait or Meet | Done heads the priority list, and nothing is booked once home | `DoneIsTerminalWhenAPlanArrivesAfter` |
+| A deferred departure ended on a one-tick presence lapse of any pair | it ends only after a separation of `book_apart_sec`, the same rule as booking | `DeferredDepartureOutlastsAShortLapse` |
+| `exchange_done_trivial` counted only exchanges with both targets at 0 | trivial means both sides already held the targets at contact | `AlreadyCurrentAtContactIsTrivial` |
+| Leaving NAVIGATE for a Leg with no pose left the navigator on the exploration goal | the goal is abandoned on that transition | node; needs the sim |
+| One pending beacon per sender, kept in order of receipt: an older beacon could replace a newer one within a tick | the newer stamp is kept | node |
+| The checker's exit 2 (refused) outranked exit 1 (hard fail) | exit 1 first | calib: mixed root |
+| The run script read `NODE`, which npm also sets | the switch is removed | `campaign_guard_calib.sh` |
+
+**Deferred.** None of these blocks phase 1. Each is a cost or an observation
+item for the smoke round or phase 2.
+
+- **Split recovery.** Recovery keys on the last plan version a peer showed
+  directly. It does not cover a peer that skipped a version, or a peer whose
+  last direct beacon predates the renewal.
+  - Cost: a robot can be alone at an odd slot. This heals at the next direct
+    contact.
+  - The fix needs a plan-ack mask on the beacon, which is a design change.
+- **Exchange retry.** A gave-up exchange is not retried while the contact
+  lasts (E3 and E8, as designed).
+  - At the cell, a peer whose exchange stalled once leaves the robot
+    re-booking until `team_finished`.
+  - Retry after a stall is a phase-2 candidate, if campaigns show give-ups at
+    meetings.
+- **Proximity exemption.** The Q65 exemption covers the whole Meet activity of
+  both robots, including the reconnect move toward a braked peer. There,
+  separation rests on the navigator's obstacle grid. The smoke round's
+  proximity check watches it.
+- **Tick-event skew.** The 2 s tick event carries this tick's activity with the
+  previous tick's node state. That gives one skewed sample per transition,
+  which the checker's 120 s window absorbs.
+- **`leg_legs`.** It counts hold restarts and activity changes as legs. Read it
+  as leg starts, not as distinct drives.
+- **Hang heartbeat.** At 50 s (× 60 = 3000 sim-s), the hang heartbeat is inert
+  at `--duration 3000`. There, the checker's progress rule is the only hang
+  detector.
+- **PLAN starvation.** Starvation is unbounded in the node, as in gen 33 (Q4).
+  The progress rule fails an exploring robot whose candidates have all been
+  rejected for 120 s. If the smoke round shows this on healthy runs, choose
+  between a starvation latch in the node and an exemption in the checker.
+- **equiv_gate keys.** equiv_gate does not register the new manifest keys, so
+  a pre-change parent against a new child fails on them. equiv_gate is now a
+  gen-33 tool.
+- **Emulator relay discovery.** The emulator's `best_effort_topics` always
+  lists `team_beacon`, so a gen-33 COMMS=1 run would poll relay discovery for
+  the whole run. Gen 33 no longer runs.
+- **Map message layout.** `ScovoxMapBinary` gains `uint64 seq`.
+  - Old bags of `scovox_bin` and `fusion_counters` do not deserialize with the
+    new build.
+  - The run box needs a full rebuild: `scovox_msgs`, then everything that uses
+    it.
+
+### 10.6 Verification on this machine
+
+- **Build.** The `hmrexplo:humble` container builds with no warnings.
+- **Tests.**
+  - `explo_planner`: 709 tests pass, 62 of them in `test_team_core`.
+  - `scovox_mapping`: 117 tests pass.
+  - `test_team_harness` runs its full seed sweep, so `colcon test` takes about
+    11 minutes.
+- **Calibs.**
+  - `gen34_check_calib`: all pass.
+  - `rendezvous_agreement_calib`: passes.
+  - `campaign_guard_calib.sh`: 177 of 177 pass.
+  - `gate_g8_calib` and `equiv_gate_calib`: as in 10.3.
+- **Not verified here.** Simulations run only on the run box.
