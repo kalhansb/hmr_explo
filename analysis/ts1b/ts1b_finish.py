@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Moved comments: doc/hmr_explo_code_notes.md
 """Finish-time tables and arm contrasts for the ts1b team-size series.
 
 WHAT THIS IS
@@ -74,11 +75,9 @@ ENDPOINTS = ("t_explore", "t_mission", "per_robot")
 DEFAULT_ROOT = os.path.expanduser("~/hmr_campaign")
 BASE_SEED_MAX = 10          # seeds 1-10 are the preregistered base series
 
-# Manifest fields that must not vary across pooled cells. This is the
-# comparability group key from ~/hmr_campaign/build_index.py minus `scenario`:
-# in a team-size series the scenario file IS the rung (flatforest_dense_2robot
-# vs _3robot vs _4robot), so checking it across rungs would fire on every run.
-# Scenario is checked WITHIN each rung instead.
+# Manifest fields that must not vary across pooled cells: build_index.py's
+# comparability key minus scenario. Scenario is the rung in a team-size series,
+# so it is checked within each rung only. (notes: ts1b-comparability-key-fields)
 KEY_FIELDS = ("git_explo_planner", "tx_power_dbm", "tree_attenuation_db",
               "max_range_m", "done_criterion", "duration_s")
 
@@ -570,8 +569,7 @@ def selftest(root=DEFAULT_ROOT):
     print(f"         exact p = {p_exact:.4f}, MC p = {p_mc:.4f}")
 
     print("\n3. a NaN cannot manufacture significance")
-    # Before the guard, one NaN made obs NaN, every comparison False, and the
-    # exact branch returned p = 0.000 on missing data.
+    # (notes: ts1b-selftest-nan-guard-origin)
     try:
         perm_test([1.0, 2.0, float("nan")], [10.0, 11.0, 12.0])
         ck("perm_test refuses non-finite input", "returned a p", "raised")
@@ -616,18 +614,13 @@ def selftest(root=DEFAULT_ROOT):
     else:
         with open(frozen) as fh:
             want = {r["cell"]: r for r in csv.DictReader(fh)}
-        # Compare on whatever seed set the CSV actually covers, not a hard-coded
-        # "base". This used to pass seeds="base" because 120 cells were all that
-        # existed; after the top-up rebuilt the CSV at 240 it failed on 120
-        # spurious "missing" rows. The point of this check is that two
-        # independent resolvers agree -- that holds at any n, and pinning it to
-        # a sample size turns a conformance check into a sample-size check.
+        # Loads all seeds, not a fixed subset: the check is that two independent
+        # resolvers agree on whatever cells the CSV covers, at any n.
+        # (notes: ts1b-selftest-all-seeds)
         got = {c["cell"]: c for c in load_cells(root, seeds="all", verbose=False)}
-        # The two resolvers diverge BY DESIGN on a latch-less cell: this one
-        # drops it, tools/ts1b_cells.py emits a NaN row (see load_cells'
-        # docstring). Assert that divergence instead of describing it -- a
-        # documented difference that nothing tests is indistinguishable from a
-        # resolver that quietly started dropping good cells.
+        # The resolvers diverge by design on a latch-less cell (this one drops
+        # it, tools/ts1b_cells.py emits a NaN row); the divergence is asserted,
+        # not just documented. (notes: ts1b-latchless-divergence)
         latchless = {n for n, w in want.items()
                      if not math.isfinite(float(w["t_explore"]))}
         expected = set(want) - latchless
@@ -655,10 +648,9 @@ def selftest(root=DEFAULT_ROOT):
             wc = w["censored"] not in ("0", "", "False", "false")
             if g["censored"] != wc:
                 bad.append(f"{name}.censored: {g['censored']} vs {wc}")
-        # 1e-6, not the 0.51 this used to carry: the frozen CSV stores full
-        # precision (730.3, 1079.25, 44.705914...), so the only legitimate
-        # divergence is fmean's compensated summation, ~1e-12. A 0.51 window
-        # would have passed a resolver that truncated every stamp with int().
+        # 1e-6 because the frozen CSV stores full precision; the only legitimate
+        # divergence is fmean's compensated summation (~1e-12).
+        # (notes: ts1b-selftest-tolerance)
         ck("   all endpoints match the frozen values to 1e-6", len(bad), 0)
         for line in bad[:10]:
             print(f"         {line}")
