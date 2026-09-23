@@ -1620,16 +1620,21 @@ only; `explo_planner_msgs` is rebuilt with it. No new parameter.
    - Both robots would go home 30 m apart without the exchange the meeting was
      for.
 
-   **Fix (next build, not mid-campaign):** in `doReturnSync`'s resume test,
-   treat a peer that the veto holds for as not together:
+   **Fix — committed locally 2026-09-23 (explo_planner `0b6a38d`), not pushed,
+   not on the run box; written before the cell-12 log check came back.** In
+   `doReturnSync`'s resume test, treat a peer that the veto holds for as not
+   together:
    `!teamSettled(active) && (!teamComplete(reachablePeerCount(),
    rendezvous_expected_peers_) || holdingForFinishedPeer())`.
    Replayed on cell 12, both robots resume, drive the last ~30 m toward the
    cell, re-acquire each other, settle and exchange. A robot whose peer never
    appears reaches the cell and waits out the rest of the same bound: the stamp
-   is kept across resumed legs, so the fix adds no time. Add a scan assertion
-   that the resume reads `holdingForFinishedPeer()`. The existing gen-28
-   assertions in `test_gen23_contagion.cpp` still hold. This changes
+   is kept across resumed legs, so the fix adds no time. The resume's WARN
+   now names the finished peer (`; <name> finished, unheard`), since the
+   present count includes it. Scan test
+   `Gen33MeetingAttendance.AWalkerHeldForAFinishedPeerDrivesOn`; mutation M65
+   (the term dropped) fails it. The gen-28 assertions in
+   `test_gen23_contagion.cpp` still pass; ctest 31/31. This changes
    `explo_planner_node`, so it needs a re-pin and a fresh root.
 
    **Not covered:** a robot parked by budget or no-progress does not resume (by
