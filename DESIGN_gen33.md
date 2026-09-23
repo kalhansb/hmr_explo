@@ -1548,3 +1548,39 @@ only; `explo_planner_msgs` is rebuilt with it. No new parameter.
 - **R4's barrier half** (`peerAccounted` / `reachablePeerCount`) — neither is a
   leaf predicate; the blanket skip at `:8704` rejects them. The window stays
   open in gen 33 and is named in Part 3.
+
+### Known issues found in the campaign — fix between campaigns
+
+1. **A re-agreement race logs as an ERROR (found 2026-09-23, `ts4_33_n2`
+   cell 6, `ts4_33_n2_mtare_hybrid_mdp_r20_ttl0_seed2`, `planner_bestla.log:126`).**
+   Each robot requests the next meeting only when its OWN settle hold ends
+   (`rendezvous_reagree_due_`, raised in `doReturnSync` after the maps merge).
+   The holds start when each robot's barrier releases, so they end a few seconds
+   apart. When the proposer (robot 0) ends first, it derives and publishes the
+   next triple while the follower is still settling and not yet owed one.
+   `RendezvousHandshake::adopt` returns `kConflict`, and the node logs
+   `RCLCPP_ERROR` "... KEEPING the adopted triple". When the follower's hold ends,
+   it adopts through `kReagree` and the fleet agrees. In the cell above the gap
+   was 6.5 s: ERROR at `:126`, adoption at `:128`, "AGREED by all" at `:129`.
+
+   **Behaviour is correct; the severity is not.** The commit gate refuses while
+   the triples differ, and the follower keeps the pair its peers echoed. The
+   design's list of `kConflict` causes (`rendezvous_scheduler.cpp`, `adopt`) is a
+   restarted proposer, a fleet split on which robot is 0, or two campaigns on
+   one bus. All three persist; this race always clears at the follower's settle
+   end. The node comment calling every `kConflict` "a real fault" is wrong for
+   this case.
+
+   **Campaign handling (binary unchanged, pin `5b3fe32b9d86c789`).** The run
+   box's hard-stop check on `[ERROR]` exempts this one line only when the same
+   robot adopts that exact triple (`re-agreed after the team met`) and logs
+   "AGREED by all" within 60 s. Each exempt occurrence is reported in chat. An
+   unresolved one is a hard stop, unless that robot was already homing or done.
+
+   **Fix (next build, not mid-campaign):** a follower whose settle is running
+   for the agreed pair (`rendezvous_settling_`) and which receives a differing
+   triple from the proposer logs INFO ("proposer re-agreed first; adopting when
+   my settle ends"). `RCLCPP_ERROR` stays for a `kConflict` that outlasts
+   `rendezvous_settle_sec_ + kRendezvousReagreeWaitSec`. Add a unit test for the
+   race in `RendezvousHandshake` and a scan test pinning the severity split. The
+   fix changes `explo_planner_node`, so it needs a re-pin and a fresh root.
