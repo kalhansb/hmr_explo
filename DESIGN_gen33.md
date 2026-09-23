@@ -1593,8 +1593,11 @@ only; `explo_planner_msgs` is rebuilt with it. No new parameter.
    barrier released. From then on, each saw a peer that was finished, below
    `HOMING` and not heard, so `holdingForFinishedPeer` vetoed the release. The
    gen-28 resume ("the settle that stopped me here has lapsed") should have sent
-   both on to the cell. It did not, because its "team is together" test counts a
-   finished peer as reachable (`reachablePeerCount`). Neither robot released and
+   both on to the cell. It did not, because both halves of its "team is
+   together" test count a finished peer as present: `teamSettled(active)`
+   through `peerAccounted`'s finished channel, and `reachablePeerCount`. (The
+   first write-up named only the second half; the review below found the
+   first.) Neither robot released and
    neither moved. Both stood from ~700 s to ~1455 s t_sim and left without
    exchanging maps. The bound is floored at `t_meet`, and they arrived about
    335 s early, so the stand was that wait plus the 420 s bound: ~755 s, not
@@ -1602,7 +1605,8 @@ only; `explo_planner_msgs` is rebuilt with it. No new parameter.
    floor (`on_it` is clamped at 0 before `t_meet`), not the stamp re-arming.
 
    Gen 33 made the finished channel false for the release (the veto) but left it
-   true for the resume. The two tests are meant to negate each other (notes:
+   true for the resume and for the settle conversion. The release and resume
+   tests are meant to negate each other (notes:
    `return-sync-conversion-reversible`). The cost is the time left to `t_meet`
    plus the 420 s bound, ~755 s in cell 12. It is bounded, and it happened once
    in the first 19 cells.
@@ -1632,8 +1636,8 @@ only; `explo_planner_msgs` is rebuilt with it. No new parameter.
    - Both robots would go home 30 m apart without the exchange the meeting was
      for.
 
-   **Fix — committed locally 2026-09-23 (explo_planner `0b6a38d`), not pushed,
-   not on the run box; written before the cell-12 log check came back.** In
+   **First fix — committed locally 2026-09-23 (explo_planner `0b6a38d`), not
+   pushed. A NO-OP; see the review below. Do not push it as is.** In
    `doReturnSync`'s resume test, treat a peer that the veto holds for as not
    together:
    `!teamSettled(active) && (!teamComplete(reachablePeerCount(),
@@ -1652,3 +1656,50 @@ only; `explo_planner_msgs` is rebuilt with it. No new parameter.
    **Not covered:** a robot parked by budget or no-progress does not resume (by
    design, since the resume would re-park), so two parked finished robots can
    still stand off for the bound.
+
+   **Adversarial review of the first fix (2026-09-23).**
+   - **It is a no-op for cell 12.** The added term sits inside
+     `!teamSettled(active) && (...)`, and `teamSettled(active)` is TRUE with a
+     finished, unheard peer: `accountedPeerCount` counts it through
+     `peerAccounted` (`p.direct || p.finished`), and `peerReportsTeamBreak`
+     only reads peers it hears. The scan test pinned the text as written, so it
+     passed. Mutation M65 proved the term is present, not that it can fire.
+   - **Regrouping alone would livelock.** With
+     `(!teamSettled && !reachable) || holdingForFinishedPeer()`, the resume
+     fires, and on the next `doReturnNav` tick the settle conversion reads
+     `dwellHeld(teamSettled(active), ...)`. The heartbeat's `team_back_ok`
+     dwell has been stepped on the same finished channel and is long held, so
+     the walker converts again at once, then resumes, and so on every other
+     tick. It flips between stopped and driving without getting anywhere.
+   - **The conversion has the same fault on its own.** A walker that knows its
+     partner finished and cannot hear it reads the team as settled, so it
+     stops on the road ("joining the barrier from here") wherever it is, and
+     the veto then holds it there. At N=2, `finished` is learned first-hand
+     only, so this needs contact to have been lost after the partner finished
+     (cell 12's shape). At N>=3, `finished` is relayed, so a walker can stop
+     short on a relayed bit while hearing only a third robot.
+   - **Readers outside the manoeuvre (design question, not in this fix).**
+     The PLAN supersede (`dwellHeld(teamSettled(...))` with an appointment
+     armed and not departed) and the arming test (`!teamSettled(live_for_arm)`)
+     read the same channel. At N>=3 an exploring robot told by relay that a
+     peer finished closes its appointment as `superseded` (mutual false) while
+     that peer keeps it and drives to the cell, then waits there alone up to
+     the latched cap. Gen 32 already had this path; it needs campaign data
+     before anyone designs for it.
+
+   **Fix to replace `0b6a38d` (proposed, not written).** One
+   appointment-scoped predicate, "together" = `teamSettled(active) &&
+   !holdingForFinishedPeer()`, used in three places:
+   1. The settle conversion's read in `doReturnNav`.
+   2. The heartbeat dwell that clocks it. That dwell also gates
+      `rendezvous_spent_` and the supersede; `holdingForFinishedPeer()` is
+      false outside an appointment manoeuvre, so neither changes.
+   3. The resume, as `!together && !reachable-with-the-veto`, i.e.
+      `(!teamSettled && !reachable) || holdingForFinishedPeer()`.
+
+   The release already has the veto. After the bound runs out the veto is
+   false, so the conversion and the door behave as before. Tests: extract the
+   conversion, resume and release decisions into a pure function over
+   (teamSettled, reachable, holding, arrived), with a cell-12 row, and a no-flip
+   property: resume true implies conversion false on the same inputs. Keep scan
+   assertions that the node calls it at all three sites.
