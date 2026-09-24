@@ -1,0 +1,379 @@
+[walks] L3 full: 72 walks, 0 done, 72 to run
+[walks] session {"mode": "full", "sid": "20260924T045957", "lidars": ["mulcher", "lk3a", "lk3b", "lk3c"], "sensor_poses": {"lk3a": [[0.0012, 0.0, 0.716], [0.0, -0.0, 0.0]], "lk3b": [[0.0012, 0.0, 0.716], [0.0, -0.0, 0.0]], "lk3c": [[0.0012, 0.0, 0.716], [0.0, -0.0, 0.0]], "mulcher": [[0.0, 0.0, 2.1], [0.0, -0.0, 0.
+[walks] settled {"sim_s": 2.1, "last_window": {"lk3a": [0.0, 0.0], "lk3b": [0.0, 0.0], "lk3c": [0.0, 0.0]}}
+[walks] lookouts_present {"lookouts": ["lk3a", "lk3b", "lk3c"]}
+[walks] at_post {"robot": "lk3a", "x": -2.979, "y": 27.841, "z": 0.1322, "d_post_m": 0.0, "linked": 1, "snr_db": 52.9, "link_d_m": 28.0, "trees_on_link": 0}
+[walks] at_post {"robot": "lk3b", "x": -26.01, "y": -10.368, "z": 0.1322, "d_post_m": 0.0, "linked": 1, "snr_db": 52.9, "link_d_m": 28.0, "trees_on_link": 0}
+[walks] at_post {"robot": "lk3c", "x": 23.771, "y": -14.796, "z": 0.1322, "d_post_m": 0.0, "linked": 1, "snr_db": 52.9, "link_d_m": 28.0, "trees_on_link": 0}
+[walks] heading {"heading": 0, "readback": [[0.0, 0.0, 0.0], [0.0, -0.0, 0.0]], "lidar_t": [0.0, 0.0, 2.1]}
+[walks] background {"lidar": "mulcher", "tag": "h000", "finite": 23420, "t": [0.0, 0.0, 2.1]}
+[walks] background {"lidar": "lk3a", "tag": "h000", "finite": 24474, "t": [-2.979020631391294, 27.84219982263093, 0.8482]}
+[walks] background {"lidar": "lk3b", "tag": "h000", "finite": 25308, "t": [-26.011148669801752, -10.368347214179646, 0.8482]}
+[walks] background {"lidar": "lk3c", "tag": "h000", "finite": 25185, "t": [23.772143515586226, -14.796363829773462, 0.8482]}
+[walks] walk_start {"walk": "L3-h000-A-r0", "heading": 0, "entry": "A", "n_steps": 126, "bearing20": 97.71905332589728}
+[walks] walk_timing {"walk": "L3-h000-A-r0", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 160.2, "process": 3.3}
+[walks] walk_done {"walk": "L3-h000-A-r0", "wall_s": 163.6, "retries": 0, "team_alarm": 41.724, "mulcher_alarm": 13.815, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h000-A-r1", "heading": 0, "entry": "A", "n_steps": 136, "bearing20": 98.11689196098528}
+[walks] walk_timing {"walk": "L3-h000-A-r1", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 166.0, "process": 3.3}
+[walks] walk_done {"walk": "L3-h000-A-r1", "wall_s": 169.4, "retries": 0, "team_alarm": 41.959, "mulcher_alarm": 13.52, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h000-B-r0", "heading": 0, "entry": "B", "n_steps": 127, "bearing20": -150.2141683478681}
+[walks] walk_timing {"walk": "L3-h000-B-r0", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 143.2, "process": 2.9}
+[walks] walk_done {"walk": "L3-h000-B-r0", "wall_s": 146.2, "retries": 0, "team_alarm": 42.015, "mulcher_alarm": 13.793, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h000-B-r1", "heading": 0, "entry": "B", "n_steps": 121, "bearing20": -149.90771571994796}
+[walks] walk_timing {"walk": "L3-h000-B-r1", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 142.0, "process": 2.8}
+[walks] walk_done {"walk": "L3-h000-B-r1", "wall_s": 144.9, "retries": 0, "team_alarm": 41.783, "mulcher_alarm": 13.56, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h000-C-r0", "heading": 0, "entry": "C", "n_steps": 130, "bearing20": -38.940361252736245}
+[walks] walk_timing {"walk": "L3-h000-C-r0", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 160.9, "process": 3.1}
+[walks] walk_done {"walk": "L3-h000-C-r0", "wall_s": 164.1, "retries": 0, "team_alarm": 41.802, "mulcher_alarm": null, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h000-C-r1", "heading": 0, "entry": "C", "n_steps": 119, "bearing20": -37.442565126274815}
+[walks] walk_timing {"walk": "L3-h000-C-r1", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 144.3, "process": 3.0}
+[walks] walk_done {"walk": "L3-h000-C-r1", "wall_s": 147.4, "retries": 0, "team_alarm": 41.822, "mulcher_alarm": null, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] heading {"heading": 30, "readback": [[0.0, 0.0, 0.0], [0.0, -0.0, 0.523599]], "lidar_t": [0.0, 0.0, 2.1]}
+[walks] background {"lidar": "mulcher", "tag": "h030", "finite": 23455, "t": [0.0, 0.0, 2.1]}
+[walks] walk_start {"walk": "L3-h030-A-r0", "heading": 30, "entry": "A", "n_steps": 119, "bearing20": 66.93369320962508}
+[walks] walk_timing {"walk": "L3-h030-A-r0", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 155.0, "process": 4.0}
+[walks] walk_done {"walk": "L3-h030-A-r0", "wall_s": 159.1, "retries": 0, "team_alarm": 41.551, "mulcher_alarm": 13.754, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h030-A-r1", "heading": 30, "entry": "A", "n_steps": 131, "bearing20": 69.41902272754841}
+[walks] walk_timing {"walk": "L3-h030-A-r1", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 155.4, "process": 3.5}
+[walks] walk_done {"walk": "L3-h030-A-r1", "wall_s": 158.9, "retries": 0, "team_alarm": 41.764, "mulcher_alarm": 13.631, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h030-B-r0", "heading": 30, "entry": "B", "n_steps": 137, "bearing20": 178.63712954094842}
+[walks] walk_timing {"walk": "L3-h030-B-r0", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 245.3, "process": 6.3}
+[walks] walk_done {"walk": "L3-h030-B-r0", "wall_s": 251.8, "retries": 0, "team_alarm": 41.759, "mulcher_alarm": 13.551, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h030-B-r1", "heading": 30, "entry": "B", "n_steps": 130, "bearing20": 179.7191415106732}
+[walks] walk_timing {"walk": "L3-h030-B-r1", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 166.4, "process": 3.9}
+[walks] walk_done {"walk": "L3-h030-B-r1", "wall_s": 170.4, "retries": 0, "team_alarm": 41.476, "mulcher_alarm": 13.755, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h030-C-r0", "heading": 30, "entry": "C", "n_steps": 120, "bearing20": -66.6468962675488}
+[walks] walk_timing {"walk": "L3-h030-C-r0", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 181.5, "process": 4.5}
+[walks] walk_done {"walk": "L3-h030-C-r0", "wall_s": 186.1, "retries": 0, "team_alarm": 41.885, "mulcher_alarm": 13.905, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h030-C-r1", "heading": 30, "entry": "C", "n_steps": 128, "bearing20": -66.83833505385874}
+[walks] walk_timing {"walk": "L3-h030-C-r1", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 129.1, "process": 3.2}
+[walks] walk_done {"walk": "L3-h030-C-r1", "wall_s": 132.4, "retries": 0, "team_alarm": 41.612, "mulcher_alarm": 13.612, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] heading {"heading": 60, "readback": [[0.0, 0.0, 0.0], [0.0, -0.0, 1.0472]], "lidar_t": [0.0, 0.0, 2.1]}
+[walks] background {"lidar": "mulcher", "tag": "h060", "finite": 23753, "t": [0.0, 0.0, 2.1]}
+[walks] walk_start {"walk": "L3-h060-A-r0", "heading": 60, "entry": "A", "n_steps": 121, "bearing20": 38.838223850187326}
+[walks] walk_timing {"walk": "L3-h060-A-r0", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 121.5, "process": 2.6}
+[walks] walk_done {"walk": "L3-h060-A-r0", "wall_s": 124.1, "retries": 0, "team_alarm": 41.683, "mulcher_alarm": null, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h060-A-r1", "heading": 60, "entry": "A", "n_steps": 118, "bearing20": 38.156132179672454}
+[walks] walk_timing {"walk": "L3-h060-A-r1", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 120.5, "process": 2.7}
+[walks] walk_done {"walk": "L3-h060-A-r1", "wall_s": 123.3, "retries": 0, "team_alarm": 42.016, "mulcher_alarm": null, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h060-B-r0", "heading": 60, "entry": "B", "n_steps": 126, "bearing20": 149.10925477770678}
+[walks] walk_timing {"walk": "L3-h060-B-r0", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 133.4, "process": 3.3}
+[walks] walk_done {"walk": "L3-h060-B-r0", "wall_s": 136.7, "retries": 0, "team_alarm": 41.842, "mulcher_alarm": 13.629, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h060-B-r1", "heading": 60, "entry": "B", "n_steps": 127, "bearing20": 149.59284024368176}
+[walks] walk_timing {"walk": "L3-h060-B-r1", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 132.1, "process": 3.1}
+[walks] walk_done {"walk": "L3-h060-B-r1", "wall_s": 135.3, "retries": 0, "team_alarm": 41.628, "mulcher_alarm": 13.908, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h060-C-r0", "heading": 60, "entry": "C", "n_steps": 127, "bearing20": -98.5009890023995}
+[walks] walk_timing {"walk": "L3-h060-C-r0", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 131.5, "process": 3.0}
+[walks] walk_done {"walk": "L3-h060-C-r0", "wall_s": 134.6, "retries": 0, "team_alarm": 41.478, "mulcher_alarm": 13.685, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h060-C-r1", "heading": 60, "entry": "C", "n_steps": 126, "bearing20": -97.40556299238523}
+[walks] walk_timing {"walk": "L3-h060-C-r1", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 134.3, "process": 3.3}
+[walks] walk_done {"walk": "L3-h060-C-r1", "wall_s": 137.7, "retries": 0, "team_alarm": 41.945, "mulcher_alarm": 13.841, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] heading {"heading": 90, "readback": [[0.0, 0.0, 0.0], [0.0, -0.0, 1.5708]], "lidar_t": [0.0, 0.0, 2.1]}
+[walks] background {"lidar": "mulcher", "tag": "h090", "finite": 23745, "t": [0.0, 0.0, 2.1]}
+[walks] walk_start {"walk": "L3-h090-A-r0", "heading": 90, "entry": "A", "n_steps": 137, "bearing20": 6.452612034904746}
+[walks] walk_timing {"walk": "L3-h090-A-r0", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 147.5, "process": 3.4}
+[walks] walk_done {"walk": "L3-h090-A-r0", "wall_s": 151.0, "retries": 0, "team_alarm": 42.063, "mulcher_alarm": null, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h090-A-r1", "heading": 90, "entry": "A", "n_steps": 134, "bearing20": 7.220933339670361}
+[walks] walk_timing {"walk": "L3-h090-A-r1", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 267.2, "process": 6.5}
+[walks] walk_done {"walk": "L3-h090-A-r1", "wall_s": 273.9, "retries": 0, "team_alarm": 41.571, "mulcher_alarm": null, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h090-B-r0", "heading": 90, "entry": "B", "n_steps": 123, "bearing20": 120.78130897064031}
+[walks] walk_timing {"walk": "L3-h090-B-r0", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 135.3, "process": 3.1}
+[walks] walk_done {"walk": "L3-h090-B-r0", "wall_s": 138.5, "retries": 0, "team_alarm": 41.592, "mulcher_alarm": 13.864, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h090-B-r1", "heading": 90, "entry": "B", "n_steps": 123, "bearing20": 121.35252447205522}
+[walks] walk_timing {"walk": "L3-h090-B-r1", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 125.5, "process": 2.8}
+[walks] walk_done {"walk": "L3-h090-B-r1", "wall_s": 128.4, "retries": 0, "team_alarm": 41.832, "mulcher_alarm": 13.603, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h090-C-r0", "heading": 90, "entry": "C", "n_steps": 133, "bearing20": -127.78169812465259}
+[walks] walk_timing {"walk": "L3-h090-C-r0", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 136.1, "process": 3.1}
+[walks] walk_done {"walk": "L3-h090-C-r0", "wall_s": 139.3, "retries": 0, "team_alarm": 41.575, "mulcher_alarm": 13.901, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h090-C-r1", "heading": 90, "entry": "C", "n_steps": 134, "bearing20": -127.69082023996508}
+[walks] walk_timing {"walk": "L3-h090-C-r1", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 136.9, "process": 3.2}
+[walks] walk_done {"walk": "L3-h090-C-r1", "wall_s": 140.2, "retries": 0, "team_alarm": 41.866, "mulcher_alarm": 13.712, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] heading {"heading": 120, "readback": [[0.0, 0.0, 0.0], [0.0, -0.0, 2.0944]], "lidar_t": [0.0, 0.0, 2.1]}
+[walks] background {"lidar": "mulcher", "tag": "h120", "finite": 23405, "t": [0.0, 0.0, 2.1]}
+[walks] walk_start {"walk": "L3-h120-A-r0", "heading": 120, "entry": "A", "n_steps": 136, "bearing20": -23.059906212493203}
+[walks] walk_timing {"walk": "L3-h120-A-r0", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 139.3, "process": 3.1}
+[walks] walk_done {"walk": "L3-h120-A-r0", "wall_s": 142.5, "retries": 0, "team_alarm": 41.711, "mulcher_alarm": null, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h120-A-r1", "heading": 120, "entry": "A", "n_steps": 117, "bearing20": -21.291436816884303}
+[walks] walk_timing {"walk": "L3-h120-A-r1", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 119.8, "process": 2.5}
+[walks] walk_done {"walk": "L3-h120-A-r1", "wall_s": 122.4, "retries": 0, "team_alarm": 41.791, "mulcher_alarm": null, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h120-B-r0", "heading": 120, "entry": "B", "n_steps": 135, "bearing20": 90.11392269046425}
+[walks] walk_timing {"walk": "L3-h120-B-r0", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 138.4, "process": 3.1}
+[walks] walk_done {"walk": "L3-h120-B-r0", "wall_s": 141.6, "retries": 0, "team_alarm": 41.54, "mulcher_alarm": 13.816, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h120-B-r1", "heading": 120, "entry": "B", "n_steps": 137, "bearing20": 90.44240272849495}
+[walks] walk_timing {"walk": "L3-h120-B-r1", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 140.3, "process": 3.2}
+[walks] walk_done {"walk": "L3-h120-B-r1", "wall_s": 143.6, "retries": 0, "team_alarm": 41.741, "mulcher_alarm": 13.516, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h120-C-r0", "heading": 120, "entry": "C", "n_steps": 119, "bearing20": -158.4566383832357}
+[walks] walk_timing {"walk": "L3-h120-C-r0", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 122.1, "process": 2.8}
+[walks] walk_done {"walk": "L3-h120-C-r0", "wall_s": 124.9, "retries": 0, "team_alarm": 41.696, "mulcher_alarm": 13.919, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h120-C-r1", "heading": 120, "entry": "C", "n_steps": 133, "bearing20": -157.43896063098617}
+[walks] walk_timing {"walk": "L3-h120-C-r1", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 136.1, "process": 3.2}
+[walks] walk_done {"walk": "L3-h120-C-r1", "wall_s": 139.3, "retries": 0, "team_alarm": 41.663, "mulcher_alarm": 13.563, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] heading {"heading": 150, "readback": [[0.0, 0.0, 0.0], [0.0, -0.0, 2.61799]], "lidar_t": [0.0, 0.0, 2.1]}
+[walks] background {"lidar": "mulcher", "tag": "h150", "finite": 23300, "t": [0.0, 0.0, 2.1]}
+[walks] walk_start {"walk": "L3-h150-A-r0", "heading": 150, "entry": "A", "n_steps": 119, "bearing20": -51.433799769789154}
+[walks] walk_timing {"walk": "L3-h150-A-r0", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 121.8, "process": 2.8}
+[walks] walk_done {"walk": "L3-h150-A-r0", "wall_s": 124.7, "retries": 0, "team_alarm": 41.631, "mulcher_alarm": 13.621, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h150-A-r1", "heading": 150, "entry": "A", "n_steps": 136, "bearing20": -52.769591401344144}
+[walks] walk_timing {"walk": "L3-h150-A-r1", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 139.1, "process": 3.2}
+[walks] walk_done {"walk": "L3-h150-A-r1", "wall_s": 142.5, "retries": 0, "team_alarm": 41.791, "mulcher_alarm": 13.483, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h150-B-r0", "heading": 150, "entry": "B", "n_steps": 119, "bearing20": 60.722339967404025}
+[walks] walk_timing {"walk": "L3-h150-B-r0", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 122.1, "process": 2.8}
+[walks] walk_done {"walk": "L3-h150-B-r0", "wall_s": 125.0, "retries": 0, "team_alarm": 41.619, "mulcher_alarm": 13.891, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h150-B-r1", "heading": 150, "entry": "B", "n_steps": 119, "bearing20": 61.328221390725254}
+[walks] walk_timing {"walk": "L3-h150-B-r1", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 121.9, "process": 2.7}
+[walks] walk_done {"walk": "L3-h150-B-r1", "wall_s": 124.7, "retries": 0, "team_alarm": 41.452, "mulcher_alarm": 13.724, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h150-C-r0", "heading": 150, "entry": "C", "n_steps": 133, "bearing20": 172.91442553362938}
+[walks] walk_timing {"walk": "L3-h150-C-r0", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 136.1, "process": 3.2}
+[walks] walk_done {"walk": "L3-h150-C-r0", "wall_s": 139.5, "retries": 0, "team_alarm": 41.821, "mulcher_alarm": 13.764, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h150-C-r1", "heading": 150, "entry": "C", "n_steps": 128, "bearing20": 172.10022455330338}
+[walks] walk_timing {"walk": "L3-h150-C-r1", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 131.1, "process": 3.0}
+[walks] walk_done {"walk": "L3-h150-C-r1", "wall_s": 134.2, "retries": 0, "team_alarm": 41.518, "mulcher_alarm": 13.823, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] heading {"heading": 180, "readback": [[0.0, 0.0, 0.0], [0.0, -0.0, 3.14159]], "lidar_t": [0.0, 0.0, 2.1]}
+[walks] background {"lidar": "mulcher", "tag": "h180", "finite": 23239, "t": [0.0, 0.0, 2.1]}
+[walks] walk_start {"walk": "L3-h180-A-r0", "heading": 180, "entry": "A", "n_steps": 121, "bearing20": -82.84474593047557}
+[walks] walk_timing {"walk": "L3-h180-A-r0", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 123.8, "process": 2.8}
+[walks] walk_done {"walk": "L3-h180-A-r0", "wall_s": 126.6, "retries": 0, "team_alarm": 41.57, "mulcher_alarm": 13.737, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h180-A-r1", "heading": 180, "entry": "A", "n_steps": 120, "bearing20": -82.34357542017791}
+[walks] walk_timing {"walk": "L3-h180-A-r1", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 122.9, "process": 2.8}
+[walks] walk_done {"walk": "L3-h180-A-r1", "wall_s": 125.7, "retries": 0, "team_alarm": 41.982, "mulcher_alarm": 13.623, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h180-B-r0", "heading": 180, "entry": "B", "n_steps": 119, "bearing20": 30.23068312254538}
+[walks] walk_timing {"walk": "L3-h180-B-r0", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 121.8, "process": 2.5}
+[walks] walk_done {"walk": "L3-h180-B-r0", "wall_s": 124.3, "retries": 0, "team_alarm": 41.602, "mulcher_alarm": null, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h180-B-r1", "heading": 180, "entry": "B", "n_steps": 121, "bearing20": 30.676764932207604}
+[walks] walk_timing {"walk": "L3-h180-B-r1", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 123.6, "process": 2.5}
+[walks] walk_done {"walk": "L3-h180-B-r1", "wall_s": 126.2, "retries": 0, "team_alarm": 41.567, "mulcher_alarm": null, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h180-C-r0", "heading": 180, "entry": "C", "n_steps": 137, "bearing20": 141.04706525237853}
+[walks] walk_timing {"walk": "L3-h180-C-r0", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 140.2, "process": 3.0}
+[walks] walk_done {"walk": "L3-h180-C-r0", "wall_s": 143.3, "retries": 0, "team_alarm": 41.718, "mulcher_alarm": 13.864, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h180-C-r1", "heading": 180, "entry": "C", "n_steps": 123, "bearing20": 140.84327388916333}
+[walks] walk_timing {"walk": "L3-h180-C-r1", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 125.9, "process": 2.7}
+[walks] walk_done {"walk": "L3-h180-C-r1", "wall_s": 128.7, "retries": 0, "team_alarm": 41.576, "mulcher_alarm": 13.684, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] heading {"heading": 210, "readback": [[0.0, 0.0, 0.0], [0.0, -0.0, -2.61799]], "lidar_t": [0.0, 0.0, 2.1]}
+[walks] background {"lidar": "mulcher", "tag": "h210", "finite": 22917, "t": [0.0, 0.0, 2.1]}
+[walks] walk_start {"walk": "L3-h210-A-r0", "heading": 210, "entry": "A", "n_steps": 121, "bearing20": -111.76009878347801}
+[walks] walk_timing {"walk": "L3-h210-A-r0", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 123.8, "process": 2.8}
+[walks] walk_done {"walk": "L3-h210-A-r0", "wall_s": 126.7, "retries": 0, "team_alarm": 41.845, "mulcher_alarm": 13.864, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h210-A-r1", "heading": 210, "entry": "A", "n_steps": 134, "bearing20": -112.50183336768525}
+[walks] walk_timing {"walk": "L3-h210-A-r1", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 137.1, "process": 3.2}
+[walks] walk_done {"walk": "L3-h210-A-r1", "wall_s": 140.4, "retries": 0, "team_alarm": 41.724, "mulcher_alarm": 13.852, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h210-B-r0", "heading": 210, "entry": "B", "n_steps": 119, "bearing20": -1.3497393238184079}
+[walks] walk_timing {"walk": "L3-h210-B-r0", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 121.9, "process": 2.8}
+[walks] walk_done {"walk": "L3-h210-B-r0", "wall_s": 124.8, "retries": 0, "team_alarm": 41.94, "mulcher_alarm": null, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h210-B-r1", "heading": 210, "entry": "B", "n_steps": 121, "bearing20": 0.7081058819776038}
+[walks] walk_timing {"walk": "L3-h210-B-r1", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 123.9, "process": 2.7}
+[walks] walk_done {"walk": "L3-h210-B-r1", "wall_s": 126.7, "retries": 0, "team_alarm": 41.571, "mulcher_alarm": null, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h210-C-r0", "heading": 210, "entry": "C", "n_steps": 133, "bearing20": 112.40707458695306}
+[walks] walk_timing {"walk": "L3-h210-C-r0", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 136.2, "process": 3.2}
+[walks] walk_done {"walk": "L3-h210-C-r0", "wall_s": 139.5, "retries": 0, "team_alarm": 41.62, "mulcher_alarm": 13.492, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h210-C-r1", "heading": 210, "entry": "C", "n_steps": 123, "bearing20": 113.21888075729417}
+[walks] walk_timing {"walk": "L3-h210-C-r1", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 125.8, "process": 3.1}
+[walks] walk_done {"walk": "L3-h210-C-r1", "wall_s": 129.0, "retries": 0, "team_alarm": 41.79, "mulcher_alarm": 13.783, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] heading {"heading": 240, "readback": [[0.0, 0.0, 0.0], [0.0, -0.0, -2.0944]], "lidar_t": [0.0, 0.0, 2.1]}
+[walks] background {"lidar": "mulcher", "tag": "h240", "finite": 22792, "t": [0.0, 0.0, 2.1]}
+[walks] walk_start {"walk": "L3-h240-A-r0", "heading": 240, "entry": "A", "n_steps": 119, "bearing20": -142.42232760867518}
+[walks] walk_timing {"walk": "L3-h240-A-r0", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 121.7, "process": 2.8}
+[walks] walk_done {"walk": "L3-h240-A-r0", "wall_s": 124.6, "retries": 0, "team_alarm": 41.599, "mulcher_alarm": 13.7, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h240-A-r1", "heading": 240, "entry": "A", "n_steps": 122, "bearing20": -142.45727381877165}
+[walks] walk_timing {"walk": "L3-h240-A-r1", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 125.3, "process": 2.9}
+[walks] walk_done {"walk": "L3-h240-A-r1", "wall_s": 128.3, "retries": 0, "team_alarm": 41.623, "mulcher_alarm": 13.732, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h240-B-r0", "heading": 240, "entry": "B", "n_steps": 124, "bearing20": -29.88211453920848}
+[walks] walk_timing {"walk": "L3-h240-B-r0", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 127.2, "process": 2.7}
+[walks] walk_done {"walk": "L3-h240-B-r0", "wall_s": 130.0, "retries": 0, "team_alarm": 41.654, "mulcher_alarm": null, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h240-B-r1", "heading": 240, "entry": "B", "n_steps": 136, "bearing20": -29.9211213897698}
+[walks] walk_timing {"walk": "L3-h240-B-r1", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 139.5, "process": 3.0}
+[walks] walk_done {"walk": "L3-h240-B-r1", "wall_s": 142.6, "retries": 0, "team_alarm": 41.528, "mulcher_alarm": null, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h240-C-r0", "heading": 240, "entry": "C", "n_steps": 129, "bearing20": 80.85842220509329}
+[walks] walk_timing {"walk": "L3-h240-C-r0", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 132.1, "process": 2.9}
+[walks] walk_done {"walk": "L3-h240-C-r0", "wall_s": 135.2, "retries": 0, "team_alarm": 41.769, "mulcher_alarm": 13.888, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h240-C-r1", "heading": 240, "entry": "C", "n_steps": 121, "bearing20": 83.02483540444456}
+[walks] walk_timing {"walk": "L3-h240-C-r1", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 123.8, "process": 3.0}
+[walks] walk_done {"walk": "L3-h240-C-r1", "wall_s": 126.9, "retries": 0, "team_alarm": 41.677, "mulcher_alarm": 13.632, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] heading {"heading": 270, "readback": [[0.0, 0.0, 0.0], [0.0, 0.0, -1.5708]], "lidar_t": [0.0, 0.0, 2.1]}
+[walks] background {"lidar": "mulcher", "tag": "h270", "finite": 22688, "t": [0.0, 0.0, 2.1]}
+[walks] walk_start {"walk": "L3-h270-A-r0", "heading": 270, "entry": "A", "n_steps": 135, "bearing20": -172.97419550623093}
+[walks] walk_timing {"walk": "L3-h270-A-r0", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 138.4, "process": 3.2}
+[walks] walk_done {"walk": "L3-h270-A-r0", "wall_s": 141.7, "retries": 0, "team_alarm": 41.722, "mulcher_alarm": 13.442, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h270-A-r1", "heading": 270, "entry": "A", "n_steps": 122, "bearing20": -171.2401858107621}
+[walks] walk_timing {"walk": "L3-h270-A-r1", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 124.9, "process": 2.8}
+[walks] walk_done {"walk": "L3-h270-A-r1", "wall_s": 127.8, "retries": 0, "team_alarm": 41.786, "mulcher_alarm": 13.716, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h270-B-r0", "heading": 270, "entry": "B", "n_steps": 132, "bearing20": -61.33392845151252}
+[walks] walk_timing {"walk": "L3-h270-B-r0", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 135.2, "process": 3.2}
+[walks] walk_done {"walk": "L3-h270-B-r0", "wall_s": 138.5, "retries": 0, "team_alarm": 41.831, "mulcher_alarm": 13.622, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h270-B-r1", "heading": 270, "entry": "B", "n_steps": 121, "bearing20": -61.224076622163615}
+[walks] walk_timing {"walk": "L3-h270-B-r1", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 123.9, "process": 3.0}
+[walks] walk_done {"walk": "L3-h270-B-r1", "wall_s": 127.1, "retries": 0, "team_alarm": 41.903, "mulcher_alarm": 13.694, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h270-C-r0", "heading": 270, "entry": "C", "n_steps": 135, "bearing20": 51.59755234639857}
+[walks] walk_timing {"walk": "L3-h270-C-r0", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 138.4, "process": 3.2}
+[walks] walk_done {"walk": "L3-h270-C-r0", "wall_s": 141.7, "retries": 0, "team_alarm": 41.778, "mulcher_alarm": 13.525, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h270-C-r1", "heading": 270, "entry": "C", "n_steps": 126, "bearing20": 53.05563879960978}
+[walks] walk_timing {"walk": "L3-h270-C-r1", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 129.2, "process": 3.1}
+[walks] walk_done {"walk": "L3-h270-C-r1", "wall_s": 132.4, "retries": 0, "team_alarm": 41.555, "mulcher_alarm": 13.534, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] heading {"heading": 300, "readback": [[0.0, 0.0, 0.0], [0.0, 0.0, -1.0472]], "lidar_t": [0.0, 0.0, 2.1]}
+[walks] background {"lidar": "mulcher", "tag": "h300", "finite": 23268, "t": [0.0, 0.0, 2.1]}
+[walks] walk_start {"walk": "L3-h300-A-r0", "heading": 300, "entry": "A", "n_steps": 118, "bearing20": 156.48559047109688}
+[walks] walk_timing {"walk": "L3-h300-A-r0", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 120.8, "process": 2.9}
+[walks] walk_done {"walk": "L3-h300-A-r0", "wall_s": 123.8, "retries": 0, "team_alarm": 41.983, "mulcher_alarm": 13.77, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h300-A-r1", "heading": 300, "entry": "A", "n_steps": 122, "bearing20": 157.21855851707406}
+[walks] walk_timing {"walk": "L3-h300-A-r1", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 125.2, "process": 2.9}
+[walks] walk_done {"walk": "L3-h300-A-r1", "wall_s": 128.3, "retries": 0, "team_alarm": 42.04, "mulcher_alarm": 13.709, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h300-B-r0", "heading": 300, "entry": "B", "n_steps": 122, "bearing20": -90.89220556902121}
+[walks] walk_timing {"walk": "L3-h300-B-r0", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 125.0, "process": 3.0}
+[walks] walk_done {"walk": "L3-h300-B-r0", "wall_s": 128.0, "retries": 0, "team_alarm": 42.006, "mulcher_alarm": 13.792, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h300-B-r1", "heading": 300, "entry": "B", "n_steps": 129, "bearing20": -89.32300785159377}
+[walks] walk_timing {"walk": "L3-h300-B-r1", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 132.3, "process": 2.9}
+[walks] walk_done {"walk": "L3-h300-B-r1", "wall_s": 135.4, "retries": 0, "team_alarm": 41.903, "mulcher_alarm": 13.676, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h300-C-r0", "heading": 300, "entry": "C", "n_steps": 121, "bearing20": 21.27702947257845}
+[walks] walk_timing {"walk": "L3-h300-C-r0", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 124.1, "process": 2.7}
+[walks] walk_done {"walk": "L3-h300-C-r0", "wall_s": 126.9, "retries": 0, "team_alarm": 41.741, "mulcher_alarm": null, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h300-C-r1", "heading": 300, "entry": "C", "n_steps": 119, "bearing20": 22.706188085245536}
+[walks] walk_timing {"walk": "L3-h300-C-r1", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 122.1, "process": 2.8}
+[walks] walk_done {"walk": "L3-h300-C-r1", "wall_s": 124.9, "retries": 0, "team_alarm": 41.558, "mulcher_alarm": null, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] heading {"heading": 330, "readback": [[0.0, 0.0, 0.0], [0.0, 0.0, -0.523599]], "lidar_t": [0.0, 0.0, 2.1]}
+[walks] background {"lidar": "mulcher", "tag": "h330", "finite": 23505, "t": [0.0, 0.0, 2.1]}
+[walks] walk_start {"walk": "L3-h330-A-r0", "heading": 330, "entry": "A", "n_steps": 128, "bearing20": 126.93432113533007}
+[walks] walk_timing {"walk": "L3-h330-A-r0", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 131.2, "process": 3.1}
+[walks] walk_done {"walk": "L3-h330-A-r0", "wall_s": 134.4, "retries": 0, "team_alarm": 41.723, "mulcher_alarm": 13.946, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h330-A-r1", "heading": 330, "entry": "A", "n_steps": 129, "bearing20": 128.5851774776474}
+[walks] walk_timing {"walk": "L3-h330-A-r1", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 132.1, "process": 3.0}
+[walks] walk_done {"walk": "L3-h330-A-r1", "wall_s": 135.2, "retries": 0, "team_alarm": 41.907, "mulcher_alarm": 13.878, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h330-B-r0", "heading": 330, "entry": "B", "n_steps": 135, "bearing20": -119.15420381811614}
+[walks] walk_timing {"walk": "L3-h330-B-r0", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 138.4, "process": 3.0}
+[walks] walk_done {"walk": "L3-h330-B-r0", "wall_s": 141.5, "retries": 0, "team_alarm": 41.613, "mulcher_alarm": 13.885, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h330-B-r1", "heading": 330, "entry": "B", "n_steps": 117, "bearing20": -119.33682171917403}
+[walks] walk_timing {"walk": "L3-h330-B-r1", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 119.9, "process": 2.7}
+[walks] walk_done {"walk": "L3-h330-B-r1", "wall_s": 122.7, "retries": 0, "team_alarm": 41.605, "mulcher_alarm": 13.877, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h330-C-r0", "heading": 330, "entry": "C", "n_steps": 126, "bearing20": -6.741695196003029}
+[walks] walk_timing {"walk": "L3-h330-C-r0", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 129.5, "process": 3.0}
+[walks] walk_done {"walk": "L3-h330-C-r0", "wall_s": 132.6, "retries": 0, "team_alarm": 41.781, "mulcher_alarm": null, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] walk_start {"walk": "L3-h330-C-r1", "heading": 330, "entry": "C", "n_steps": 121, "bearing20": -7.716308895921578}
+[walks] walk_timing {"walk": "L3-h330-C-r1", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 123.9, "process": 2.8}
+[walks] walk_done {"walk": "L3-h330-C-r1", "wall_s": 126.7, "retries": 0, "team_alarm": 41.664, "mulcher_alarm": null, "fa": {"mulcher": 0, "lk3a": 0, "lk3b": 0, "lk3c": 0}}
+[walks] session_done {"retries": 0, "svc_retries": 0}
+[walks] L3 check: 12 walks, 0 done, 12 to run
+[walks] session {"mode": "check", "sid": "20260924T075727", "lidars": ["mulcher"], "sensor_poses": {"mulcher": [[0.0, 0.0, 2.1], [0.0, -0.0, 0.0]]}, "rule": {"closer": 0.3, "link": 0.5, "min_pts": 5, "min_rings": 2, "persist": 1.0, "hit": 1.0, "box_min": 5, "static_tol": 0.1, "log_closer": 0.1}}
+[walks] lookouts_away {"lookouts": ["lk3a", "lk3b", "lk3c"]}
+[walks] heading {"heading": 0, "readback": [[0.0, 0.0, 0.0], [0.0, -0.0, 0.0]], "lidar_t": [0.0, 0.0, 2.1]}
+[walks] background {"lidar": "mulcher", "tag": "h000", "finite": 23420, "t": [0.0, 0.0, 2.1]}
+[walks] walk_start {"walk": "L3-h000-A-r0-chk-away", "heading": 0, "entry": "A", "n_steps": 126, "bearing20": 97.71905332589728}
+[walks] walk_timing {"walk": "L3-h000-A-r0-chk-away", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 109.7, "process": 0.7}
+[walks] walk_done {"walk": "L3-h000-A-r0-chk-away", "wall_s": 110.5, "retries": 0, "team_alarm": 13.815, "mulcher_alarm": 13.815, "fa": {"mulcher": 0}}
+[walks] heading {"heading": 30, "readback": [[0.0, 0.0, 0.0], [0.0, -0.0, 0.523599]], "lidar_t": [0.0, 0.0, 2.1]}
+[walks] background {"lidar": "mulcher", "tag": "h030", "finite": 23455, "t": [0.0, 0.0, 2.1]}
+[walks] walk_start {"walk": "L3-h030-B-r0-chk-away", "heading": 30, "entry": "B", "n_steps": 137, "bearing20": 178.63712954094842}
+[walks] walk_timing {"walk": "L3-h030-B-r0-chk-away", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 119.2, "process": 0.7}
+[walks] walk_done {"walk": "L3-h030-B-r0-chk-away", "wall_s": 120.0, "retries": 0, "team_alarm": 13.551, "mulcher_alarm": 13.551, "fa": {"mulcher": 0}}
+[walks] heading {"heading": 60, "readback": [[0.0, 0.0, 0.0], [0.0, -0.0, 1.0472]], "lidar_t": [0.0, 0.0, 2.1]}
+[walks] background {"lidar": "mulcher", "tag": "h060", "finite": 23753, "t": [0.0, 0.0, 2.1]}
+[walks] walk_start {"walk": "L3-h060-C-r0-chk-away", "heading": 60, "entry": "C", "n_steps": 127, "bearing20": -98.5009890023995}
+[walks] walk_timing {"walk": "L3-h060-C-r0-chk-away", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 110.5, "process": 0.7}
+[walks] walk_done {"walk": "L3-h060-C-r0-chk-away", "wall_s": 111.2, "retries": 0, "team_alarm": 13.685, "mulcher_alarm": 13.685, "fa": {"mulcher": 0}}
+[walks] heading {"heading": 90, "readback": [[0.0, 0.0, 0.0], [0.0, -0.0, 1.5708]], "lidar_t": [0.0, 0.0, 2.1]}
+[walks] background {"lidar": "mulcher", "tag": "h090", "finite": 23745, "t": [0.0, 0.0, 2.1]}
+[walks] walk_start {"walk": "L3-h090-A-r0-chk-away", "heading": 90, "entry": "A", "n_steps": 137, "bearing20": 6.452612034904746}
+[walks] walk_timing {"walk": "L3-h090-A-r0-chk-away", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 119.6, "process": 0.6}
+[walks] walk_done {"walk": "L3-h090-A-r0-chk-away", "wall_s": 120.2, "retries": 0, "team_alarm": null, "mulcher_alarm": null, "fa": {"mulcher": 0}}
+[walks] heading {"heading": 120, "readback": [[0.0, 0.0, 0.0], [0.0, -0.0, 2.0944]], "lidar_t": [0.0, 0.0, 2.1]}
+[walks] background {"lidar": "mulcher", "tag": "h120", "finite": 23405, "t": [0.0, 0.0, 2.1]}
+[walks] walk_start {"walk": "L3-h120-B-r0-chk-away", "heading": 120, "entry": "B", "n_steps": 135, "bearing20": 90.11392269046425}
+[walks] walk_timing {"walk": "L3-h120-B-r0-chk-away", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 117.4, "process": 0.7}
+[walks] walk_done {"walk": "L3-h120-B-r0-chk-away", "wall_s": 118.2, "retries": 0, "team_alarm": 13.816, "mulcher_alarm": 13.816, "fa": {"mulcher": 0}}
+[walks] heading {"heading": 150, "readback": [[0.0, 0.0, 0.0], [0.0, -0.0, 2.61799]], "lidar_t": [0.0, 0.0, 2.1]}
+[walks] background {"lidar": "mulcher", "tag": "h150", "finite": 23300, "t": [0.0, 0.0, 2.1]}
+[walks] walk_start {"walk": "L3-h150-C-r0-chk-away", "heading": 150, "entry": "C", "n_steps": 133, "bearing20": 172.91442553362938}
+[walks] walk_timing {"walk": "L3-h150-C-r0-chk-away", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 115.5, "process": 0.7}
+[walks] walk_done {"walk": "L3-h150-C-r0-chk-away", "wall_s": 116.3, "retries": 0, "team_alarm": 13.764, "mulcher_alarm": 13.764, "fa": {"mulcher": 0}}
+[walks] heading {"heading": 180, "readback": [[0.0, 0.0, 0.0], [0.0, -0.0, 3.14159]], "lidar_t": [0.0, 0.0, 2.1]}
+[walks] background {"lidar": "mulcher", "tag": "h180", "finite": 23239, "t": [0.0, 0.0, 2.1]}
+[walks] walk_start {"walk": "L3-h180-A-r0-chk-away", "heading": 180, "entry": "A", "n_steps": 121, "bearing20": -82.84474593047557}
+[walks] walk_timing {"walk": "L3-h180-A-r0-chk-away", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 105.4, "process": 0.6}
+[walks] walk_done {"walk": "L3-h180-A-r0-chk-away", "wall_s": 106.1, "retries": 0, "team_alarm": 13.737, "mulcher_alarm": 13.737, "fa": {"mulcher": 0}}
+[walks] heading {"heading": 210, "readback": [[0.0, 0.0, 0.0], [0.0, -0.0, -2.61799]], "lidar_t": [0.0, 0.0, 2.1]}
+[walks] background {"lidar": "mulcher", "tag": "h210", "finite": 22917, "t": [0.0, 0.0, 2.1]}
+[walks] walk_start {"walk": "L3-h210-B-r0-chk-away", "heading": 210, "entry": "B", "n_steps": 119, "bearing20": -1.3497393238184079}
+[walks] walk_timing {"walk": "L3-h210-B-r0-chk-away", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 103.7, "process": 0.5}
+[walks] walk_done {"walk": "L3-h210-B-r0-chk-away", "wall_s": 104.3, "retries": 0, "team_alarm": null, "mulcher_alarm": null, "fa": {"mulcher": 0}}
+[walks] heading {"heading": 240, "readback": [[0.0, 0.0, 0.0], [0.0, -0.0, -2.0944]], "lidar_t": [0.0, 0.0, 2.1]}
+[walks] background {"lidar": "mulcher", "tag": "h240", "finite": 22792, "t": [0.0, 0.0, 2.1]}
+[walks] walk_start {"walk": "L3-h240-C-r0-chk-away", "heading": 240, "entry": "C", "n_steps": 129, "bearing20": 80.85842220509329}
+[walks] walk_timing {"walk": "L3-h240-C-r0-chk-away", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 112.3, "process": 0.7}
+[walks] walk_done {"walk": "L3-h240-C-r0-chk-away", "wall_s": 113.0, "retries": 0, "team_alarm": 13.888, "mulcher_alarm": 13.888, "fa": {"mulcher": 0}}
+[walks] heading {"heading": 270, "readback": [[0.0, 0.0, 0.0], [0.0, 0.0, -1.5708]], "lidar_t": [0.0, 0.0, 2.1]}
+[walks] background {"lidar": "mulcher", "tag": "h270", "finite": 22688, "t": [0.0, 0.0, 2.1]}
+[walks] walk_start {"walk": "L3-h270-A-r0-chk-away", "heading": 270, "entry": "A", "n_steps": 135, "bearing20": -172.97419550623093}
+[walks] walk_timing {"walk": "L3-h270-A-r0-chk-away", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 117.8, "process": 0.7}
+[walks] walk_done {"walk": "L3-h270-A-r0-chk-away", "wall_s": 118.6, "retries": 0, "team_alarm": 13.929, "mulcher_alarm": 13.929, "fa": {"mulcher": 0}}
+[walks] heading {"heading": 300, "readback": [[0.0, 0.0, 0.0], [0.0, 0.0, -1.0472]], "lidar_t": [0.0, 0.0, 2.1]}
+[walks] background {"lidar": "mulcher", "tag": "h300", "finite": 23268, "t": [0.0, 0.0, 2.1]}
+[walks] walk_start {"walk": "L3-h300-B-r0-chk-away", "heading": 300, "entry": "B", "n_steps": 122, "bearing20": -90.89220556902121}
+[walks] walk_timing {"walk": "L3-h300-B-r0-chk-away", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 106.3, "process": 0.7}
+[walks] walk_done {"walk": "L3-h300-B-r0-chk-away", "wall_s": 107.0, "retries": 0, "team_alarm": 13.792, "mulcher_alarm": 13.792, "fa": {"mulcher": 0}}
+[walks] heading {"heading": 330, "readback": [[0.0, 0.0, 0.0], [0.0, -0.0, -0.523599]], "lidar_t": [0.0, 0.0, 2.1]}
+[walks] background {"lidar": "mulcher", "tag": "h330", "finite": 23505, "t": [0.0, 0.0, 2.1]}
+[walks] walk_start {"walk": "L3-h330-C-r0-chk-away", "heading": 330, "entry": "C", "n_steps": 126, "bearing20": -6.741695196003029}
+[walks] walk_timing {"walk": "L3-h330-C-r0-chk-away", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 110.0, "process": 0.5}
+[walks] walk_done {"walk": "L3-h330-C-r0-chk-away", "wall_s": 110.5, "retries": 0, "team_alarm": null, "mulcher_alarm": null, "fa": {"mulcher": 0}}
+[walks] session_done {"retries": 0, "svc_retries": 0}
+[walks] L3 check: 12 walks, 0 done, 12 to run
+[walks] session {"mode": "check", "sid": "20260924T082703", "lidars": ["mulcher"], "sensor_poses": {"mulcher": [[0.0, 0.0, 2.1], [0.0, -0.0, 0.0]]}, "rule": {"closer": 0.3, "link": 0.5, "min_pts": 5, "min_rings": 2, "persist": 1.0, "hit": 1.0, "box_min": 5, "static_tol": 0.1, "log_closer": 0.1}}
+[walks] lookouts_absent {"lookouts": ["lk3a", "lk3b", "lk3c"]}
+[walks] heading {"heading": 0, "readback": [[0.0, 0.0, 0.0], [0.0, -0.0, 0.0]], "lidar_t": [0.0, 0.0, 2.1]}
+[walks] background {"lidar": "mulcher", "tag": "h000", "finite": 23420, "t": [0.0, 0.0, 2.1]}
+[walks] walk_start {"walk": "L3-h000-A-r0-chk-absent", "heading": 0, "entry": "A", "n_steps": 126, "bearing20": 97.71905332589728}
+[walks] walk_timing {"walk": "L3-h000-A-r0-chk-absent", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 34.3, "process": 0.6}
+[walks] walk_done {"walk": "L3-h000-A-r0-chk-absent", "wall_s": 34.9, "retries": 0, "team_alarm": 13.815, "mulcher_alarm": 13.815, "fa": {"mulcher": 0}}
+[walks] heading {"heading": 30, "readback": [[0.0, 0.0, 0.0], [0.0, -0.0, 0.523599]], "lidar_t": [0.0, 0.0, 2.1]}
+[walks] background {"lidar": "mulcher", "tag": "h030", "finite": 23455, "t": [0.0, 0.0, 2.1]}
+[walks] walk_start {"walk": "L3-h030-B-r0-chk-absent", "heading": 30, "entry": "B", "n_steps": 137, "bearing20": 178.63712954094842}
+[walks] walk_timing {"walk": "L3-h030-B-r0-chk-absent", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 37.2, "process": 0.7}
+[walks] walk_done {"walk": "L3-h030-B-r0-chk-absent", "wall_s": 38.0, "retries": 0, "team_alarm": 13.551, "mulcher_alarm": 13.551, "fa": {"mulcher": 0}}
+[walks] heading {"heading": 60, "readback": [[0.0, 0.0, 0.0], [0.0, -0.0, 1.0472]], "lidar_t": [0.0, 0.0, 2.1]}
+[walks] background {"lidar": "mulcher", "tag": "h060", "finite": 23753, "t": [0.0, 0.0, 2.1]}
+[walks] walk_start {"walk": "L3-h060-C-r0-chk-absent", "heading": 60, "entry": "C", "n_steps": 127, "bearing20": -98.5009890023995}
+[walks] walk_timing {"walk": "L3-h060-C-r0-chk-absent", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 34.4, "process": 0.6}
+[walks] walk_done {"walk": "L3-h060-C-r0-chk-absent", "wall_s": 35.1, "retries": 0, "team_alarm": 13.685, "mulcher_alarm": 13.685, "fa": {"mulcher": 0}}
+[walks] heading {"heading": 90, "readback": [[0.0, 0.0, 0.0], [0.0, -0.0, 1.5708]], "lidar_t": [0.0, 0.0, 2.1]}
+[walks] background {"lidar": "mulcher", "tag": "h090", "finite": 23745, "t": [0.0, 0.0, 2.1]}
+[walks] walk_start {"walk": "L3-h090-A-r0-chk-absent", "heading": 90, "entry": "A", "n_steps": 137, "bearing20": 6.452612034904746}
+[walks] walk_timing {"walk": "L3-h090-A-r0-chk-absent", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 37.1, "process": 0.5}
+[walks] walk_done {"walk": "L3-h090-A-r0-chk-absent", "wall_s": 37.7, "retries": 0, "team_alarm": null, "mulcher_alarm": null, "fa": {"mulcher": 0}}
+[walks] heading {"heading": 120, "readback": [[0.0, 0.0, 0.0], [0.0, -0.0, 2.0944]], "lidar_t": [0.0, 0.0, 2.1]}
+[walks] background {"lidar": "mulcher", "tag": "h120", "finite": 23405, "t": [0.0, 0.0, 2.1]}
+[walks] walk_start {"walk": "L3-h120-B-r0-chk-absent", "heading": 120, "entry": "B", "n_steps": 135, "bearing20": 90.11392269046425}
+[walks] walk_timing {"walk": "L3-h120-B-r0-chk-absent", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 36.7, "process": 0.6}
+[walks] walk_done {"walk": "L3-h120-B-r0-chk-absent", "wall_s": 37.4, "retries": 0, "team_alarm": 13.816, "mulcher_alarm": 13.816, "fa": {"mulcher": 0}}
+[walks] heading {"heading": 150, "readback": [[0.0, 0.0, 0.0], [0.0, -0.0, 2.61799]], "lidar_t": [0.0, 0.0, 2.1]}
+[walks] background {"lidar": "mulcher", "tag": "h150", "finite": 23300, "t": [0.0, 0.0, 2.1]}
+[walks] walk_start {"walk": "L3-h150-C-r0-chk-absent", "heading": 150, "entry": "C", "n_steps": 133, "bearing20": 172.91442553362938}
+[walks] walk_timing {"walk": "L3-h150-C-r0-chk-absent", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 36.1, "process": 0.7}
+[walks] walk_done {"walk": "L3-h150-C-r0-chk-absent", "wall_s": 36.8, "retries": 0, "team_alarm": 13.764, "mulcher_alarm": 13.764, "fa": {"mulcher": 0}}
+[walks] heading {"heading": 180, "readback": [[0.0, 0.0, 0.0], [0.0, -0.0, 3.14159]], "lidar_t": [0.0, 0.0, 2.1]}
+[walks] background {"lidar": "mulcher", "tag": "h180", "finite": 23239, "t": [0.0, 0.0, 2.1]}
+[walks] walk_start {"walk": "L3-h180-A-r0-chk-absent", "heading": 180, "entry": "A", "n_steps": 121, "bearing20": -82.84474593047557}
+[walks] walk_timing {"walk": "L3-h180-A-r0-chk-absent", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 33.0, "process": 0.6}
+[walks] walk_done {"walk": "L3-h180-A-r0-chk-absent", "wall_s": 33.6, "retries": 0, "team_alarm": 13.737, "mulcher_alarm": 13.737, "fa": {"mulcher": 0}}
+[walks] heading {"heading": 210, "readback": [[0.0, 0.0, 0.0], [0.0, -0.0, -2.61799]], "lidar_t": [0.0, 0.0, 2.1]}
+[walks] background {"lidar": "mulcher", "tag": "h210", "finite": 22917, "t": [0.0, 0.0, 2.1]}
+[walks] walk_start {"walk": "L3-h210-B-r0-chk-absent", "heading": 210, "entry": "B", "n_steps": 119, "bearing20": -1.3497393238184079}
+[walks] walk_timing {"walk": "L3-h210-B-r0-chk-absent", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 32.3, "process": 0.4}
+[walks] walk_done {"walk": "L3-h210-B-r0-chk-absent", "wall_s": 32.7, "retries": 0, "team_alarm": null, "mulcher_alarm": null, "fa": {"mulcher": 0}}
+[walks] heading {"heading": 240, "readback": [[0.0, 0.0, 0.0], [0.0, -0.0, -2.0944]], "lidar_t": [0.0, 0.0, 2.1]}
+[walks] background {"lidar": "mulcher", "tag": "h240", "finite": 22792, "t": [0.0, 0.0, 2.1]}
+[walks] walk_start {"walk": "L3-h240-C-r0-chk-absent", "heading": 240, "entry": "C", "n_steps": 129, "bearing20": 80.85842220509329}
+[walks] walk_timing {"walk": "L3-h240-C-r0-chk-absent", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 35.1, "process": 0.6}
+[walks] walk_done {"walk": "L3-h240-C-r0-chk-absent", "wall_s": 35.8, "retries": 0, "team_alarm": 13.888, "mulcher_alarm": 13.888, "fa": {"mulcher": 0}}
+[walks] heading {"heading": 270, "readback": [[0.0, 0.0, 0.0], [0.0, 0.0, -1.5708]], "lidar_t": [0.0, 0.0, 2.1]}
+[walks] background {"lidar": "mulcher", "tag": "h270", "finite": 22688, "t": [0.0, 0.0, 2.1]}
+[walks] walk_start {"walk": "L3-h270-A-r0-chk-absent", "heading": 270, "entry": "A", "n_steps": 135, "bearing20": -172.97419550623093}
+[walks] walk_timing {"walk": "L3-h270-A-r0-chk-absent", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 36.7, "process": 0.6}
+[walks] walk_done {"walk": "L3-h270-A-r0-chk-absent", "wall_s": 37.4, "retries": 0, "team_alarm": 13.442, "mulcher_alarm": 13.442, "fa": {"mulcher": 0}}
+[walks] heading {"heading": 300, "readback": [[0.0, 0.0, 0.0], [0.0, 0.0, -1.0472]], "lidar_t": [0.0, 0.0, 2.1]}
+[walks] background {"lidar": "mulcher", "tag": "h300", "finite": 23268, "t": [0.0, 0.0, 2.1]}
+[walks] walk_start {"walk": "L3-h300-B-r0-chk-absent", "heading": 300, "entry": "B", "n_steps": 122, "bearing20": -90.89220556902121}
+[walks] walk_timing {"walk": "L3-h300-B-r0-chk-absent", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 33.2, "process": 0.6}
+[walks] walk_done {"walk": "L3-h300-B-r0-chk-absent", "wall_s": 33.9, "retries": 0, "team_alarm": 13.792, "mulcher_alarm": 13.792, "fa": {"mulcher": 0}}
+[walks] heading {"heading": 330, "readback": [[0.0, 0.0, 0.0], [0.0, -0.0, -0.523599]], "lidar_t": [0.0, 0.0, 2.1]}
+[walks] background {"lidar": "mulcher", "tag": "h330", "finite": 23505, "t": [0.0, 0.0, 2.1]}
+[walks] walk_start {"walk": "L3-h330-C-r0-chk-absent", "heading": 330, "entry": "C", "n_steps": 126, "bearing20": -6.741695196003029}
+[walks] walk_timing {"walk": "L3-h330-C-r0-chk-absent", "svc_retries_total": 0, "set_pose": 0.1, "step_fresh": 34.2, "process": 0.5}
+[walks] walk_done {"walk": "L3-h330-C-r0-chk-absent", "wall_s": 34.7, "retries": 0, "team_alarm": null, "mulcher_alarm": null, "fa": {"mulcher": 0}}
+[walks] session_done {"retries": 0, "svc_retries": 0}

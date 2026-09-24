@@ -1,0 +1,150 @@
+== stale audit L3 check
+total: {'mulcher': '0/1504'}
+== stale audit L3 main
+total: {'lk3a': '0/3633', 'lk3b': '0/3553', 'lk3c': '0/3201', 'mulcher': '0/6066'}
+== stale audit L2 all
+total: {'lk2a': '0/3812', 'lk2b': '0/3964', 'mulcher': '0/4785'}
+== gonogo
+calibration
+  [PASS] calibration not far beyond ~30-38 m: lk0/toward/alarm_m5 max 12.5, lk0/toward/best max 32.5, lk0/across/alarm_m5 max 12.5, lk0/across/best max 27.5, mulcher/toward/alarm_m5 max 12.5, mulcher/toward/best max 40.0, mulcher/across/alarm_m5 max 12.5, mulcher/across/best max 37.5
+L2
+  [PASS] lk2a sees the person: max 954 non-static returns in the box over 6596 scans
+  [PASS] lk2b sees the person: max 1074 non-static returns in the box over 6596 scans
+  [PASS] mulcher sees the person: max 38 non-static returns in the box over 6596 scans
+  [PASS] at_post logged for the lookouts: 2 at_post events
+  [PASS] lk2a on its post and linked: 0.0 m from the calculated point; link 28.0 m, 0 trunks, SNR 52.9 dB
+  [PASS] lk2b on its post and linked: 0.0 m from the calculated point; link 24.0 m, 0 trunks, SNR 54.2 dB
+  [PASS] L2-h000-A-r0 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h000-A-r1 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h000-B-r0 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h000-B-r1 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h030-A-r0 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h030-A-r1 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h030-B-r0 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h030-B-r1 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h060-A-r0 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h060-A-r1 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h060-B-r0 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h060-B-r1 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h090-A-r0 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h090-A-r1 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h090-B-r0 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h090-B-r1 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h120-A-r0 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h120-A-r1 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h120-B-r0 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h120-B-r1 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h150-A-r0 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h150-A-r1 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h150-B-r0 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h150-B-r1 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h180-A-r0 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h180-A-r1 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h180-B-r0 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h180-B-r1 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h210-A-r0 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h210-A-r1 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h210-B-r0 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h210-B-r1 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h240-A-r0 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h240-A-r1 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h240-B-r0 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h240-B-r1 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h270-A-r0 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h270-A-r1 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h270-B-r0 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h270-B-r1 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h300-A-r0 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h300-A-r1 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h300-B-r0 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h300-B-r1 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h330-A-r0 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h330-A-r1 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h330-B-r0 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] L2-h330-B-r1 lookouts held: lk2a 0.0000 m, lk2b 0.0000 m
+  [PASS] walks finished, every field filled: 72 walks in walks.csv; empty fields: []
+  [PASS] false alarms do not outnumber true detections (main rule): 3477 true / 0 false alarm scans; by lidar: lk2a 1333/0, lk2b 1377/0, mulcher 767/0
+L3
+  [PASS] lk3a sees the person: max 1058 non-static returns in the box over 9085 scans
+  [PASS] lk3b sees the person: max 1041 non-static returns in the box over 9085 scans
+  [PASS] lk3c sees the person: max 1019 non-static returns in the box over 9085 scans
+  [PASS] mulcher sees the person: max 38 non-static returns in the box over 9085 scans
+  [PASS] at_post logged for the lookouts: 3 at_post events
+  [PASS] lk3a on its post and linked: 0.0 m from the calculated point; link 28.0 m, 0 trunks, SNR 52.9 dB
+  [PASS] lk3b on its post and linked: 0.0 m from the calculated point; link 28.0 m, 0 trunks, SNR 52.9 dB
+  [PASS] lk3c on its post and linked: 0.0 m from the calculated point; link 28.0 m, 0 trunks, SNR 52.9 dB
+  [PASS] L3-h000-A-r0 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h000-A-r1 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h000-B-r0 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h000-B-r1 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h000-C-r0 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h000-C-r1 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h030-A-r0 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h030-A-r1 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h030-B-r0 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h030-B-r1 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h030-C-r0 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h030-C-r1 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h060-A-r0 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h060-A-r1 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h060-B-r0 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h060-B-r1 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h060-C-r0 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h060-C-r1 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h090-A-r0 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h090-A-r1 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h090-B-r0 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h090-B-r1 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h090-C-r0 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h090-C-r1 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h120-A-r0 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h120-A-r1 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h120-B-r0 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h120-B-r1 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h120-C-r0 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h120-C-r1 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h150-A-r0 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h150-A-r1 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h150-B-r0 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h150-B-r1 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h150-C-r0 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h150-C-r1 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h180-A-r0 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h180-A-r1 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h180-B-r0 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h180-B-r1 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h180-C-r0 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h180-C-r1 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h210-A-r0 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h210-A-r1 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h210-B-r0 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h210-B-r1 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h210-C-r0 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h210-C-r1 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h240-A-r0 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h240-A-r1 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h240-B-r0 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h240-B-r1 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h240-C-r0 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h240-C-r1 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h270-A-r0 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h270-A-r1 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h270-B-r0 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h270-B-r1 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h270-C-r0 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h270-C-r1 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h300-A-r0 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h300-A-r1 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h300-B-r0 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h300-B-r1 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h300-C-r0 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h300-C-r1 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h330-A-r0 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h330-A-r1 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h330-B-r0 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h330-B-r1 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h330-C-r0 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] L3-h330-C-r1 lookouts held: lk3a 0.0000 m, lk3b 0.0000 m, lk3c 0.0000 m
+  [PASS] walks finished, every field filled: 96 walks in walks.csv; empty fields: []
+  [PASS] false alarms do not outnumber true detections (main rule): 4581 true / 0 false alarm scans; by lidar: lk3a 1393/0, lk3b 1353/0, lk3c 1401/0, mulcher 434/0
+GO

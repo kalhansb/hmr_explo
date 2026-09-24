@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Simulated experiment: lookout robots parked on the paths into a forestry mulching site detect approaching pedestrians about 22 s earlier than the mulcher's own lidar.">
+<title>Perceptive Exploitation for Support</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
+<style>
+:root {
+  --ground: #f3f5f2;
+  --surface: #ffffff;
+  --ink: #1b2420;
+  --muted: #56625b;
+  --rule: #d3dbd5;
+  --team: #1d6aad;
+  --mulcher: #3a403c;
+  --post: #a8620f;
+  --plate: #ffffff;
+  --plate-edge: #d3dbd5;
+  --code-bg: #e8ece8;
+  --display: "Barlow Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --body: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground: #101412;
+    --surface: #171d1a;
+    --ink: #e2e8e3;
+    --muted: #9aa79f;
+    --rule: #2b3430;
+    --team: #74acdf;
+    --mulcher: #cfd5d1;
+    --post: #e2a150;
+    --plate: #f6f7f5;
+    --plate-edge: #2b3430;
+    --code-bg: #1f2622;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #101412;
+  --surface: #171d1a;
+  --ink: #e2e8e3;
+  --muted: #9aa79f;
+  --rule: #2b3430;
+  --team: #74acdf;
+  --mulcher: #cfd5d1;
+  --post: #e2a150;
+  --plate: #f6f7f5;
+  --plate-edge: #2b3430;
+  --code-bg: #1f2622;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 17px;
+  line-height: 1.6;
+}
+.page {
+  max-width: 980px;
+  margin: 0 auto;
+  padding-inline: 20px;
+  padding-block: 40px 72px;
+}
+.prose { max-width: 68ch; }
+h1, h2, h3 {
+  font-family: var(--display);
+  font-weight: 600;
+  line-height: 1.1;
+  text-wrap: balance;
+  margin: 0;
+}
+h1 { font-size: clamp(2.4rem, 6vw, 3.6rem); letter-spacing: 0.005em; }
+h2 {
+  font-size: 1.75rem;
+  margin-top: 56px;
+  margin-bottom: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--rule);
+}
+h3 { font-size: 1.25rem; margin-top: 28px; margin-bottom: 8px; }
+p { margin: 0 0 14px; }
+a { color: var(--team); text-underline-offset: 2px; }
+a:focus-visible { outline: 2px solid var(--team); outline-offset: 2px; }
+.subtitle {
+  font-family: var(--display);
+  font-weight: 500;
+  font-size: clamp(1.4rem, 3.4vw, 1.9rem);
+  line-height: 1.2;
+  color: var(--post);
+  margin: 8px 0 0;
+}
+.lede { font-size: 1.2rem; line-height: 1.5; margin-top: 18px; max-width: 60ch; }
+.answer { font-size: 1.08rem; }
+.answer strong { font-weight: 600; }
+.team { color: var(--team); }
+.mulch { color: var(--mulcher); }
+
+/* headline figures */
+.figs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 0 28px;
+  margin: 34px 0 10px;
+}
+.fig {
+  border-top: 3px solid var(--mulcher);
+  padding-top: 10px;
+  padding-bottom: 18px;
+}
+.fig.is-team { border-top-color: var(--team); }
+.fig.is-gain { border-top-color: var(--post); }
+.fig .num {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 2.6rem;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.fig.is-team .num { color: var(--team); }
+.fig .lab { font-size: 0.95rem; color: var(--muted); margin-top: 6px; line-height: 1.4; }
+
+/* tables */
+.table-wrap { overflow-x: auto; margin: 18px 0 8px; }
+table {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 560px;
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+}
+th, td {
+  text-align: left;
+  padding: 9px 12px 9px 0;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: top;
+}
+th {
+  font-family: var(--mono);
+  font-weight: 500;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+td.n { font-family: var(--mono); font-size: 0.9rem; white-space: nowrap; }
+.note { font-size: 0.9rem; color: var(--muted); max-width: 72ch; }
+
+/* figures from the analysis (matplotlib, light) sit on a light plate in both themes */
+figure { margin: 26px 0 8px; }
+.plate {
+  background: var(--plate);
+  border: 1px solid var(--plate-edge);
+  border-radius: 4px;
+  padding: 10px;
+}
+.plate img { display: block; width: 100%; height: auto; }
+figcaption { font-size: 0.9rem; color: var(--muted); margin-top: 8px; max-width: 72ch; }
+.pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }
+.pair figure { margin-top: 18px; }
+
+ul.points { padding-left: 0; list-style: none; margin: 0; }
+ul.points li { padding: 10px 0 10px 18px; border-bottom: 1px solid var(--rule); position: relative; }
+ul.points li::before {
+  content: ""; position: absolute; left: 0; top: 21px;
+  width: 7px; height: 7px; background: var(--post); border-radius: 50%;
+}
+ul.points li strong { font-weight: 600; }
+
+dl.setup { display: grid; grid-template-columns: minmax(90px, 140px) 1fr; gap: 10px 20px; margin: 0; }
+dl.setup dt {
+  font-family: var(--mono); font-size: 0.78rem; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--muted); padding-top: 4px;
+}
+dl.setup dd { margin: 0; }
+@media (max-width: 520px) {
+  dl.setup { grid-template-columns: 1fr; gap: 2px; }
+  dl.setup dd { margin-bottom: 12px; }
+}
+code, .mono { font-family: var(--mono); font-size: 0.86em; }
+code { background: var(--code-bg); padding: 1px 5px; border-radius: 3px; }
+pre {
+  background: var(--code-bg); padding: 14px 16px; border-radius: 4px;
+  overflow-x: auto; font-size: 0.82rem; line-height: 1.5; margin: 12px 0;
+}
+pre code { background: none; padding: 0; }
+footer { margin-top: 56px; padding-top: 14px; border-top: 1px solid var(--rule); font-size: 0.9rem; color: var(--muted); }
+</style>
+
+</head>
+<body>
+<main class="page">
+  <header>
+    <h1>Multi-Robot Active Cooperative Perception</h1>
+    <p class="subtitle">Perceptive exploitation for support</p>
+    <p class="lede">Can robots parked as lookouts on the paths into a forestry mulching site warn the mulcher of an approaching pedestrian earlier than the mulcher's own lidar?</p>
+    <p class="prose">The mulcher's cutting head blocks much of its lidar's forward view. Small ground robots with the same lidar were parked on the access paths as lookouts. Every sensor observed each trial at the same time, so the mulcher alone and the mulcher with lookouts are compared on identical trials.</p>
+  </header>
+
+  <h2>The experiment</h2>
+  <dl class="setup prose">
+    <dt>Type</dt>
+    <dd>Simulated experiment (Ignition Gazebo, Fortress release), run on 24 September 2026</dd>
+    <dt>Site</dt>
+    <dd>Oak forest, 160 m radius, flat ground, 83–85 trees per hectare, 3 m paths; mulcher at the centre with a Velodyne VLP-16 lidar on its roof (2.1 m). The cutting head blocks 15 of the 16 laser channels within ±30° ahead.</dd>
+    <dt>Layouts</dt>
+    <dd>Two-entry site (one path through, two lookouts) and three-entry site (three paths, three lookouts).</dd>
+    <dt>Lookouts</dt>
+    <dd>Clearpath Husky robots with the same lidar, parked beside each path at the position, computed from the map, that sees a pedestrian earliest while keeping a radio link (range limit 30 m). Four are 28 m from the mulcher; Lookout B of the two-entry site is 24 m, as no free spot lies farther out.</dd>
+    <dt>Trials</dt>
+    <dd>A 1.74 m pedestrian model walks along a path at 1.3 m/s in 0.5 m steps, from 45 m (±5 m) before the lookout boundary to 10 m from the mulcher. 12 mulcher headings × each entry × 2 repetitions: 48 and 72 trials, plus 48 control trials.</dd>
+  </dl>
+  <div class="pair">
+    <figure>
+      <div class="plate"><img src="figures/layout_L2.png" alt="Plan view of the two-entry site: one path crosses the forest past the mulcher at the centre. Lookout A is parked beside the path 28 m west of the mulcher and Lookout B 24 m to the east, each joined to the mulcher by a radio link. The walked sections of the path, with arrows toward the mulcher, start about 70 m out and end 10 m from the mulcher; circles mark 30 m (radio range limit) and 50 m."></div>
+      <figcaption><strong>Figure 1.</strong> Two-entry site: Lookout A at 28 m and Lookout B at 24 m, each linked to the mulcher by radio.</figcaption>
+    </figure>
+    <figure>
+      <div class="plate"><img src="figures/layout_L3.png" alt="Plan view of the three-entry site: three paths lead through the forest to the mulcher at the centre, from the north, the south-west and the south-east. A lookout is parked beside each path 28 m from the mulcher and joined to it by a radio link. Circles mark 30 m (radio range limit) and 50 m."></div>
+      <figcaption><strong>Figure 2.</strong> Three-entry site: a lookout at 28 m on each path.</figcaption>
+    </figure>
+  </div>
+
+  <h3>Detection and outcomes</h3>
+  <p class="prose">The rule was fixed in advance: returns at least 0.3 m closer than a 10-scan background are grouped within 0.5 m (in 3-D); an alarm is a group of at least 5 points on at least 2 laser rings, seen in two consecutive scans. An alarm within 1 m of the pedestrian is a detection; any other is a false alarm. The <span class="team">combined system</span> alarms as soon as the mulcher or any lookout does.</p>
+  <dl class="setup prose">
+    <dt>Lookout boundary</dt>
+    <dd>The circle around the mulcher at the path's lookout distance (28 m; 24 m for Lookout B). Primary outcome: detection before the pedestrian reaches it.</dd>
+    <dt>Warning time</dt>
+    <dd>Time from the first alarm until the pedestrian reaches the boundary; negative if after.</dd>
+    <dt>Alternative rules</dt>
+    <dd><em>Horizontal clustering</em> (the 0.5 m grouping measured horizontally) and an <em>ideal detector</em> (at least 5 points on the pedestrian, from ground truth; an upper bound).</dd>
+    <dt>Control trials</dt>
+    <dd>12 trials per site repeated with the lookouts moved 1 km away, and again with them never created.</dd>
+  </dl>
+
+  <h2>Results</h2>
+  <p class="answer prose"><strong>The lookouts give much earlier warning.</strong> The <span class="mulch">mulcher alone</span> first detected the pedestrian at about 14 m, always after the boundary. With the <span class="team">lookouts</span>, every pedestrian was detected before the boundary, about 40 m out: a median of <strong>22 s</strong> earlier on the same trial, never less than 20 s.</p>
+
+  <section class="figs" aria-label="Principal results">
+    <div class="fig">
+      <div class="num">0 / 120</div>
+      <div class="lab">detected before the boundary, mulcher alone</div>
+    </div>
+    <div class="fig is-team">
+      <div class="num">120 / 120</div>
+      <div class="lab">detected before the boundary, with lookouts</div>
+    </div>
+    <div class="fig is-gain">
+      <div class="num">≈ 22 s</div>
+      <div class="lab">earlier first alarm, same trial (median; minimum 20 s)</div>
+    </div>
+    <div class="fig">
+      <div class="num">0</div>
+      <div class="lab">false alarms, any lidar</div>
+    </div>
+  </section>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th scope="col">Specified rule</th><th scope="col">Two-entry site · 48 trials</th><th scope="col">Three-entry site · 72 trials</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Detected before the boundary: mulcher alone / with lookouts</td><td class="n">0 / 48 · 48 / 48</td><td class="n">0 / 72 · 72 / 72</td></tr>
+        <tr><td>Median warning time: mulcher alone / with lookouts</td><td class="n">−12.5 s / +11.0 s</td><td class="n">−11.2 s / +10.8 s</td></tr>
+        <tr><td>First alarm earlier with lookouts, same trial (median; minimum)</td><td class="n">23.1 s; 20.0 s</td><td class="n">21.9 s; 21.5 s</td></tr>
+        <tr><td>Distance at first alarm (median): mulcher alone / with lookouts</td><td class="n">13.9 m / 39.4 m</td><td class="n">13.7 m / 41.7 m</td></tr>
+        <tr><td>Never detected by the mulcher alone</td><td class="n">4</td><td class="n">18</td></tr>
+        <tr><td>Exact McNemar test, detection before the boundary</td><td class="n">p = 7.1 × 10⁻¹⁵</td><td class="n">p = 4.2 × 10⁻²²</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="note">95 % Wilson intervals for 0 / 48 and 48 / 48: 0–7 % and 93–100 %; for 0 / 72 and 72 / 72: 0–5 % and 95–100 % (approximate, as trials share headings and paths). Same-trial comparisons use trials detected by both (44 of 48, 54 of 72). No sensor detected a pedestrian beyond 50 m under this rule.</p>
+
+  <figure>
+    <div class="plate"><img src="figures/catch_rates.png" alt="Grouped bar chart in four panels. Columns: two-entry site (48 trials) and three-entry site (72 trials). Top row, detection before the lookout boundary: the mulcher alone reaches 0 % under the specified rule, 62 % and 54 % with horizontal clustering, and 79 % and 76 % with the ideal detector; the mulcher with lookouts reaches 100 % under all three rules. Bottom row, detection more than 50 m from the mulcher: the mulcher alone reaches 0 % under every rule; the mulcher with lookouts reaches 0 % under the specified rule and 100 % under the other two."></div>
+    <figcaption><strong>Figure 3.</strong> Trials detected in time, mulcher alone (grey) vs. with lookouts (blue), for each rule. Top: before the lookout boundary; bottom: beyond 50 m.</figcaption>
+  </figure>
+
+  <figure>
+    <div class="plate"><img src="figures/warning_curve.png" alt="Six panels of curves: rows for the two sites, columns for the specified rule, horizontal clustering and the ideal detector. Each panel shows the percentage of trials warned at least t seconds before the lookout boundary, for t from −18 to 50 s. Under the specified rule the mulcher-alone curve falls to zero before t = −8 s, while the combined curve stays at 100 % until about 10 s. Under the other two rules the mulcher-alone curve falls to zero by about 10 s, while the combined curve stays at 100 % until about 25 s."></div>
+    <figcaption><strong>Figure 4.</strong> Share of trials warned at least <em>t</em> seconds before the boundary. Under the specified rule the lookout curve drops at about 11 s, since the rule detects only within about 14 m of a lidar.</figcaption>
+  </figure>
+
+  <h3>Interpretation</h3>
+  <ul class="points prose">
+    <li><strong>The rule limits range.</strong> With 3-D grouping at 0.5 m and rings 2° apart, no group spans two rings beyond about 14 m, so every boundary lies out of the mulcher's reach. The same-trial time gain is therefore the fairer measure.</li>
+    <li><strong>Looser rules help the mulcher, and the lookouts more.</strong> With the alternative rules the mulcher alone detects 54–79 % before the boundary (median warning 1–8 s); with lookouts, 100 %, beyond 50 m, with 27–29 s.</li>
+    <li><strong>Lookouts cover the blind sector.</strong> Every trial the mulcher never detected came within 45° of its front; the lookouts detected all of them.</li>
+    <li><strong>Each lookout covers its own entry.</strong> Removing any one lookout in the three-entry site drops detection before the boundary to 67 %.</li>
+    <li><strong>Lookouts do not change what the mulcher sees.</strong> In the control trials the mulcher's first alarm fell within one 0.5 m step of the matching trial in all 24 per site.</li>
+  </ul>
+
+  <h2>Limitations</h2>
+  <ul class="points prose">
+    <li>Only approaches along paths were tested.</li>
+    <li>Lookout distance is capped by a conservative radio model (30 m range, 70 dB loss per trunk), not measured radio.</li>
+    <li>Lookouts were placed from a perfect map and modelled as static; exploring and driving to position were out of scope.</li>
+    <li>The pedestrian and forest are idealised: constant pace, trunks only, flat ground, exact lidar poses. Two layouts, one forest each.</li>
+  </ul>
+
+  <h2>Code and data</h2>
+  <p class="prose">Branch <code>lookout_experiment</code> of <a href="https://github.com/kalhansb/hmr_explo/tree/lookout_experiment/lookout">kalhansb/hmr_explo</a>, under <code>lookout/</code>: analysis output in <code>results/</code>, logs in <code>data/</code>.</p>
+<pre><code>LOOKOUT_GPU=1 lookout/docker_run.sh lk_L2 42 /lookout/run_layout.sh L2 /runs/lookout/L2_full full
+LOOKOUT_GPU=1 lookout/docker_run.sh lk_L3 43 /lookout/run_layout.sh L3 /runs/lookout/L3_full full
+python3 /lookout/analyse.py --layout L2=/runs/lookout/L2_full --layout L3=/runs/lookout/L3_full \
+    --calib /runs/lookout/calib_gpu --out /runs/lookout/results</code></pre>
+</main>
+</body>
+</html>
