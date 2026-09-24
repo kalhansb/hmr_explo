@@ -309,9 +309,9 @@ footer { margin-top: 56px; padding-top: 14px; border-top: 1px solid var(--rule);
   </ul>
 
   <h2>Code and data</h2>
-  <p class="prose">Branch <code>lookout_experiment</code> of <a href="https://github.com/kalhansb/hmr_explo/tree/lookout_experiment/lookout">kalhansb/hmr_explo</a>, under <code>lookout/</code>: analysis output in <code>results/</code>, logs in <code>data/</code>.</p>
-<pre><code>LOOKOUT_GPU=1 lookout/docker_run.sh lk_L2 42 /lookout/run_layout.sh L2 /runs/lookout/L2_full full
-LOOKOUT_GPU=1 lookout/docker_run.sh lk_L3 43 /lookout/run_layout.sh L3 /runs/lookout/L3_full full
+  <p class="prose">Branch <code>exploitation_experiment</code> of <a href="https://github.com/kalhansb/hmr_explo/tree/exploitation_experiment/experiments/lookout">kalhansb/hmr_explo</a>, under <code>experiments/lookout/</code>: analysis output in <code>results/</code>, logs in <code>data/</code>.</p>
+<pre><code>LOOKOUT_GPU=1 experiments/lookout/docker_run.sh lk_L2 42 /lookout/run_layout.sh L2 /runs/lookout/L2_full full
+LOOKOUT_GPU=1 experiments/lookout/docker_run.sh lk_L3 43 /lookout/run_layout.sh L3 /runs/lookout/L3_full full
 python3 /lookout/analyse.py --layout L2=/runs/lookout/L2_full --layout L3=/runs/lookout/L3_full \
     --calib /runs/lookout/calib_gpu --out /runs/lookout/results</code></pre>
 </main>

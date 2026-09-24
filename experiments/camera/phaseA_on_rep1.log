@@ -1,0 +1,6 @@
+[INFO] [1790141512.094887872] [rosbag2_compression]: Decompressing /tmp/bag/rosbag2_0.db3.zstd
+[INFO] [1790141515.593463477] [rosbag2_storage]: Opened database '/tmp/bag/rosbag2_0.db3' for READ_ONLY.
+[INFO] [1790141588.601710077] [rosbag2_compression]: Decompressing /tmp/bag/rosbag2_1.db3.zstd
+[INFO] [1790141589.472622565] [rosbag2_storage]: Opened database '/tmp/bag/rosbag2_1.db3' for READ_ONLY.
+run {'atlas': 36113, 'bestla': 36113} t0 28.62 t_end 3636.0
+run rows 49623

@@ -1,0 +1,9 @@
+[2026-09-23T06:22:50+01:00] start rep1 (rep 1)
+[2026-09-23T07:19:46+01:00] end rep1 rc=0 cue=324 end=all_done 1329 
+[2026-09-23T07:19:46+01:00] start rep2 (rep 2)
+[2026-09-23T08:12:22+01:00] end rep2 rc=0 cue=313 end=all_done 1314 
+[2026-09-23T08:12:22+01:00] start rep3 (rep 3)
+[2026-09-23T09:07:49+01:00] end rep3 rc=0 cue=333 end=all_done 1527 
+[2026-09-23T09:07:49+01:00] start rep4 (rep 4)
+[2026-09-23T10:06:26+01:00] end rep4 rc=0 cue=382 end=all_done 1647 
+[2026-09-23T10:21:46+01:00] queue done: 1 2 3 4

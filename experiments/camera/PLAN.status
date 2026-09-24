@@ -1,0 +1,15 @@
+- 2026-09-23 07:19 rep1 finished (rc=0): cue t_rel=324, end=all_done 1329 ; post-processing started
+- 2026-09-23 07:35 rep1 post-processed:  T 1.00 (n=6) 1.00 (n=6) 0.64 (n=11); Cp 0.31 (n=16) 0.14 (n=22) 0.07 (n=29);
+- 2026-09-23 08:12 rep2 finished (rc=0): cue t_rel=313, end=all_done 1314 ; post-processing started
+- 2026-09-23 08:26 rep2 post-processed:  T 1.00 (n=7) 1.00 (n=10) 0.64 (n=14); Cp 0.81 (n=16) 0.40 (n=20) 0.19 (n=27);
+- 2026-09-23 09:07 rep3 finished (rc=0): cue t_rel=333, end=all_done 1527 ; post-processing started
+- 2026-09-23 09:11 chain_5_6.sh armed: run_queue.sh 5 6 starts when rep4's sim ends
+- 2026-09-23 09:23 rep3 post-processed:  T 1.00 (n=6) 1.00 (n=7) 0.67 (n=12); Cp 0.31 (n=16) 0.05 (n=21) 0.07 (n=28);
+- 2026-09-23 10:06 rep4 finished (rc=0): cue t_rel=382, end=all_done 1647 ; post-processing started
+- 2026-09-23 10:21 rep4 post-processed:  T 1.00 (n=8) 0.85 (n=13) 0.47 (n=15); Cp 0.50 (n=14) 0.22 (n=18) 0.07 (n=28);
+- 2026-09-23 10:21 queue done: reps 1 2 3 4
+- 2026-09-23 10:47 rep5 finished (rc=0): cue t_rel=456, end=all_done 1091 ; post-processing started
+- 2026-09-23 10:59 rep5 post-processed:  T 0.86 (n=7) 0.89 (n=9) 0.60 (n=15); Cp 0.20 (n=15) 0.11 (n=18) 0.07 (n=27);
+- 2026-09-23 11:39 rep6 finished (rc=0): cue t_rel=256, end=all_done 1361 ; post-processing started
+- 2026-09-23 11:52 rep6 post-processed:  T 1.00 (n=9) 1.00 (n=11) 0.60 (n=15); Cp 0.78 (n=18) 0.52 (n=21) 0.21 (n=29);
+- 2026-09-23 11:52 queue done: reps 5 6

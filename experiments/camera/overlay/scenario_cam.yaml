@@ -1,0 +1,20 @@
+# cam_pilot: flatforest_2robot_lidar.yaml plus the segmentation ("NDVI") camera.
+# Mounted over the stock scenario name so the harness is unchanged; the model
+# path is the stock one, over which run_cam_cell.sh mounts overlay/husky_cam.sdf.
+# The 'segmentation' feature bridges <ns>/segmentation_camera/image/{labels_map,
+# colored_map,camera_info} to /<ns>/segmentation/{labels,colored,camera_info}.
+world: flatforest
+
+robots:
+  - name: atlas
+    sdf_file: COSTAR_HUSKY_SENSOR_CONFIG_LIDAR/model.sdf
+    features: [lidar, segmentation, imu, odom_gt, ugv_cmd_vel]
+    pose: {x: 0.0, y: 0.0, z: 0.5, yaw: 0.0}
+
+  - name: bestla
+    sdf_file: COSTAR_HUSKY_SENSOR_CONFIG_LIDAR/model.sdf
+    features: [lidar, segmentation, imu, odom_gt, ugv_cmd_vel]
+    pose: {x: 0.0, y: 3.0, z: 0.5, yaw: 3.14159}
+
+teleop:
+  enable: false

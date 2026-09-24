@@ -43,7 +43,7 @@ import sys
 import posts
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-HUSKY_SDF = os.path.join(HERE, "..", "ws", "src", "hmr_sim", "hmr_sim", "models",
+HUSKY_SDF = os.path.join(HERE, "..", "..", "ws", "src", "hmr_sim", "hmr_sim", "models",
                          "COSTAR_HUSKY_SENSOR_CONFIG_LIDAR", "model.sdf")
 
 R_FOREST = 160.0

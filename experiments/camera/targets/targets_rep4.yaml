@@ -1,0 +1,16 @@
+# cam_pilot replicate 4: targets drawn with random.Random(4).sample(pool, 3),
+# pool = oaks [4, 18, 36, 39, 40, 42, 58, 69, 73] (PLAN.md). Scheduler ids 1-3 = Oak tree_4, _39, _40.
+# Centres are the models' SDF poses; radius/height as targets_pilot_fine.yaml.
+# Release times are placeholders: RELEASE_ON_DONE=1 releases all at the cue.
+target_scheduler:
+  ros__parameters:
+    use_sim_time: true
+    targets_topic: "/exploration/targets"
+    frame_id: "map"
+    target_ids:         [1, 2, 3]
+    target_x:           [   4.402,   -9.849,   10.851]
+    target_y:           [ -18.813,   11.605,   -6.612]
+    target_z:           [0.0, 0.0, 0.0]
+    target_radius:      [1.80, 1.80, 1.80]
+    target_height:      [6.5, 6.5, 6.5]
+    target_release_sec: [30.0, 45.0, 60.0]

@@ -8,6 +8,7 @@ recorded Ouster/IMU bags in per-repo Docker containers that share one ROS 2 DDS 
 
 | document | what |
 |---|---|
+| [`experiments/`](experiments/README.md) | **Exploitation experiments** (simulated, 21–24 Sep 2026): the lidar map-gain campaign (no result), the camera lesion experiment (clear gain) and the path-lookout experiment (clear gain). One folder each, with results pages at <https://kalhansb.github.io/hmr_explo/> |
 | [`TS1B_TEAM_SIZE_RESULTS.md`](TS1B_TEAM_SIZE_RESULTS.md) | **ts1b team-size series** (120 cells, N=2/3/4 × 4 arms × 10 seeds, completed 2026-09-08) — the first N>2 data in the project. Makespan, connectivity, censoring, and the order-statistic correction that changes the sign of the naive read. A top-up to 240 cells (seeds 11–20) is in flight |
 
 Cross-campaign synthesis over all 1271 cells lives outside this repo, in
@@ -18,6 +19,8 @@ document analyses.
 
 | path | what |
 |---|---|
+| `experiments/` | exploitation experiments — `exploitation_map_gain/`, `camera/`, `lookout/`; plan of the first in `ws/src/exploitation_map_gain_experiment.md` |
+| `runs/` | raw experiment outputs (bags, camera frames, logs) — not tracked |
 | `ws/src/run_glim_experiment.sh` | host orchestrator — brings up the GLIM + SCovox containers, runs an experiment (`map`/`odom`/`viz`), captures outputs |
 | `ws/src/scovox/` | **submodule** → [kalhansb/scovox](https://github.com/kalhansb/scovox) — occupancy mapping node |
 | `ws/src/explo_planner/` | **submodule** → [kalhansb/explo_planner](https://github.com/kalhansb/explo_planner) |

@@ -148,9 +148,9 @@ static lookouts, the GPU renderer) are listed with reasons in PLAN.md.
 ## Reproduce
 
 ```bash
-# in ~/Documents/lookout_experiment, image hmrexplo:humble
-LOOKOUT_GPU=1 lookout/docker_run.sh lk_L2 42 /lookout/run_layout.sh L2 /runs/lookout/L2_full full
-LOOKOUT_GPU=1 lookout/docker_run.sh lk_L3 43 /lookout/run_layout.sh L3 /runs/lookout/L3_full full
+# from the repository root, image hmrexplo:humble
+LOOKOUT_GPU=1 experiments/lookout/docker_run.sh lk_L2 42 /lookout/run_layout.sh L2 /runs/lookout/L2_full full
+LOOKOUT_GPU=1 experiments/lookout/docker_run.sh lk_L3 43 /lookout/run_layout.sh L3 /runs/lookout/L3_full full
 # then, in the container:
 python3 /lookout/gonogo.py --layout L2=/runs/lookout/L2_full --layout L3=/runs/lookout/L3_full \
     --calib /runs/lookout/calib_gpu

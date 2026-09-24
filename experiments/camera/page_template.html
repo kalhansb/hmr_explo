@@ -1,0 +1,298 @@
+<title>Oak Lesion Camera</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --ground:#F2F4F0; --surface:#FFFFFF; --ink:#18211C; --muted:#5B6961; --rule:#D3DCD5; --faint:#E7ECE8;
+  --tgt:#1F5F8B; --cp:#B0772A; --co:#8E9892; --good:#2E7D4F; --warn:#A8552A;
+  --sans:"Public Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --ground:#0F1411; --surface:#161C18; --ink:#E2E9E4; --muted:#96A39B; --rule:#2A332D; --faint:#1E2521;
+    --tgt:#6CAEDB; --cp:#DDA85A; --co:#76817B; --good:#6CC08F; --warn:#E3915F;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --ground:#0F1411; --surface:#161C18; --ink:#E2E9E4; --muted:#96A39B; --rule:#2A332D; --faint:#1E2521;
+  --tgt:#6CAEDB; --cp:#DDA85A; --co:#76817B; --good:#6CC08F; --warn:#E3915F;
+}
+*{box-sizing:border-box}
+body{background:var(--ground);color:var(--ink);font:15px/1.6 var(--sans);margin:0}
+.wrap{max-width:1080px;margin:0 auto;padding-inline:20px;padding-block:32px 72px;display:flex;flex-direction:column;gap:48px}
+h1{font-size:31px;line-height:1.15;font-weight:700;letter-spacing:-.015em;margin:0;text-wrap:balance;max-width:26ch}
+h2{font-size:20px;line-height:1.25;font-weight:600;margin:0;text-wrap:balance}
+h3{font-size:15px;font-weight:600;margin:0}
+p{margin:0;max-width:70ch}
+.eyebrow{font:500 11.5px/1 var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.lede{display:flex;flex-direction:column;gap:14px}
+.finding{font-size:17px;line-height:1.55}
+.sub{color:var(--muted);font-size:13.5px}
+.sec{display:flex;flex-direction:column;gap:16px}
+.sec>header{display:flex;flex-direction:column;gap:6px}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.controls{display:flex;flex-wrap:wrap;gap:14px 22px;align-items:center}
+.ctl{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted)}
+.chips{display:inline-flex;border:1px solid var(--rule);border-radius:5px;overflow:hidden;background:var(--surface)}
+.chips button{font:500 12.5px/1 var(--sans);color:var(--muted);background:transparent;border:0;padding:8px 11px;cursor:pointer}
+.chips button+button{border-left:1px solid var(--rule)}
+.chips button[aria-pressed="true"]{background:var(--ink);color:var(--ground)}
+.chips button:focus-visible{outline:2px solid var(--tgt);outline-offset:-2px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12.5px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+.ln{width:20px;height:0;border-top:2px solid;display:inline-block}
+.ln.dash{border-top-style:dashed}
+.fig{background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:14px;overflow-x:auto}
+.fig svg{display:block;width:100%;height:auto;min-width:560px}
+.fig svg.narrow{min-width:340px}
+.fig svg text{fill:var(--muted);font:11px var(--mono)}
+.fig svg .lab{fill:var(--ink);font:500 12px var(--sans)}
+.grid2{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:16px}
+@media (max-width:820px){.grid2{grid-template-columns:minmax(0,1fr)}}
+.tbl{overflow-x:auto;background:var(--surface);border:1px solid var(--rule);border-radius:6px}
+table{border-collapse:collapse;width:100%;min-width:720px}
+th,td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--faint);white-space:nowrap}
+th{font:500 11px/1.3 var(--mono);letter-spacing:.05em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--rule)}
+td.n,th.n{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:13px}
+tr:last-child td{border-bottom:0}
+tr.pool td{border-top:1px solid var(--rule);font-weight:600}
+.tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+@media (max-width:760px){.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:420px){.tiles{grid-template-columns:minmax(0,1fr)}}
+figure{margin:0;display:flex;flex-direction:column;gap:6px;min-width:0}
+figure img{width:100%;aspect-ratio:4/3;display:block;border-radius:4px;image-rendering:pixelated;background:#282C34}
+figcaption{font-size:12.5px;color:var(--muted);display:flex;flex-wrap:wrap;gap:2px 10px}
+figcaption b{color:var(--ink);font-weight:600}
+.pill{font:500 10.5px/1 var(--mono);padding:3px 6px;border-radius:3px;letter-spacing:.04em;text-transform:uppercase}
+.pill.t{background:color-mix(in srgb,var(--tgt) 16%,transparent);color:var(--tgt)}
+.pill.c{background:color-mix(in srgb,var(--cp) 18%,transparent);color:var(--cp)}
+.rowlabel{font:500 12px/1 var(--mono);color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+.ramp{display:flex;flex-direction:column;gap:6px;max-width:520px}
+.ramp .bar{height:12px;border-radius:2px;background:linear-gradient(90deg,rgb(215,48,39) 0%,rgb(254,224,139) 44.4%,rgb(26,152,80) 100%)}
+.ramp .ticks{position:relative;height:30px;font:11px/1.2 var(--mono);color:var(--muted)}
+.ramp .ticks span{position:absolute;transform:translateX(-50%);text-align:center;white-space:nowrap}
+.notes{display:flex;flex-direction:column;gap:12px;font-size:14px;color:var(--muted)}
+.notes b{color:var(--ink);font-weight:600}
+.notes ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:8px;max-width:78ch}
+.callout{border-left:3px solid var(--tgt);padding:4px 0 4px 14px;max-width:72ch}
+</style>
+
+<div class="wrap">
+  <header class="lede">
+    <div class="eyebrow">NDVI-camera experiment · flatforest · two Huskies · 2026-09-23</div>
+    <h1>Does visiting the targets let the camera see their lesions?</h1>
+    <p class="finding" id="finding"></p>
+    <p class="sub">Each rendered run explores a ±25 m ROI until the 2D map is 90 % known (the explore-done cue), then releases three target oaks drawn at random from a pool of nine. The robots then visit a three-vantage ring on each target at 3.8 m. The camera is a 640 × 480 segmentation camera on each robot (the MicaSense RedEdge-MX field of view at half resolution), and NDVI is looked up per label. 113 lesion plates of 4, 8 and 16 cm sit on 19 oaks. A lesion counts as <i>resolved</i> once one frame shows it at ≥ 25 px.</p>
+  </header>
+
+  <section class="sec" id="reps">
+    <header>
+      <h2>After the cue: newly resolved lesions, targets vs untargeted pool oaks</h2>
+      <p class="sub">Conditional gain: of the lesions not yet resolved at the cue, the share resolved by the end. It cannot hit a ceiling, because a tree already covered at the cue drops out. The primary control is the six pool oaks that were not drawn, since they share the targets' eligibility geometry. p is where the drawn target set ranks among all 84 possible draws from the pool in that run. The pooled p is an exact randomisation test over the runs: every combination of the runs’ 84 possible draws is counted.</p>
+    </header>
+    <div class="controls">
+      <div class="ctl">Resolved at
+        <div class="chips" data-group="thr"><button data-v="9" aria-pressed="false">9 px</button><button data-v="25" aria-pressed="true">25 px</button><button data-v="100" aria-pressed="false">100 px</button></div>
+      </div>
+      <div class="ctl">Counts from
+        <div class="chips" data-group="src"><button data-v="rendered" aria-pressed="true">Rendered</button><button data-v="virtual" aria-pressed="false">Virtual camera</button><button data-v="rendered_unfiltered" aria-pressed="false">Rendered, back views kept</button></div>
+      </div>
+    </div>
+    <div class="legend"><span><i class="dot" style="background:var(--tgt)"></i>Targets</span><span><i class="dot" style="background:var(--cp)"></i>Undrawn pool oaks (primary control)</span><span><i class="dot" style="background:var(--co)"></i>Other oaks</span></div>
+    <div class="fig"><svg id="dumbbell" class="narrow" role="img" aria-label="Conditional gain per run"></svg></div>
+    <div class="tbl"><table id="reptable"></table></div>
+  </section>
+
+  <section class="sec" id="images">
+    <header>
+      <h2>What the camera saw</h2>
+      <p class="sub" id="tilesub"></p>
+    </header>
+    <div class="ramp" aria-label="NDVI colour ramp">
+      <div class="bar"></div>
+      <div class="ticks"><span style="left:5.6%;transform:none">lesion<br>0.05</span><span style="left:27.8%">bark<br>0.25</span><span style="left:44.4%">0.40</span><span style="left:88.9%">leaves<br>0.80</span><span style="left:100%;transform:translateX(-100%)">0.9</span></div>
+    </div>
+    <div class="rowlabel">Targets</div>
+    <div class="tiles" id="tilesT"></div>
+    <div class="rowlabel">Undrawn pool oaks</div>
+    <div class="tiles" id="tilesC"></div>
+  </section>
+
+  <section class="sec" id="phaseA">
+    <header>
+      <h2>The same camera replayed on the campaign runs</h2>
+      <p class="sub">A geometric model of this camera, run on the ground-truth poses of the five campaign on/off pairs (±50 m ROI, 3600 s, targets fixed at oaks 42, 4 and 39, released at 120, 420 and 720 s; the off arm never exploits). It is validated against the rendered camera in every camera run. The curves are the mean over the five reps. The per-horizon statistic is DiD = (T<sub>on</sub> − T<sub>off</sub>) − (Cp<sub>on</sub> − Cp<sub>off</sub>), with an exact sign-flip p over 2⁵ assignments; 1/32 = 0.031 is the smallest p possible.</p>
+    </header>
+    <div class="controls">
+      <div class="ctl">Resolved at
+        <div class="chips" data-group="thrA"><button data-v="9" aria-pressed="false">9 px</button><button data-v="25" aria-pressed="true">25 px</button><button data-v="100" aria-pressed="false">100 px</button></div>
+      </div>
+      <div class="legend"><span><i class="ln" style="border-color:var(--tgt)"></i>Targets, exploit on</span><span><i class="ln dash" style="border-color:var(--tgt)"></i>Targets, off</span><span><i class="ln" style="border-color:var(--cp)"></i>Pool controls, on</span><span><i class="ln dash" style="border-color:var(--cp)"></i>Pool controls, off</span></div>
+    </div>
+    <div class="grid2">
+      <div class="fig"><svg id="curves" class="narrow" role="img" aria-label="Resolved fraction over time"></svg></div>
+      <div class="fig"><svg id="did" class="narrow" role="img" aria-label="Difference in differences by horizon"></svg></div>
+    </div>
+  </section>
+
+  <section class="sec" id="lidar">
+    <header>
+      <h2>Coarse measures vs lesion resolution</h2>
+      <p class="sub">M2 is the campaign scorer's observed fraction of the 0.2–1.2 m trunk cylinder on the 0.20 m voxel map, replayed from each run's bag. On most oaks it is already near 1 by the cue, so it has little room to move; where a target starts lower (Oak 4 in rep 2), exploiting it lifts lidar coverage too. The camera measure is still far from its ceiling on most trees at the same moment. Whole-trunk bark pixels (the most bark any single frame shows; median over trees) move far less than lesion resolution. They record the closest pass, and exploration already drives past many trunks at 1–2 m. Lesions need every side of the trunk seen from close range, which is what the three-vantage ring adds. Every cell reads cue → end; T is the drawn targets, pool the undrawn pool oaks.</p>
+    </header>
+    <div class="tbl"><table id="lidartable"></table></div>
+    <p class="sub" id="barkline"></p>
+  </section>
+
+  <section class="notes">
+    <h2 style="color:var(--ink)">Method notes and deviations</h2>
+    <ol>
+      <li><b>Sensor.</b> Ignition Fortress segmentation camera (semantic), 640 × 480, HFOV 0.824 rad, 2 Hz, clip 0.1–40 m, mounted at base_link + (0.30, 0, 0.55) m, looking forward. NDVI is a per-label lookup, not a spectral simulation. What is tested is whether the robot puts enough pixels on each patch.</li>
+      <li><b>Lesions.</b> Six visual-only plates per oak, 2 × 4, 2 × 8 and 2 × 16 cm, at z 0.65–1.25 m, one per 60° sector, seed 2026. Each plate sits 2 mm proud of the bark's outer radius.</li>
+      <li><b>Deviation 1: front views only.</b> Fortress renders a plate's back face through its own trunk. Detections with the camera more than 90° off the plate normal are dropped (from ground-truth poses). The "back views kept" toggle shows the unfiltered numbers.</li>
+      <li><b>Deviation 2: lesion 90 dropped.</b> Lesion 90 (Oak 57, never a target) never renders, while the virtual camera sees it. It is out of all scoring, leaving 113 lesions. Oak 36's bark label also never renders (it comes out as background), which leaves lesion counts unaffected.</li>
+      <li><b>Virtual camera.</b> A pinhole model on ground-truth odometry, with plate clipping, a facing test, and occlusion by other trunks (r 0.40 m), pine crowns and stones. Per run it is checked against the rendered counts at the same frame times (acceptance: median best-pixel ratio 0.8–1.25 and ≥ 90 % agreement on resolved lesions).</li>
+      <li><b>Partial exploitation counts as assigned.</b> In rep 4 the south vantage of Oak 40 was never selectable, and both robots timed out on it after 300 s with only the north-east and north-west vantages dwelled. Its two unresolved lesions (61 and 62) face south, the side only that vantage would have seen. In rep 5 the same happened to Oak 42: its east-north-east vantage was never selectable, and the one missed lesion (64) faces that way. In rep 6 Oak 58 also ended partial (two of three vantages), but all its lesions were resolved anyway. Every target miss sits behind a vantage that was not reached. Runs are analysed by the drawn targets, so these shortfalls stay in the result.</li>
+      <li><b>Where the new resolutions came from.</b> The 53 target lesions resolved after the cue were first resolved from a median 3.5 m, the vantage ring. The 29 pool-oak lesions resolved after the cue were caught in passing from a median 9.6 m (cam_mechanism.py, reps 1–6). Rep 6 has the smallest contrast. It had the earliest cue (256 s), and its long exploit drive passed every pool oak at mid range, picking up 11 of their 21 open lesions.</li>
+      <li><b>Pre-registration.</b> Metrics, controls, tests and horizons were fixed in PLAN.md before the runs. The Phase A statistic was fixed before any campaign cell was scored. Every run is shown here, none excluded.</li>
+    </ol>
+  </section>
+</div>
+
+<script>
+const DATA = __DATA__;
+const $ = s => document.querySelector(s);
+const NS = "http://www.w3.org/2000/svg";
+const state = {thr: "25", src: "rendered", thrA: "25"};
+function el(tag, attrs, parent, text){const e=document.createElementNS(NS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);if(text!=null)e.textContent=text;if(parent)parent.appendChild(e);return e;}
+const f2 = x => x==null ? "–" : x.toFixed(2);
+const sgn = x => (x>=0?"+":"−")+Math.abs(x).toFixed(2);
+const SUP = {"-":"⁻","0":"⁰","1":"¹","2":"²","3":"³","4":"⁴","5":"⁵","6":"⁶","7":"⁷","8":"⁸","9":"⁹"};
+const fp = p => { if(p==null) return "–"; if(p>=0.01) return p.toFixed(3); if(p>=0.001) return p.toFixed(4);
+  const e=Math.floor(Math.log10(p)), m=p/Math.pow(10,e); return `${m.toFixed(1)}×10${String(e).split("").map(c=>SUP[c]).join("")}`; };
+const oakName = o => "Oak " + String(o).replace(/^Oak tree_/, "");
+
+function pooled(){ return DATA.pooled[state.src+"_"+state.thr]; }
+
+function finding(){
+  const P = DATA.pooled["rendered_25"], n = P.runs.length;
+  let gt=0,ut=0,gp=0,up=0; P.runs.forEach(r=>{gt+=r.T[0];ut+=r.T[1];gp+=r.Cp[0];up+=r.Cp[1];});
+  const A = DATA.phaseA["25"].did, Q = DATA.prereg;
+  $("#finding").innerHTML = `In ${n} explore-then-exploit run${n>1?"s":""} with a rendered camera, <b>${gt} of ${ut}</b> target lesions still unresolved at the explore-done cue were resolved by the end, against <b>${gp} of ${up}</b> on the undrawn pool oaks. That is a mean difference of <b class="num">${sgn(P.mean_D)}</b>, exact randomisation p = <span class="num">${fp(P.p_one_sided)}</span>.${Q?` Reps 1–4 were the pre-registered set; on those alone the difference is <span class="num">${sgn(Q.mean_D)}</span>, p = <span class="num">${fp(Q.p_one_sided)}</span>. The later reps were run because time allowed.`:""} Replayed on the five campaign on/off pairs, the same camera puts exploit ahead on the targets by DiD <span class="num">${sgn(A["1200"].mean_Cp)}</span> at 1200 s (${A["1200"].n_pos_Cp}/5 pairs) and <span class="num">${sgn(A["end"].mean_Cp)}</span> at 3600 s (${A["end"].n_pos_Cp}/5).`;
+}
+
+function dumbbell(){
+  const P = pooled(), svg = $("#dumbbell"); svg.innerHTML = "";
+  const rows = P.runs.map(r=>({label:r.run, T:r.T, Cp:r.Cp, Co:r.Co, D:r.D, p:r.within_run_p}));
+  const tot = k => rows.reduce((a,r)=>[a[0]+r[k][0],a[1]+r[k][1]],[0,0]);
+  rows.push({label:"pooled", T:tot("T"), Cp:tot("Cp"), Co:tot("Co"), D:P.mean_D, p:P.p_one_sided, pool:true});
+  const W=Math.max(340, Math.min(900, svg.parentElement.clientWidth||900)), sm=W<600, L=sm?62:110, R=sm?118:190, top=26, rh=34, H=top+rows.length*rh+34;
+  svg.setAttribute("viewBox",`0 0 ${W} ${H}`);
+  const x = v => L + v*(W-L-R);
+  for(let v=0; v<=1.0001; v+=0.25){ el("line",{x1:x(v),x2:x(v),y1:top-8,y2:H-30,stroke:"var(--faint)","stroke-width":1},svg); el("text",{x:x(v),y:H-12,"text-anchor":"middle"},svg,v.toFixed(2)); }
+  el("text",{x:W-R+14,y:14},svg,sm?"D":"D (T − Cp)"); el("text",{x:W-12,y:14,"text-anchor":"end"},svg,"p");
+  rows.forEach((r,i)=>{
+    const y = top + i*rh + rh/2;
+    if(r.pool) el("line",{x1:10,x2:W-10,y1:y-rh/2,y2:y-rh/2,stroke:"var(--rule)"},svg);
+    el("text",{x:10,y:y+4,class:"lab"},svg,r.pool?"pooled":r.label);
+    const fr = a => a[1] ? a[0]/a[1] : null;
+    const t=fr(r.T), c=fr(r.Cp), o=fr(r.Co);
+    if(t!=null && c!=null) el("line",{x1:x(c),x2:x(t),y1:y,y2:y,stroke:"var(--muted)","stroke-width":1.5,opacity:.5},svg);
+    if(o!=null) el("circle",{cx:x(o),cy:y,r:4,fill:"var(--co)"},svg);
+    if(c!=null) el("circle",{cx:x(c),cy:y,r:6.5,fill:"var(--cp)"},svg);
+    if(t!=null) el("circle",{cx:x(t),cy:y,r:6.5,fill:"var(--tgt)"},svg);
+    const tt = el("title",{},null); tt.textContent=`targets ${r.T[0]}/${r.T[1]}, pool ${r.Cp[0]}/${r.Cp[1]}, other ${r.Co[0]}/${r.Co[1]}`; svg.lastChild.appendChild(tt);
+    el("text",{x:W-R+14,y:y+4,class:"lab"},svg,r.D==null?"–":sgn(r.D));
+    el("text",{x:W-12,y:y+4,"text-anchor":"end",class:"lab"},svg,fp(r.p));
+  });
+  el("text",{x:(L+W-R)/2,y:H-0,"text-anchor":"middle"},svg,"");
+  repTable();
+}
+
+function repTable(){
+  const P = pooled(), tb = $("#reptable");
+  const byRun = Object.fromEntries(DATA.reps.map(r=>[r.run,r]));
+  let h = `<thead><tr><th>Run</th><th>Targets</th><th class="n">Targets gained</th><th class="n">Pool gained</th><th class="n">D</th><th class="n">p (of 84)</th><th class="n">Other gained</th><th class="n">Cue → end s</th><th class="n">Exploit s · m</th><th>Virtual check</th></tr></thead><tbody>`;
+  const fr = a => `${a[0]}/${a[1]}`;
+  const tot = {T:[0,0],Cp:[0,0],Co:[0,0]};
+  P.runs.forEach(q=>{
+    const r = byRun[q.run]; const pa = r.path_after_cue;
+    ["T","Cp","Co"].forEach(g=>{tot[g][0]+=q[g][0];tot[g][1]+=q[g][1];});
+    const acc = (r.validate.find(l=>/^(ACCEPT|REJECT)/.test(l))||"–").split(" ")[0];
+    const agr = (r.validate.find(l=>/^lesions:/.test(l))||"").match(/agreement (\d+\/\d+)/);
+    h += `<tr><td>${q.run}</td><td>${q.targets.map(oakName).join(", ")}</td><td class="n">${fr(q.T)}</td><td class="n">${fr(q.Cp)}</td><td class="n">${q.D==null?"–":sgn(q.D)}</td><td class="n">${q.within_run_p==null?"–":q.within_run_p.toFixed(3)}</td><td class="n">${fr(q.Co)}</td><td class="n">${q.cue.toFixed(0)} → ${q.end.toFixed(0)}</td><td class="n">${(q.end-q.cue).toFixed(0)} · ${(pa.atlas+pa.bestla).toFixed(0)}</td><td>${acc}${agr?" · "+agr[1]:""}</td></tr>`;
+  });
+  h += `<tr class="pool"><td>pooled</td><td></td><td class="n">${fr(tot.T)}</td><td class="n">${fr(tot.Cp)}</td><td class="n">${sgn(P.mean_D)}</td><td class="n">${fp(P.p_one_sided)}</td><td class="n">${fr(tot.Co)}</td><td></td><td></td><td></td></tr></tbody>`;
+  tb.innerHTML = h;
+}
+
+function tilesView(){
+  const T = DATA.tiles; if(!T) return;
+  $("#tilesub").textContent = `${T.run}: the frame that shows each tree best (either robot), false-coloured by label NDVI. Lesions are boxed in white. The explore-done cue was at ${T.cue.toFixed(0)} s, so frames after it come from the exploitation phase. Dark grey means no label (sky, or Oak 36's trunk; see deviation 2).`;
+  const mk = (arr, cls, tag) => arr.map(t=>`<figure><img src="${t.png}" alt="${oakName(t.oak)} best frame" loading="lazy"><figcaption><span class="pill ${cls}">${tag}</span><b>${oakName(t.oak)}</b><span class="num">t ${t.t.toFixed(0)} s · ${t.t>T.cue?"after":"before"} cue</span><span class="num">${t.lesion_px} lesion px</span></figcaption></figure>`).join("");
+  $("#tilesT").innerHTML = mk(T.T,"t","target");
+  $("#tilesC").innerHTML = mk(T.Cp,"c","control");
+}
+
+function curves(){
+  const A = DATA.phaseA[state.thrA], svg = $("#curves"); svg.innerHTML="";
+  const W=620,H=360,L=64,R=14,Tp=14,B=40; svg.setAttribute("viewBox",`0 0 ${W} ${H}`);
+  const tmax=3600, x=t=>L+t/tmax*(W-L-R), y=v=>Tp+(1-v)*(H-Tp-B);
+  for(let v=0;v<=1.001;v+=0.25){el("line",{x1:L,x2:W-R,y1:y(v),y2:y(v),stroke:"var(--faint)"},svg);el("text",{x:L-8,y:y(v)+4,"text-anchor":"end"},svg,v.toFixed(2));}
+  for(let t=0;t<=3600;t+=600){el("line",{x1:x(t),x2:x(t),y1:Tp,y2:H-B,stroke:"var(--faint)"},svg);el("text",{x:x(t),y:H-B+16,"text-anchor":"middle"},svg,t);}
+  el("text",{x:(L+W-R)/2,y:H-6,"text-anchor":"middle"},svg,"seconds since start");
+  [120,420,720].forEach((t,i)=>{el("line",{x1:x(t),x2:x(t),y1:Tp,y2:H-B,stroke:"var(--tgt)","stroke-width":1,"stroke-dasharray":"2 3",opacity:.6},svg);el("text",{x:x(t)+3,y:Tp+12+i*13},svg,"T"+(i+1)+" "+t+" s");});
+  const mean = (arm,g)=>{const cs=[1,2,3,4,5].map(r=>A.curves[`${arm}_rep${r}`]).filter(Boolean);const n=Math.min(...cs.map(c=>c.t.length));const out=[];for(let i=0;i<n;i++){out.push([cs[0].t[i], cs.reduce((a,c)=>a+c[g][i],0)/cs.length]);}return out;};
+  const line=(pts,col,dash,w)=>el("path",{d:pts.map((p,i)=>(i?"L":"M")+x(Math.min(p[0],tmax)).toFixed(1)+" "+y(p[1]).toFixed(1)).join(""),fill:"none",stroke:col,"stroke-width":w,"stroke-dasharray":dash||"none"},svg);
+  [["Cp","var(--cp)"],["T","var(--tgt)"]].forEach(([g,col])=>{
+    [1,2,3,4,5].forEach(r=>{const c=A.curves[`on_rep${r}`]; if(c) line(c.t.map((t,i)=>[t,c[g][i]]),col,null,0.7).setAttribute("opacity",.25);});
+    line(mean("off",g),col,"6 4",2.2); line(mean("on",g),col,null,2.6);
+  });
+  el("text",{x:L+4,y:Tp+2+H*0,"text-anchor":"start"},svg,"");
+  el("text",{x:12,y:(Tp+H-B)/2,transform:`rotate(-90 12 ${(Tp+H-B)/2})`,"text-anchor":"middle"},svg,"share of lesions resolved");
+}
+
+function did(){
+  const A = DATA.phaseA[state.thrA].did, svg=$("#did"); svg.innerHTML="";
+  const hs=["300","600","900","1200","1800","2400","3000","end"];
+  const W=420,H=360,L=64,R=12,Tp=14,B=40; svg.setAttribute("viewBox",`0 0 ${W} ${H}`);
+  const lo=-0.2, hi=0.8, y=v=>Tp+(hi-v)/(hi-lo)*(H-Tp-B), bw=(W-L-R)/hs.length, x=i=>L+bw*i+bw/2;
+  for(let v=lo;v<=hi+1e-9;v+=0.2){el("line",{x1:L,x2:W-R,y1:y(v),y2:y(v),stroke:Math.abs(v)<1e-9?"var(--muted)":"var(--faint)"},svg);el("text",{x:L-8,y:y(v)+4,"text-anchor":"end"},svg,(v>0?"+":"")+v.toFixed(1));}
+  hs.forEach((h,i)=>{
+    const D=A[h]; if(!D) return;
+    const m=D.mean_Cp; el("rect",{x:x(i)-bw*0.3,y:Math.min(y(m),y(0)),width:bw*0.6,height:Math.abs(y(m)-y(0)),fill:"var(--tgt)",opacity:D.p_Cp<=0.0313?0.85:0.4},svg);
+    Object.values(D.per_rep).forEach((v,j)=>el("circle",{cx:x(i)-bw*0.2+j*bw*0.1,cy:y(v.Cp),r:2.6,fill:"var(--ink)",opacity:.7},svg));
+    el("text",{x:x(i),y:H-B+16,"text-anchor":"middle"},svg,h==="end"?"3600":h);
+  });
+  el("text",{x:(L+W-R)/2,y:H-6,"text-anchor":"middle"},svg,"horizon s  ·  dots = reps");
+  el("text",{x:12,y:(Tp+H-B)/2,transform:`rotate(-90 12 ${(Tp+H-B)/2})`,"text-anchor":"middle"},svg,"DiD vs pool controls");
+}
+
+function lidarTable(){
+  const tb=$("#lidartable");
+  let h=`<thead><tr><th>Run</th><th class="n">Lidar M2 · T</th><th class="n">Lidar M2 · pool</th><th class="n">Bark px · T</th><th class="n">Bark px · pool</th><th class="n">Lesions res. · T</th><th class="n">Lesions res. · pool</th></tr></thead><tbody>`;
+  DATA.reps.forEach(r=>{
+    const M=r.lidar_M2, G=r.rendered;
+    const m = M ? [`${f2(M.cue.T_mean)} → ${f2(M.end.T_mean)}`,`${f2(M.cue.Cp_mean)} → ${f2(M.end.Cp_mean)}`] : ["pending","pending"];
+    const B=r.bark, k=x=>x>=1000?Math.round(x/1000)+"k":String(Math.round(x));
+    const b = B ? [`${k(B.T_cue)} → ${k(B.T_end)}`,`${k(B.Cp_cue)} → ${k(B.Cp_end)}`] : ["–","–"];
+    h+=`<tr><td>${r.run}</td><td class="n">${m[0]}</td><td class="n">${m[1]}</td><td class="n">${b[0]}</td><td class="n">${b[1]}</td><td class="n">${f2(G.T.cue.res25)} → ${f2(G.T.end.res25)}</td><td class="n">${f2(G.Cp.cue.res25)} → ${f2(G.Cp.end.res25)}</td></tr>`;
+  });
+  tb.innerHTML=h+"</tbody>";
+  const K=DATA.bark;
+  if(K) $("#barkline").innerHTML=`Bark pixels, targets minus pool, change in log10 from cue to end: mean <span class="num">${sgn(K.mean_D)}</span> over ${K.runs.length} run${K.runs.length>1?"s":""}, exact randomisation p = <span class="num">${fp(K.p_one_sided)}</span> (PLAN.md metric 4; Oak 36 left out, its bark never renders).`;
+}
+
+document.querySelectorAll(".chips").forEach(g=>g.addEventListener("click",e=>{
+  const b=e.target.closest("button"); if(!b) return;
+  g.querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",x===b?"true":"false"));
+  state[g.dataset.group]=b.dataset.v;
+  if(g.dataset.group==="thrA"){curves();did();} else dumbbell();
+}));
+finding(); dumbbell(); tilesView(); curves(); did(); lidarTable();
+let rsz; window.addEventListener("resize",()=>{clearTimeout(rsz); rsz=setTimeout(dumbbell,150);});
+</script>
