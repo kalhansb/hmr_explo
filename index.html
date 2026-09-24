@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Results pages for the hmr_explo simulated experiments: path lookouts for a forestry mulcher, and an NDVI camera for oak lesions.">
+<title>hmr_explo Experiments</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{--ground:#F2F4F0;--surface:#FFFFFF;--ink:#18211C;--muted:#5B6961;--rule:#D3DCD5;--accent:#1F5F8B;
+  --sans:"Public Sans",system-ui,-apple-system,"Segoe UI",sans-serif;--mono:"IBM Plex Mono",ui-monospace,Menlo,monospace}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){color-scheme:dark;
+  --ground:#0F1411;--surface:#161C18;--ink:#E2E9E4;--muted:#96A39B;--rule:#2A332D;--accent:#6CAEDB}}
+:root[data-theme="dark"]{color-scheme:dark;--ground:#0F1411;--surface:#161C18;--ink:#E2E9E4;--muted:#96A39B;--rule:#2A332D;--accent:#6CAEDB}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font:16px/1.6 var(--sans)}
+main{max-width:760px;margin:0 auto;padding-inline:20px;padding-block:48px 72px;display:flex;flex-direction:column;gap:28px}
+h1{font-size:30px;line-height:1.15;margin:0;text-wrap:balance}
+.sub{margin:0;color:var(--muted);max-width:62ch}
+ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:14px}
+a.card{display:flex;flex-direction:column;gap:6px;padding:18px 20px;background:var(--surface);border:1px solid var(--rule);border-radius:6px;color:inherit;text-decoration:none}
+a.card:hover,a.card:focus-visible{border-color:var(--accent)}
+.meta{font:500 12px/1.3 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.t{font-size:19px;font-weight:600;color:var(--accent)}
+.d{color:var(--muted);font-size:15px}
+</style>
+</head>
+<body>
+<main>
+  <header style="display:flex;flex-direction:column;gap:10px">
+    <h1>Multi-Robot Active Cooperative Perception</h1>
+    <p class="sub">Results of simulated experiments with ground robots in a forest (Ignition Gazebo, Fortress release). Code: <a href="https://github.com/kalhansb/hmr_explo">kalhansb/hmr_explo</a>.</p>
+  </header>
+  <ul>
+    <li><a class="card" href="lookout/">
+      <span class="meta">Simulated experiment · 24 September 2026</span>
+      <span class="t">Perceptive exploitation for support</span>
+      <span class="d">Robots parked as lookouts on the paths into a mulching site warn the mulcher of an approaching pedestrian about 22 s earlier than its own lidar.</span>
+    </a></li>
+    <li><a class="card" href="camera/">
+      <span class="meta">Simulated experiment · 23 September 2026</span>
+      <span class="t">Camera experiment: lesions on target oaks</span>
+      <span class="d">Two robots with an NDVI camera visit three randomly drawn target oaks after exploring; lesions on the targets are resolved far more often than those on undrawn oaks.</span>
+    </a></li>
+  </ul>
+</main>
+</body>
+</html>
