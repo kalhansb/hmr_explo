@@ -1552,7 +1552,9 @@ after 120 s.
   - The clock is not reset by a meeting. With 300 s slots, a robot that met
     on every slot would otherwise never finish.
   - The no-map path does not start the clock: a silent dscovox is a fault,
-    not the end of exploring.
+    not the end of exploring. A clock already open keeps counting through
+    WAIT_FOR_MAP, where the activity is still Explore, so a map lost with the
+    clock open ends in the latch and the robot goes home.
 - **The latch.** At `plan_starve_finish_sec` (300 s) of counted time, the node
   latches finished with reason `starved`. The check runs every tick, before
   TeamCore's tick, so the latch holds in NAVIGATE too. 0 disables the clock.
