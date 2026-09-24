@@ -1817,3 +1817,487 @@ The test now uses cell centres.
   left, 5 s after that discovery.
 - **Not verified here.** Simulations run only on the run box. Its next build
   must be a full one: `scovox_msgs` and `explo_planner_msgs` changed (11.10).
+
+## 12. Full-map sharing at N=2 (2026-09-24)
+
+### 12.1 Question
+
+How much does data selection matter for exploration? Today each robot sends
+its peers only what changed, and only when the change is significant. The
+new stream sends the whole map instead. The comparison is the `off` arm at
+N=2, and it compares two protocols, not selection alone (12.12 R2):
+- **control:** selected changes, on a reliable FIFO that delivers every
+  delta, however stale.
+- **full:** the whole map, on a link that keeps only the newest unsent frame.
+
+A whole-map stream supersedes by nature; a delta stream cannot drop a delta
+without losing voxels. Each arm is run as its natural protocol.
+
+| Cell | Map stream | Seed | Root / tag |
+|---|---|---|---|
+| control | deltas | 1 | `gen34_n2_ctl / gen34n2ctl_off_seed1` |
+| control | deltas | 2 | `gen34_n2_ctl / gen34n2ctl_off_seed2` |
+| full | whole map | 1 | `gen34_n2_full / gen34n2full_off_seed1` |
+| full | whole map | 2 | `gen34_n2_full / gen34n2full_off_seed2` |
+
+All four cells run the new build with `TX_MODEL=progressive` (12.12 R1).
+The banked `gen34n2_off_seed1` is not a control: it ran the admission
+emulator model and older code, and bestla's planner explored a frozen fused
+map from sim time ~871 s (pilot finding 1). The cells run on this machine
+after the local pilot queue (N=3 `off` and `pursuit`, then the N=2 `hybrid`
+retry), in the order ctl:1, full:1, ctl:2, full:2.
+
+**Endpoints, named before the runs.** Primary: `t_mission`, the project's
+pre-registered endpoint (mission end, censored at 3000 s). Secondary: team
+coverage over time, per-frame age at the receiver (full arm), delivered map
+bytes per direction. Each pair is read against the replication SD
+(`replication_sd.py`); two seeds show direction and size, not significance.
+
+### 12.2 What "whole map" means
+
+Every full message carries every voxel of the sender's own map that is not at
+the prior. The packing per voxel does not change:
+- 8³ block coordinates (a 64 B bitmask, or a u16 index list),
+- u8 sqrt-companded evidence (`quant_step` = saturation / 255²),
+- LZ4 over the frame.
+
+What goes away is the selection:
+- **Touched-only.** Deltas carry only voxels written since the last tick.
+  The full frame carries every voxel.
+- **Change gate.** Deltas drop changes below `p_eps` 0.02 or `evidence_rel`
+  0.10. The full frame has no gate, so it also carries the small changes
+  deltas never send. The full arm's receivers therefore hold slightly more
+  accurate maps whenever a frame gets through.
+- **Coalescing** stays the same: one frame per share tick.
+
+Unchanged, as in the deltas: the optional z-band clip (off here),
+`share_tsdf` (false), Dir sections, and the `state_flip` binarize transform
+(off here). Dir sections are not empty for lidar: `share_dir` is on, and the
+pilot's deltas carried ~6k Dir records per frame, 5.8–9.4 M over a run
+(12.12 R9).
+
+The full frame is the sender's own map only. It never carries the peer's
+voxels, so a robot relays nothing it heard from someone else.
+
+### 12.3 Rate, and what the link does with a stale frame
+
+**Decision.** A full frame every 0.5 s (sim time), the same cadence as the
+delta stream (`share_rate_hz` 2). The link keeps only the newest unsent full
+frame from each sender. Everything else is held equal to the control.
+
+**Why the link must supersede.** A full frame is self-contained, and a newer
+one makes every older one worthless. Under the current reliable FIFO:
+- Demand would be ~2 frames/s × ~9 MB late in a run, about 18 MB/s.
+- The link carries at most ~2.7 MB/s per direction: 72 Mbps × 0.6 airtime,
+  shared by the two directions.
+- The backlog would reach the 1 GiB cap in minutes. Delivered frames would
+  then be about 400 s old.
+
+That compares data selection against a broken queue, not against a
+full-map protocol. A real full-map system sends its latest map and drops the
+old ones, so the emulator gets a new per-topic policy for this stream,
+`latest`:
+- Reliable, like today's policy.
+- When a new message arrives, any message from the same sender on the same
+  topic that is still queued for that receiver (not yet started on the air)
+  is removed and counted as `drop_superseded`.
+- A frame already on the air is never cancelled by a newer one. Under the
+  progressive model (12.12 R1) a link drop aborts it (`drop_aborted`), and
+  the newest frame goes at the next contact.
+
+**Why 0.5 s and not slower.** Once the link supersedes, a shorter period
+costs only sender CPU. A longer period makes delivered frames older and
+handicaps the full arm for no reason. Frame sizes, from the pilot:
+- Delta traffic measured 3.2–3.6 B per record, 3.5–3.9 B per Beta voxel
+  once Dir records are counted (12.12 R9). Full frames pack denser blocks.
+- Each robot's own map reaches ~4 M voxels at 0.20 m, so ~10–14 MB late in
+  a run.
+
+At 72 Mbps a 10 MB frame is 1.1 s of air. With both directions sending,
+each gets half of the 0.6 airtime, so a frame completes every ~3.7 s per
+direction; with one direction idle, every ~1.9 s. A 2 s period would add up
+to 1.5 s of age for nothing. At the start of a contact the link climbs
+7.2 → 28.9 → 72 Mbps over ~3 s, and the progressive model charges each bit
+at the tier it is sent at.
+
+**What the link looks like in the pilot.** In `gen34n2_off_seed1` the link
+was down 80 % of the run and at 72 Mbps for 18 %. Contact is short, so what
+matters is what arrives in the first seconds of a contact:
+- **Control.** It must first flush its whole outage backlog, delivered FIFO.
+  The pilot saw backlogs of 107 and 124 MB, about 40–46 s of air.
+- **Full arm.** Its first frame is the current map, ~2–4 s of air at the
+  contact's climbing tier; a contact shorter than that delivers nothing.
+
+This is the effect the experiment measures. The design does not predict
+which arm wins.
+
+**CPU.** The sender copies its grid on the executor thread, then serializes
+and compresses on a worker thread (12.4). The receiver ingests each frame on
+its single executor thread. Neither is insulated from sim time: while a
+callback runs the clock keeps going, and the node's other callbacks wait
+(12.12 R7). Both costs are logged (sender `copy_ms`, `work_ms`; receiver
+`wall_ms` per frame) and benchmarked at 4 M voxels (12.10). If the worker
+is still busy at the next tick, that tick is skipped and counted. RTF per
+cell is reported as a covariate.
+
+### 12.4 Sender (`scovox_node`)
+
+- **Parameter** `share_full_map_period_s` (double, default 0 = off). When
+  > 0, the node publishes a full frame on `~/scovox_full`, i.e.
+  `scovox_node/scovox_full`:
+  - Type `ScovoxMapBinary`; the message is unchanged, so no rebuild of
+    message packages.
+  - QoS reliable, KeepLast(2), volatile.
+- **Timer** on the node clock (sim time), running alongside the delta
+  timer. `scovox_bin` is unchanged: the robot's own `dscovox_node` still
+  reads its own deltas at 2 Hz. Only the link payload changes.
+- **Tick**, on the executor thread:
+  1. If the worker is busy, skip the tick and count `skip_busy`.
+  2. Look up `map_from_source` with a zero timeout. On a miss, skip and
+     count it.
+  3. Take `map_mtx_` shared, and walk the Beta grid (and Dir when
+     `share_dir`) into a frame, keeping every voxel not at the prior.
+     Apply the z-band and wire transforms exactly as the delta path does.
+  4. Stamp `seq = ++share_seq_` and `header.stamp = now`, both at capture,
+     still under the lock (see 12.6). Release the lock.
+  5. An empty frame publishes nothing and consumes no seq.
+- **Worker thread**, one per frame, as the `mem_log` worker does: an atomic
+  in-flight flag, the previous thread joined before the next starts, the
+  last joined in the destructor. Serialize, LZ4, publish. It never reads
+  the grid. An LZ4
+  failure drops the frame and counts it. The seq is then a permanent gap
+  that a receiver cannot tell from a superseded frame, which is harmless:
+  the next frame supersedes it.
+- **Isolation from the delta stream.** The full path does not drain touched
+  sets, write the gate grids, use the deferral queue or the byte budget, or
+  chunk (`share_max_voxels_per_msg` is ignored for full frames). A chunked
+  full frame under `latest` would lose chunks, and the receiver would hold a
+  partial map with no way to tell.
+- **Stats.** A WARN-level line every 60 s, prefixed `full-map share:`, because
+  the node runs at `--log-level warn`. It gives frames published, busy
+  skips, TF skips, the last frame's voxels, raw bytes and LZ4 bytes, and
+  the copy and worker times (mean and max).
+
+### 12.5 Receiver (`dscovox_node`)
+
+- Peers' full frames arrive on `/<self>/rx/<peer>/scovox_node/scovox_full`,
+  through `peer_bin_topic_pattern`. The robot's own input stays
+  `/<self>/scovox_node/scovox_bin`.
+- Ingest is unchanged. It is already snapshot-replace per voxel, so a full
+  frame is simply a large delta.
+- **New parameter** `skip_unchanged_voxels` (bool, default false; true in
+  the full arm). A voxel whose incoming value equals the stored one
+  bit-for-bit is not added to the refold set.
+  - Refold is a pure function of the sources' values, so the fused map is
+    identical.
+  - Only `cells_touched`, a diagnostic, counts fewer cells.
+  - Without it, each 4 M-voxel frame would refold 4 M cells under the
+    exclusive lock, several seconds of wall time, starving the fused-map
+    publish. The pilot's frozen-map fault (finding 1) is a publish that
+    stopped reaching the planner, so adding lock time there is the wrong
+    direction.
+  - Default false keeps every other arm bit-identical.
+- **Diagnostics** (full arm only): a separate INFO line per peer frame
+  (the existing "integrated update" line parses unchanged) giving the seq,
+  voxels, unchanged voxels, age (`now − header.stamp`) and the callback's
+  wall time.
+- **Full-arm only, from review (12.12 R7):** the touched sets are not
+  reserved to the frame size, and a frame that changed nothing does not set
+  `fused_dirty_`, so it does not force a fused-map republish.
+- **Subscription depth.** Topics ending in `scovox_full` subscribe with
+  `scovox_full_qos_depth` (default 2), not `scovox_bin_qos_depth` (4000):
+  frames supersede, and 4000 × 10 MB of history is memory no run has
+  (12.12 R6).
+- **Voxels that fall back to the prior.** They are never sent, as in the
+  delta stream (at-prior voxels are skipped there too). A receiver keeps
+  its last value. The two arms behave the same.
+
+### 12.6 Sequence numbers and exchange accounting (Q51)
+
+The full stream and the delta stream share `share_seq_`, stamped at capture
+on the executor thread, the only thread that increments it.
+- A full frame with seq k holds the grid as it stood at capture. Every delta
+  with seq < k was built from touched sets drained before then, so frame k
+  covers all of them.
+- The exchange targets are unchanged:
+  - `map_sent_seq` is the newest delta seq the robot's own `dscovox` has
+    seen.
+  - `target_rx` is the peer's `map_sent_seq`.
+  - The exchange completes when the receiver's newest seq from that peer is
+    ≥ `target_rx`, which happens with the first full frame captured after the
+    peer's newest delta. That is the right meaning: the receiver holds
+    everything the peer had sent.
+- Capture-time stamping matters. If seq were stamped at publish on the
+  worker, a delta captured after the frame could get a lower seq, and the
+  exchange could complete while the receiver was still missing it.
+- `seq_gaps` for a peer grows by the deltas between frames, so it becomes
+  meaningless in the full arm. It is a diagnostic only (the `gaps` field in
+  exchange events). The analysis must not read it for this arm.
+- The robot's own delta stream also shows gaps, one per full frame, for the
+  same reason. Also diagnostic only.
+
+### 12.7 Emulator (`hmr_comms_sim`)
+
+- **New parameter** `latest_topics` (string list, default empty), with the
+  reliable queue and cap and the rule in 12.3.
+  - A topic may appear in only one of the three lists; the node refuses to
+    start otherwise.
+  - The "nothing configured" warning counts all three lists.
+- **Supersede.** On enqueue for a `latest` topic, before the cap check:
+  1. Remove queued entries in that directional queue whose `pub` is the same
+     publisher (same sender, receiver and topic).
+  2. Subtract their bytes, and add each to `drop_superseded`.
+  3. Then push, apply the cap, and drain, as today.
+- **Stats.** The stats JSON and the link-counters line gain
+  `"drop_superseded"`, `"drop_aborted"` and `"latest_relayed"`.
+  - None is added to `drop_overflow`, so the overflow gate still fails only
+    on a real loss of deltas.
+  - None is added to the "relay totals" dropped sum, which
+    `manoeuvre_events.py` reads as `dropped_per_s` (12.12 R4).
+- **Launch.** A new `comms_sim.launch.py` argument `map_stream:=delta|full`
+  (default: the params file). With `full`, the reliable list loses
+  `scovox_node/scovox_bin` and the latest list gets
+  `scovox_node/scovox_full`. The launcher prints the override like the
+  other ones. If that empties the reliable list, the override is `[""]`
+  (an override cannot carry an empty list; the node drops empty entries).
+- **Relay QoS.** It mirrors the publisher's reliability as for reliable
+  topics, but latest topics use `latest_qos_depth` (default 2) instead of
+  `rx_qos_depth` for the source subscription and the rx publisher (12.12 R6).
+- **Transmission model** `transmission_model:=admission|progressive`
+  (default admission, every banked run). See 12.12 R1.
+
+### 12.8 Scripts
+
+**Runner** (`run_explo_sim_rviz.sh`):
+- **Knob** `SHARE_FULL_PERIOD_S`, default 0.
+  - Anything other than 0 or a positive number is fatal.
+  - A value > 0 with `COMMS` other than 1 is fatal. Without the emulator
+    there is no link to measure, and `peer_bin_topic_pattern` would read
+    peers directly.
+- **When > 0:**
+  - The comms launch gets `map_stream:=full`.
+  - The nav launch gets `share_full_map_period_s:=$SHARE_FULL_PERIOD_S` and
+    `skip_unchanged_voxels:=true`.
+  - `PEER_BIN_PATTERN` becomes `/{self}/rx/{peer}/scovox_node/scovox_full`.
+  - The `comms_gates.py check` call gets `--map-suffix
+    scovox_node/scovox_full` (`watch` does not read the suffixes).
+  - The comms bag (`RECORD`) takes the `scovox_full` relays instead of
+    `scovox_bin`.
+- **Knob** `TX_MODEL=admission|progressive`, default admission; anything
+  else is fatal, and progressive needs `COMMS=1`. Passed to the comms launch
+  as `transmission_model`.
+- **Manifest:**
+  - `share_full_period_s=<value>`
+  - `map_stream=delta|full`
+  - `transmission_model=admission|progressive`
+  - `sha256_` of `scovox_mapping_node`, `dscovox_mapping_node` and
+    `hmr_comms_sim_node` (12.12 R13)
+- The `/rx/` wait needs no change; it matches any relay.
+
+**`simple_nav_3d.launch.py`:**
+- New arguments `share_full_map_period_s` (default 0.0) and
+  `skip_unchanged_voxels` (default false).
+- Each is passed to its node only when not at its default, so every other
+  launch keeps the exact parameter set it has now.
+
+**`comms_gates.py`:**
+- `--map-suffix` (default `scovox_node/scovox_bin`) replaces the map entry
+  of `GATED_SUFFIXES`, so the relay-set gate requires the `scovox_full`
+  relays.
+- When the suffix differs from the default, `scovox_node/scovox_bin` stays
+  in the **leakage** check only, since nothing but the robot's own `dscovox`
+  may read it. It is not required as a relay.
+
+**Campaign** (`run_campaign.sh`):
+- `SHARE_FULL_PERIOD_S` is read via `env_val`, stripped at the per-cell
+  launch, and resume-guarded numerically as `share_full_period_s`.
+- `TX_MODEL` likewise, as the string key `transmission_model`.
+- **One exception to "absent = mismatch".** A banked cell with no
+  `share_full_period_s` line counts as 0, and one with no
+  `transmission_model` line counts as admission, because every manifest
+  older than this change ran deltas on the admission model. Without it, any
+  resume of an existing root (the queued N=2 `hybrid` retry, the run box's
+  campaigns) run on the new build would abort.
+  - The exception applies only when the manifest has no `map_stream` line
+    either: the new runner writes all three, so a partial set is damage.
+  - A present value compares as usual, so a full or progressive campaign
+    still aborts on an old cell of the same name.
+- Both knobs are also validated once up front, so a junk value or
+  `--comms 0` fails before the first bring-up.
+- `campaign_guard_calib.sh` gets cases for:
+  - absent vs 0 (skip),
+  - absent vs 0.5 (abort),
+  - 0.5 vs 0.5 (skip),
+  - 0.5 vs 1 (abort),
+  - junk (abort),
+  - absent beside `map_stream` (abort),
+  - the same set for `transmission_model`, and junk up front,
+  - the strip-list invariant and default read-back for both knobs.
+
+**`gen34_check.py`:** unchanged. Nothing in it reads the map stream.
+`map_stream` is in the manifest for the analysis to read.
+
+**New, from review:**
+- `fused_map_liveness.py CELL...`: per robot, the longest stretch over which
+  the planner's `total_observed_voxels` did not change; FROZEN when it is
+  ≥ 600 s, open at the run's end, and not all DONE. On the pilot it flags
+  `gen34n2_off_seed1` bestla (2164 s from t 871) and nothing else. Run on
+  every cell of this experiment before it is read (12.12 R5).
+- `manifest_pair_check.py CONTROL FULL`: every manifest key equal except
+  the map stream and keys that describe the run (timestamps, paths,
+  outcomes). Commit and binary hashes must match (12.12 R12).
+
+### 12.9 Edge cases
+
+| Case | Handling |
+|---|---|
+| Link down for a long time | The queue holds one ~9 MB frame per direction, not a growing backlog. On contact, one frame goes out, then the newest each time the air frees |
+| A frame is on the air when the link drops | Progressive: aborted and counted (`drop_aborted`); the newest frame goes next contact. A reliable delta on the air resumes where it stopped |
+| Contact shorter than one frame's air time | Progressive: the frame does not arrive. Under admission it would have, whole, and then blocked the channel for longer than a median contact (12.12 R1) |
+| Airtime debt starves the beacons | `best_effort_priority=true` (gen 34 sets it) skips the airtime check for beacons and intents |
+| Both robots' frames contend | Shared airtime, as for deltas. The measure is bytes on the link |
+| Frame before TF is ready | Skipped and counted |
+| Empty map at start | Nothing sent, no seq used |
+| Worker slower than the period | The tick is skipped (`skip_busy`), and the rate degrades visibly |
+| A superseded frame's seq never arrives | Seen as a gap by the receiver, which is diagnostic only (12.6). The exchange completes on the next frame |
+| Sender restarts | `share_seq_` restarts at 1. Same behaviour as today (not handled in either arm) |
+| Own `dscovox` | Reads deltas as today. Own voxels in the fused map update at 2 Hz in both arms |
+| Planner starts before the first frame arrives | As today: the fused map holds own data until peers arrive |
+| Mission end (all done) | `STOP_ON_DONE` ends the run. Frames keep flowing until then |
+| Frozen fused map (pilot finding 1) | Not fixed here. `fused_map_liveness.py` runs on all four cells; a FROZEN robot is reported and its cell is not pooled silently. The full arm may be more exposed (bigger callbacks on the receiver) |
+| Chunking or byte-budget parameters set | Ignored for full frames (12.4), with a WARN at start if set |
+| `map_stream:=full` without scovox publishing `scovox_full` | The relay never forms. The bring-up gate fails on the missing `scovox_full` relays, and `GATES_STRICT=1` kills the cell |
+| Relay forms but no frame ever crosses (TF never ready, worker wedged) | Not a gate. The per-cell report checks `latest_relayed` > 0 per direction in the link counters and the sender's `published=` count (12.12 R8) |
+| `SHARE_FULL_PERIOD_S>0` against a banked delta cell of the same tag | The resume guard aborts. The full cells use their own root and tag |
+
+### 12.10 Tests and verification
+
+- **scovox unit tests:**
+  - A full frame of a known grid round-trips through serialize and LZ4 to
+    exactly the non-prior voxels.
+  - The z-band is honoured.
+  - The capture seq is ordered correctly against deltas.
+  - The touched sets and gate grids are untouched by a full capture.
+- **dscovox test** (black box, two real `dscovox` binaries, flag on and
+  off, in `test_fusion_counters_liveness.cpp`): the same five frames from
+  two sources (new, overlapping, an exact repeat, a partial change, a
+  repeat). The fused maps must be identical, the flag-off node must refold
+  every delivered voxel (30 + 20) and the flag-on node only the new and
+  changed ones (15 + 10).
+- **Emulator** (`hmr_sim/scripts/comms_tx_model_calib.py`, the real node,
+  known answers):
+  - C1 admission delivers a small message ahead of a large one queued
+    before it (the existing behaviour, R3);
+  - C2 progressive delivers them in order;
+  - C3 progressive takes ~1.25 s for 9 MB at 72 Mbps under 0.6 capacity;
+  - C4 progressive latest: a mid-frame drop aborts, frames queued while down
+    are superseded, only the newest arrives (1 aborted, 2 superseded);
+  - C5 progressive reliable: a mid-message drop resumes, one delivery, no
+    loss.
+- **Benchmark:** a full-arm smoke cell's own logs: the sender's `copy_ms`
+  and `work_ms` and the receiver's `wall_ms` at the largest map reached.
+  Recorded here.
+- **Calibs:** `campaign_guard_calib.sh`, `comms_gates_calib.py` (new
+  map-suffix cases) and `gen34_check_calib.py` all pass.
+- **Smoke:** a 400 s N=2 full-arm cell locally. Check:
+  - the relays formed and the gates are clean,
+  - `drop_superseded` > 0 after an outage,
+  - the frame sizes and ages in the logs,
+  - the fused map on both robots contains the peer's voxels.
+
+### 12.11 Threats to validity
+
+- **Two seeds.** This is a pilot-scale comparison. It shows the size and
+  direction of an effect, not a significant difference.
+- **CPU.** Full frames cost sender and receiver CPU, and that is not
+  insulated from sim time (12.3). The per-frame times and RTF are reported;
+  a host that cannot keep up skips frames, and the skip counter records it.
+- **Map accuracy.** The full arm's receivers get ungated values (12.2). Any
+  exploration difference therefore bundles two effects:
+  - fresher arrival at contact,
+  - the small changes the gate suppresses.
+
+  This experiment does not separate them. `map_agreement.py` cannot: it
+  measures the spread of observed-voxel counts, not per-voxel accuracy
+  (12.12 R10). A later arm could run deltas with `share_change_gate:=false`.
+- **Seeds.** SEED fixes the fading trace only; sim sensor noise is unseeded
+  and link states follow positions, which diverge. A pair is two runs of
+  the same conditions, not a replay.
+- **Frozen fused map.** Pilot finding 1 can strike either arm. A cell that
+  shows it is reported and flagged, and not silently pooled.
+
+### 12.12 Adversarial review (2026-09-24)
+
+Four reviewers were launched on the closed design: three steered (sender and
+seq; emulator and receiver; validity and scripts) and one unsteered. The
+sender-and-seq reviewer did not run: Fable 5.1 had run out of usage credits.
+Its focus is carried into the code review (12.13). Every finding below was
+checked against the code or the pilot data before it was taken or refused.
+The revisions are already written into 12.1–12.11.
+
+**Taken**
+
+| # | Finding (reviewers) | Verified | Change |
+|---|---|---|---|
+| R1 | High (3 of 3). The emulator admits a queued message whole at the tier in force, charges bits/tier, and delivers it at now + cost whatever the link does next. Contacts open at 7.2 Mbps (46 of 47 in the pilot's `link_states.csv`; median contact 9.6 s), so a ~10 MB frame goes out as ~11 s of air, drives the shared airtime ~11 s into debt, locks out the other direction for longer than a median contact, and arrives even if the contact lasted 1 s. Small deltas barely notice; the effect grows with message size, so it would decide the comparison | Yes: `DrainReliable`, `ScheduleDelivery`, `NextBandwidth` | New `transmission_model:=progressive`: one message on the air per directional link; each 5 ms delivery tick sends dt of air at the current tier, the airtime balance split evenly across the links sending; delivered when complete. A link drop aborts a latest message (`drop_aborted`) and pauses a reliable one, which resumes. Default stays `admission`, so every banked and running campaign is unchanged. Both arms of this experiment run progressive, so the seed-1 control is re-run (12.1) |
+| R2 | High. The arms differ in queue policy as well as selection (FIFO with stale backlog vs supersede) | Yes | The question is stated as a protocol comparison (12.1). No coalescing-delta arm: a coalesced delta queue is a third protocol nobody runs |
+| R3 | High, existing bug. Admission is not FIFO: messages admitted in one drain are delivered at now + their own cost, so a small later delta overtakes a large earlier one; under per-voxel snapshot-replace the older value then overwrites the newer. Pilot: exchange events with `gaps` 6849 and 3739 | Yes: the heap orders by `t_ns`; `gaps` confirmed in `bestla.events.jsonl` | Progressive is FIFO per link (calib C2). Admission is kept as is and its reordering is pinned by calib C1, because fixing it changes the model under the gen-34 campaign mid-way. **Open for the user:** every banked gen-34 cell ran it |
+| R4 | Medium. Adding `drop_superseded` to the "relay totals" dropped sum changes `manoeuvre_events.py`'s `dropped_per_s` | Yes (`RE_RELAY`) | Not added; separate JSON fields only (was already so in the code) |
+| R5 | High. No frozen-map check exists; "finding 1" is undefined; the full arm may be more exposed. Freeze starts at t≈871 s, not ~1005 s | Yes: bestla flat at 1148734 from t 871 to 3035 | `fused_map_liveness.py`; 12.1 and 12.9 corrected |
+| R6 | Medium. A relay and subscriber history of 4000 for ~10 MB messages could hold gigabytes if the RMW keeps samples | Code yes; RMW retention not verified | `latest_qos_depth` 2 in the emulator, `scovox_full_qos_depth` 2 in dscovox |
+| R7 | Medium. The receiver's single-threaded executor stalls for the whole ingest of a 4 M-voxel frame; `skip_unchanged_voxels` only removes the refold; the touched sets reserve 4 M buckets; every frame forces a fused republish; the "insulated from CPU" claim is wrong | Yes | Full arm only: no reserve, `fused_dirty_` only when a cell changed, `wall_ms` per frame; claim reworded; RTF a covariate |
+| R8 | Medium. Nothing checks that a full frame was ever delivered | Yes (`gate_relay_set` checks topics only) | `latest_relayed` per link in the stats; checked per cell with the sender's `published=` |
+| R9 | Medium. Numbers: 3.5–3.9 B per Beta voxel with Dir, Dir not empty, backlog 107/124 MB, 9 MB at 72 Mbps is 1.0 s of air (3.3 s was frame spacing) | Yes against `comms.log` and `nav_*.log` | 12.2 and 12.3 corrected |
+| R10 | High. `map_agreement.py` cannot size the gate effect | Yes (it spreads `total_observed_voxels`) | Claim dropped; `share_change_gate:=false` named as the later arm that could (the parameter exists) |
+| R11 | Medium. Seed-1 pair mixes code versions; building into the live install would swap binaries under the queue | Yes | Seed-1 control re-run on the new build; the build is in a worktree install until the queue is idle |
+| R12 | Medium. Nothing checks that the two roots ran the same settings | Yes (guard is per root) | `manifest_pair_check.py` |
+| R13 | Medium. The manifest cannot show which mapper or emulator binary ran | Yes | `sha256_` for the three binaries |
+| R14 | Low. The absent-means-0 rationale is only partly right, and it can be tightened | Yes | Applies only when `map_stream` is absent too; rationale rewritten (the `hybrid` retry and the run box's resumes are the real cases) |
+| R15 | Low. No up-front validation in `run_campaign.sh`; no default read-back case | Yes | Both added, with calib cases |
+| R16 | Low. Only `comms_gates.py check` reads the suffixes; leakage needs its own list | Yes | Text corrected; the code already had `LEAK_ONLY_SUFFIXES` |
+| R17 | Medium. Which direction wins is effectively random under contention | Yes (`drain_offset_++` per tick) | Progressive splits each tick's airtime evenly among the links sending |
+| R18 | Low. Empty `reliable_topics` override may not launch | The node already aborts on `[]` (`comms-sim-empty-list-abort`) | Override is `[""]`; verified by the container launch |
+| R19 | Low. The sender's `scovox_full` is not in any bag | Already in the main bag at RECORD ≥ 1 in the implementation | None |
+
+**Not taken**
+
+| Finding | Why not |
+|---|---|
+| Chunk full frames into spatial tiles superseded per tile (validity, unsteered) | Progressive transmission fixes the same model error for both arms without changing what the full arm sends. Tiles would make "the whole map" a sequence of partial maps with independent ages |
+| Build the full frame from the gate grids, so both arms carry the same values (unsteered) | That removes the selection the question is about. The gate's contribution is named as unseparated in 12.11 |
+| A runtime gate on full-frame delivery | A cell with no frames is a finding to report, not a bring-up fault to retry. Checked per cell instead (R8) |
+| Strict alternation for latest queues (emulator) | The even split per tick (R17) gives each sending direction the same share without a special case |
+| Per-frame seq/size/stamp log on the sender | The receiver's per-frame line has seq, size and age; the sender's 60 s stats line has the counts |
+
+### 12.13 Code review and verification (2026-09-24)
+
+Fable 5.1 was out of usage credits, so the code review ran on Opus 5.5:
+three read-only reviewers (sender and seq; emulator; receiver and scripts).
+Only the sender review finished before the session's usage limit stopped
+the other two; they are re-run when the limit resets and recorded below.
+
+**Sender review.** Threading, the in-flight protocol, destructor order, the
+shared lock, the voxel selection against `publishBinaryMap`'s snapshot
+branch, and the seq argument of 12.6 were all confirmed. A deferred delta
+chunk built before a frame but sent after it gets a higher seq with older
+data; that only makes an exchange wait for a later frame.
+
+| Finding | Verified | Action |
+|---|---|---|
+| An exception in the worker (`serialize` throws on a bad class id; `bad_alloc`) terminates the node; a failed `std::thread` construction leaves the in-flight flag set | Yes | try/catch in the worker (frame dropped, logged, seq becomes a gap); thread construction guarded |
+| Frame vectors grow by doubling under the executor wait | Yes | Reserved from the previous frame's sizes + 1/8 |
+| `copy_ms` misses the TF lookup and the join | Yes | Timed from tick entry |
+| Period set outside rolling mode does nothing, silently; no floor | Yes | WARN outside rolling; 0.05 s floor |
+| Design says `full_skipped_busy`, code logs `skip_busy`; the chunking WARN fires even when chunking is off | Yes | Design renamed; WARN names chunking only when set |
+| dscovox: a voxel created by `value(mc, true)` at its default could compare equal and be skipped | Unreachable: senders never put at-prior values on the wire | Documented in the code. The suggested existence check with `value(mc, false)` was tried and broke ingest (the accessor caches the missing leaf; the create that follows returns null, so nothing was stored). The black-box test caught it |
+| No scovox_node unit tests for the full frame (12.10) | Yes | Not added: the node needs a live lidar pipeline. Covered by the smoke cell (frames published, sizes, receiver ages) and the receiver test. Sharing one predicate between the delta and full paths was declined so the delta path stays byte-identical |
+
+**Verification** (capped container, the worktree build):
+- `test_fusion_counters_liveness`: 3 of 3 tests pass, three runs in a row,
+  including `SkipUnchangedVoxels.SameFusedMapFewerRefolds`.
+- `comms_tx_model_calib.py`: C1–C5 all pass (admission reorders; progressive
+  is FIFO, takes ~1.25 s for 9 MB, aborts a cut latest frame and delivers
+  only the newest, resumes a cut reliable message).
+- `campaign_guard_calib.sh` 201/201, `comms_gates_calib.py` 36/36,
+  `gen34_check_calib.py` all pass; `bash -n` on both runners.
+- `fused_map_liveness.py` on the pilot flags `gen34n2_off_seed1` bestla only.
