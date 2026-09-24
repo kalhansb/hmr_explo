@@ -1,0 +1,6 @@
+[INFO] [1790141859.305737127] [target_scheduler]: Target scheduler ready: 3 target(s) on /exploration/targets (frame=map).
+[INFO] [1790141859.501570889] [target_scheduler]: Schedule origin latched at t=351.44s; releasing on schedule.
+[INFO] [1790141859.502689700] [target_scheduler]: Released target id=1 at (-18.59, -9.27, 0.00) r=1.80 (release=0.0s, t=0.0s).
+[INFO] [1790141859.504583511] [target_scheduler]: Released target id=2 at (-6.83, -15.44, 0.00) r=1.80 (release=0.0s, t=0.0s).
+[INFO] [1790141859.504750678] [target_scheduler]: Released target id=3 at (0.72, 13.05, 0.00) r=1.80 (release=0.0s, t=0.0s).
+[INFO] [1790144360.913372457] [rclcpp]: signal_handler(SIGINT/SIGTERM)

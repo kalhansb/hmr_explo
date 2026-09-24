@@ -7,7 +7,7 @@ log and deviations. Results page: <https://kalhansb.github.io/hmr_explo/camera/>
 (built from `page_template.html` + `page_data.json` by `build_page.py`).
 
 This folder holds the scripts, the plan, the pooled results and a small per-run
-extract (`runs/rep<n>/`: camera scores, run manifest, planner logs). The scripts
+extract (`reps/rep<n>/`: camera scores, run manifest, planner logs). The scripts
 were run from `runs/cam_experiment/` (untracked, ~4 GB with bags and camera
 frames) and read and write there; they also use the harness in
 `runs/pilot_fine/` (overlay sources, scoring), which is untracked too.

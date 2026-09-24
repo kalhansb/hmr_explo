@@ -1,0 +1,7 @@
+frame-lesion pairs with either >= 25 px: 5363; agree on >=25: 0.899
+  ratio virtual/rendered where rendered >= 25 (n=5114): p10 0.84  median 0.97  p90 1.06
+  rendered >=25 but virtual 0: 66; virtual >=25 but rendered 0: 60
+  lesion 90 (dropped): rendered 0 px, virtual 172 px
+lesions: resolved(25) agreement 112/113 = 0.991; best-px ratio median 0.97 (n=57)
+  disagreements (label, rendered, virtual): [(80, 30, 24)]
+ACCEPT (median ratio in 0.8-1.25 and agreement >= 0.90)

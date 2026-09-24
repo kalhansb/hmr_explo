@@ -1,0 +1,40 @@
+[INFO] [1790154461.397693769] [cam_counter]: listening on ['atlas', 'bestla'] -> /runs/cam_pilot/rep5/cam
+[INFO] [1790154463.571591947] [cam_counter]: first frame atlas: t=19.50 enc=rgb8 640x480 step=1920 channels_equal=True labels={0: 63382, 1: 160265, 2: 70966, 3: 9036, 30: 6, 31: 2, 32: 10, 133: 3346, 138: 145, 145: 42}
+[INFO] [1790154463.619721376] [cam_counter]: first frame bestla: t=19.50 enc=rgb8 640x480 step=1920 channels_equal=True labels={0: 30981, 1: 204840, 2: 60188, 3: 164, 14: 6, 106: 84, 107: 5, 110: 14, 111: 18, 130: 223, 146: 10677}
+[INFO] [1790154485.324969531] [cam_counter]: frames so far {'atlas': 20, 'bestla': 16}
+[INFO] [1790154543.298286190] [cam_counter]: frames so far {'atlas': 80, 'bestla': 72}
+[INFO] [1790154599.990424661] [cam_counter]: frames so far {'atlas': 140, 'bestla': 128}
+[INFO] [1790154667.027863062] [cam_counter]: frames so far {'atlas': 200, 'bestla': 182}
+[INFO] [1790154732.923933140] [cam_counter]: frames so far {'atlas': 260, 'bestla': 235}
+[INFO] [1790154797.456180212] [cam_counter]: frames so far {'atlas': 320, 'bestla': 283}
+[INFO] [1790154863.183488408] [cam_counter]: frames so far {'atlas': 378, 'bestla': 339}
+[INFO] [1790154927.732517078] [cam_counter]: frames so far {'atlas': 437, 'bestla': 389}
+[INFO] [1790154992.463528987] [cam_counter]: frames so far {'atlas': 495, 'bestla': 442}
+[INFO] [1790155056.240230935] [cam_counter]: frames so far {'atlas': 555, 'bestla': 493}
+[INFO] [1790155120.452721965] [cam_counter]: frames so far {'atlas': 614, 'bestla': 550}
+[INFO] [1790155185.059497353] [cam_counter]: frames so far {'atlas': 674, 'bestla': 605}
+[INFO] [1790155251.975594119] [cam_counter]: frames so far {'atlas': 732, 'bestla': 653}
+[INFO] [1790155321.589823842] [cam_counter]: frames so far {'atlas': 792, 'bestla': 709}
+[INFO] [1790155386.855755960] [cam_counter]: frames so far {'atlas': 851, 'bestla': 762}
+[INFO] [1790155450.487034888] [cam_counter]: frames so far {'atlas': 908, 'bestla': 819}
+[INFO] [1790155512.846814180] [cam_counter]: frames so far {'atlas': 966, 'bestla': 870}
+[INFO] [1790155576.132240017] [cam_counter]: frames so far {'atlas': 1025, 'bestla': 926}
+[INFO] [1790155639.239471758] [cam_counter]: frames so far {'atlas': 1082, 'bestla': 985}
+[INFO] [1790155699.303444036] [cam_counter]: frames so far {'atlas': 1142, 'bestla': 1042}
+[INFO] [1790155764.418615852] [cam_counter]: frames so far {'atlas': 1197, 'bestla': 1097}
+[INFO] [1790155825.724665642] [cam_counter]: frames so far {'atlas': 1256, 'bestla': 1150}
+[INFO] [1790155888.968936062] [cam_counter]: frames so far {'atlas': 1312, 'bestla': 1207}
+[INFO] [1790155957.997348231] [cam_counter]: frames so far {'atlas': 1367, 'bestla': 1260}
+[INFO] [1790156026.842895543] [cam_counter]: frames so far {'atlas': 1423, 'bestla': 1310}
+[INFO] [1790156096.638589451] [cam_counter]: frames so far {'atlas': 1478, 'bestla': 1362}
+[INFO] [1790156165.460231875] [cam_counter]: frames so far {'atlas': 1532, 'bestla': 1411}
+[INFO] [1790156233.869329302] [cam_counter]: frames so far {'atlas': 1589, 'bestla': 1468}
+[INFO] [1790156302.237992026] [cam_counter]: frames so far {'atlas': 1647, 'bestla': 1522}
+[INFO] [1790156365.534586171] [cam_counter]: frames so far {'atlas': 1701, 'bestla': 1569}
+[INFO] [1790156428.015114168] [cam_counter]: frames so far {'atlas': 1756, 'bestla': 1624}
+[INFO] [1790156487.042084493] [cam_counter]: frames so far {'atlas': 1815, 'bestla': 1676}
+[INFO] [1790156547.294114990] [cam_counter]: frames so far {'atlas': 1865, 'bestla': 1726}
+[INFO] [1790156604.155982260] [cam_counter]: frames so far {'atlas': 1921, 'bestla': 1781}
+[INFO] [1790156677.843645691] [cam_counter]: frames so far {'atlas': 1975, 'bestla': 1836}
+[INFO] [1790156749.154553220] [cam_counter]: frames so far {'atlas': 2033, 'bestla': 1881}
+[INFO] [1790156815.189534436] [cam_counter]: frames so far {'atlas': 2087, 'bestla': 1938}

@@ -1,0 +1,108 @@
+[06:19:48] === flatforest_2robot_lidar.yaml: 2-robot (atlas bestla) lidar explore+exploit, RViz=0 gui=0 ===
+[06:19:48] ROS_DOMAIN_ID=42  (export the same value to inspect by hand)
+[06:19:48] IGN_PARTITION unset  (teardown matches stack processes MACHINE-WIDE; safe only if this is the only cell running)
+[06:19:48] targets: /cam/targets/targets_rep2.yaml
+[06:19:48] outputs: /runs/cam_pilot/rep2
+[06:19:48] started sim pid=157  (log: /runs/cam_pilot/rep2/sim.log)
+[06:19:59] sim publishing atlas odom
+[06:20:01] sim publishing bestla odom
+[06:20:01] started tf_atlas pid=326  (log: /runs/cam_pilot/rep2/tf_atlas.log)
+[06:20:01] started tf_bestla pid=328  (log: /runs/cam_pilot/rep2/tf_bestla.log)
+[06:20:01] started rsp_atlas pid=332  (log: /runs/cam_pilot/rep2/rsp_atlas.log)
+[06:20:01] started rsp_bestla pid=336  (log: /runs/cam_pilot/rep2/rsp_bestla.log)
+[06:20:01] peer_bin_topic_pattern=/{peer}/scovox_node/scovox_bin (COMMS=0)
+[06:20:01] started nav_atlas pid=343  (log: /runs/cam_pilot/rep2/nav_atlas.log)
+[06:20:01] started nav_bestla pid=349  (log: /runs/cam_pilot/rep2/nav_bestla.log)
+[06:20:10] atlas mapping alive (planning_map publishing)
+[06:20:12] atlas scovox global_planning_map alive (75.0m @ 0.40m/cell)
+[06:20:15] atlas fused global_planning_map alive (planner reads this one)
+[06:20:18] bestla mapping alive (planning_map publishing)
+[06:20:20] bestla scovox global_planning_map alive (75.0m @ 0.40m/cell)
+[06:20:24] bestla fused global_planning_map alive (planner reads this one)
+[06:20:34] started targetviz pid=696  (log: /runs/cam_pilot/rep2/targetviz.log)
+[06:20:34] started camcount pid=701  (log: /runs/cam_pilot/rep2/cam_counter.log)
+[06:20:34] recording rosbag (RECORD=2, 8 base topics + comms)
+[06:20:34] started bag pid=704  (log: /runs/cam_pilot/rep2/bag.log)
+[06:20:37] done_seek_enabled=false done_seek_max_sec=600.0 (DONE_SEEK=0)
+[06:20:37] mission_return_enabled=false home_tol=1.0m max=600.0s (MISSION_RETURN=0)
+[06:20:37] candidate_enable_polar=false (FRONTIER_ONLY=1)
+[06:20:37] proximity_hold/resume_dist_m=1.5/2.5 m (yaml field defaults 5.0/6.0 overridden for sim)
+[06:20:37] cell world OFF (CELL_WORLD=0) — no cell params passed, planner is the pre-M-TARE binary at defaults
+[06:20:37] team world exchange OFF (TEAM_WORLD=0) — no team_world params passed; the cell world is per-robot and never shared
+[06:20:37] separation term OFF (SEPARATION_WEIGHT=0) — and with TEAM_WORLD=0 there are no peer positions to measure against, so sep_peer_dist_m stays -1 and sep_eligible_peers 0 for the whole cell. Those are structural zeros, NOT a measurement that the robots stayed apart; this cell is not an untreated counterfactual for a separation campaign
+[06:20:37] global allocator OFF (GLOBAL_ALLOC=0) — no allocation event, candidate ordering is the per-robot utility alone
+[06:20:37] allocator peer-position TTL: not requested (node default 0 = unbounded) — a latched peer pose holds its cells for the rest of the run however old it gets, which is every campaign through sr3
+[06:20:37] reconnect gate = silence (planner default) — the mid-run clock decides alone; no reconnect_gate param passed
+[06:20:37] scheduled rendezvous OFF (RENDEZVOUS_SCHEDULE=0) — no rendezvous_schedule_enable param passed, so no appointment is ever armed and there is NO fallback destination (the midpoint drives are gone). Only reconnect_mode=pursuit and the off arm are legal here; rendezvous/hybrid are refused above
+[06:20:37] pursuit predictor = trail (planner default) — no pursuit_predictor param passed; the chase drives the peer's last known goal then its last known pose
+[06:20:37] exploitation_enabled=true (EXPLOIT=1)
+[06:20:37] exploit_dwell_sync_enabled=true (DWELL_SYNC=1)
+[06:20:37] reconnect_mode=hybrid reconnect_enabled=false (RECONNECT_MODE=off)
+[06:20:37] reconnect gates: confirm=3.0s barrier_max_wait=600.0s
+[06:20:37] roi x,y = [-25.0, 25.0] (sim override; yaml carries the field site's ROI)
+[06:20:37] planning_map = /<r>/dscovox_node/global_planning_map (FUSED team map, 75.0m @ 0.40m/cell), done_coverage_source=coverage_map
+[06:20:42] run manifest written: /runs/cam_pilot/rep2/run_manifest.txt
+[06:20:42] started planner_atlas pid=862  (log: /runs/cam_pilot/rep2/planner_atlas.log)
+[06:20:42] started planner_bestla pid=867  (log: /runs/cam_pilot/rep2/planner_bestla.log)
+[06:20:43] RELEASE_ON_DONE=1 — target_scheduler held until every planner is DONE (3 targets, release [0.0,0.0,0.0])
+[06:20:51] planners up (exactly 2 explo_planner_node)
+[06:20:53] sim t0=22 — targets release at +120 / +420 / +720 s of the SCHEDULER's clock
+[06:20:53] will stop at t_sim=2422
+[06:20:53] WARNING: hang gate is INERT — needs 2400 sim-s of frozen steps but DURATION_S=2400 ends the run first. A hung planner will run to the censoring horizon instead of aborting early.
+[06:22:30] HB t_sim=66 steps(atlas/bestla)=0/0 complete=0/0
+[06:25:05] HB t_sim=129 steps(atlas/bestla)=3/3 complete=0/0
+[06:27:56] HB t_sim=193 steps(atlas/bestla)=5/6 complete=0/0
+[06:30:33] HB t_sim=256 steps(atlas/bestla)=9/9 complete=0/0
+[06:33:07] HB t_sim=318 steps(atlas/bestla)=12/12 complete=0/0
+[06:33:51] explore-done cue: every planner DONE at t_sim=335 (t_rel=313 s) — releasing targets
+[06:33:51] started sched pid=2679  (log: /runs/cam_pilot/rep2/sched.log)
+[06:34:16] a planner left DONE after the cue at t_sim=344 — exploiting
+[06:35:50] HB t_sim=380 steps(atlas/bestla)=12/12 complete=0/0
+[06:38:23] HB t_sim=447 steps(atlas/bestla)=12/12 complete=0/0
+[06:38:23] WARNING no step progress for 120 sim-s
+[06:40:42] HB t_sim=509 steps(atlas/bestla)=12/12 complete=0/0
+[06:40:42] WARNING no step progress for 180 sim-s
+[06:43:05] HB t_sim=569 steps(atlas/bestla)=12/12 complete=0/0
+[06:43:05] WARNING no step progress for 240 sim-s
+[06:45:41] HB t_sim=632 steps(atlas/bestla)=12/12 complete=0/0
+[06:45:41] WARNING no step progress for 300 sim-s
+[06:48:18] HB t_sim=698 steps(atlas/bestla)=12/12 complete=0/0
+[06:48:18] WARNING no step progress for 360 sim-s
+[06:50:41] HB t_sim=763 steps(atlas/bestla)=12/12 complete=0/0
+[06:50:41] WARNING no step progress for 420 sim-s
+[06:53:03] HB t_sim=826 steps(atlas/bestla)=12/12 complete=0/0
+[06:53:03] WARNING no step progress for 480 sim-s
+[06:55:19] HB t_sim=886 steps(atlas/bestla)=12/12 complete=1/1
+[06:55:19] WARNING no step progress for 540 sim-s
+[06:57:39] HB t_sim=948 steps(atlas/bestla)=12/12 complete=1/1
+[06:57:39] WARNING no step progress for 600 sim-s
+[07:00:02] HB t_sim=1008 steps(atlas/bestla)=12/12 complete=1/1
+[07:00:02] WARNING no step progress for 660 sim-s
+[07:02:38] HB t_sim=1072 steps(atlas/bestla)=12/12 complete=1/1
+[07:02:38] WARNING no step progress for 720 sim-s
+[07:04:58] HB t_sim=1137 steps(atlas/bestla)=12/12 complete=1/1
+[07:04:58] WARNING no step progress for 780 sim-s
+[07:07:05] HB t_sim=1198 steps(atlas/bestla)=12/12 complete=1/1
+[07:07:05] WARNING no step progress for 840 sim-s
+[07:09:26] HB t_sim=1265 steps(atlas/bestla)=12/12 complete=1/1
+[07:09:26] WARNING no step progress for 900 sim-s
+[07:10:52] all planners DONE at t_sim=1306 — holding 30s for backlog drain
+[07:11:36] HB t_sim=1326 steps(atlas/bestla)=12/12 complete=1/1
+[07:11:36] WARNING no step progress for 960 sim-s
+[07:11:58] run complete: every planner DONE (makespan t_sim=1284 s)
+[07:11:58] run ended at t_sim=+1314s (all_done)
+[07:11:58] teardown: SIGINT to process groups in reverse order
+[07:11:59] stopped sched
+[07:12:00] stopped planner_bestla
+[07:12:01] stopped planner_atlas
+[07:12:11] stopped bag
+[07:12:12] stopped camcount
+[07:12:13] stopped targetviz
+[07:12:14] stopped nav_bestla
+[07:12:15] stopped nav_atlas
+[07:12:16] stopped rsp_bestla
+[07:12:17] stopped rsp_atlas
+[07:12:18] stopped tf_bestla
+[07:12:19] stopped tf_atlas
+[07:12:20] stopped sim
+[07:12:22] teardown complete — outputs in /runs/cam_pilot/rep2

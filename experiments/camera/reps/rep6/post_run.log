@@ -1,0 +1,18 @@
+[INFO] [1790159992.566581311] [rosbag2_compression]: Decompressing /tmp/bag/rosbag2_0.db3.zstd
+[INFO] [1790159993.285324172] [rosbag2_storage]: Opened database '/tmp/bag/rosbag2_0.db3' for READ_ONLY.
+rep6 {'atlas': 13693, 'bestla': 13693} t0 21.12 t_end 1387.1
+wrote /cam/rep6/cam/counts_geo.csv
+rep6 rows 26456
+rep6 rows 23553
+rep6 [rendered]  targets oaks [18, 58, 69]  cue 256.0  end 1370 s (t_rel)
+group  n    cue:res25  end:res25   cue:4/8/16cm  end:4/8/16cm
+T      18       0.39       1.00   0.00/0.50/0.67  1.00/1.00/1.00
+Cp     36       0.42       0.72   0.25/0.50/0.50  0.42/0.83/0.92
+Co     59       0.19       0.25   0.00/0.21/0.35  0.00/0.32/0.45
+C      95       0.27       0.43   0.09/0.32/0.41  0.16/0.52/0.62
+conditional gain (unresolved at cue -> resolved at end), thr 9/25/100 px:
+  T   1.00 (n=9)   1.00 (n=11)   0.60 (n=15)
+  Cp  0.78 (n=18)   0.52 (n=21)   0.21 (n=29)
+  Co  0.12 (n=34)   0.08 (n=48)   0.04 (n=56)
+  C   0.35 (n=52)   0.22 (n=69)   0.09 (n=85)
+zband rc=0
