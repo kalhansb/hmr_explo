@@ -301,8 +301,40 @@ def links(L):
 
 
 # --------------------------------------------------------------- figures --
-COL = {"mulcher": "#444444", "team": "#1f77b4"}
-LKCOL = ["#d62728", "#2ca02c", "#9467bd", "#ff7f0e"]
+# Every figure carries its own legend and a note defining its terms, so it
+# reads without the text around it.
+C_ALONE, C_TEAM, C_LINE = "#5f6660", "#1d6aad", "#a8620f"
+LAB_ALONE = "mulcher's own lidar only"
+LAB_TEAM = "mulcher and lookouts combined"
+SITE = {"L2": "Two-entry site", "L3": "Three-entry site"}
+SITE_SUB = {"L2": "one path through the site, a lookout at each end",
+            "L3": "three paths into the site, a lookout on each"}
+# the three rules the figures compare: (variant, label)
+RULES = [(MAIN, "Specified rule\n(3-D clustering)"), ("alarm_xy5", "Horizontal\nclustering"),
+         ("best", "Ideal detector\n(upper bound)")]
+FIGLABEL = {"alarm_m3": "specified rule, at least 3 points", "alarm_m5": "specified rule (at least 5 points)",
+            "alarm_m10": "specified rule, at least 10 points", "alarm_m20": "specified rule, at least 20 points",
+            "alarm_xy5": "horizontal clustering", "best": "ideal detector (upper bound)"}
+NOTE_RULES = ("Specified rule: an alarm needs at least 5 new lidar points, linked within 0.5 m of one another "
+              "in three dimensions, on at least 2 of the sensor's 16 laser rings, in two consecutive scans. "
+              "Horizontal clustering: the same rule, with the 0.5 m linkage measured in the horizontal plane. "
+              "Ideal detector: at least 5 lidar points on the pedestrian in one scan, counted from the "
+              "simulator's ground truth; no real detector can do better.")
+NOTE_LINE = ("Lookout boundary: the circle around the mulcher at the distance of the path's lookout "
+             "(28 m; 24 m for Lookout B of the two-entry site). ")
+
+
+def site(ln):
+    return SITE.get(ln, ln)
+
+
+def lk_label(L, n):
+    return "Lookout " + next(l["entry"] for l in L.cfg["lookouts"] if l["name"] == n)
+
+
+def note(fig, text, y=0.012, width=150):
+    import textwrap
+    fig.text(0.012, y, textwrap.fill(text, width), fontsize=8, ha="left", va="bottom", color="#333333")
 
 
 def trees_of(L):
@@ -311,32 +343,89 @@ def trees_of(L):
         return np.array([tuple(map(float, l.split(",")[:2])) for l in f if l.strip()])
 
 
+def along(P, s):
+    """The point at arc length s along polyline P (clipped to its ends)."""
+    seg = np.hypot(*np.diff(P, axis=0).T)
+    cum = np.concatenate([[0], np.cumsum(seg)])
+    s = min(max(s, 0.0), cum[-1])
+    i = min(np.searchsorted(cum, s, side="right") - 1, len(seg) - 1)
+    return P[i] + (P[i + 1] - P[i]) * (s - cum[i]) / seg[i]
+
+
+def label_spot(L, l, placed):
+    """Where a lookout's label box (about 35 x 8 m) sits: 16 m from the
+    lookout, in the direction that keeps the box clearest of the paths, the
+    radio links, the markers and the labels already placed."""
+    pts = [np.array(p["polyline"]) for p in L.cfg["paths"]]
+    for o in L.cfg["lookouts"]:
+        pts.append(np.linspace(0, 1, 30)[:, None] * np.array([[o["x"], o["y"]]]))
+    pts.append(np.array([e["post_cross"] for e in L.cfg["entries"]]))
+    pts.append(np.array(placed).reshape(-1, 2))
+    pts = np.concatenate(pts)
+    best, spot = -1.0, None
+    for a in np.radians(np.arange(0, 360, 15)):
+        c = np.array([l["x"] + 16 * math.cos(a), l["y"] + 16 * math.sin(a)])
+        if abs(c[0]) > 62 or abs(c[1]) > 72:
+            continue
+        d = np.min(np.hypot((pts[:, 0] - c[0]) / 18, (pts[:, 1] - c[1]) / 4.5))
+        if d > best:
+            best, spot = d, (float(c[0]), float(c[1]))
+    return spot
+
+
 def fig_layout(L, figdir):
     T = trees_of(L)
-    fig, ax = plt.subplots(figsize=(8, 8))
-    ax.scatter(T[:, 0], T[:, 1], s=6, c="#6b8e23", lw=0, label="oak trunks")
-    for p in L.cfg["paths"]:
-        P = np.array(p["polyline"])
-        ax.plot(P[:, 0], P[:, 1], c="#8b5a2b", lw=2)
+    W = L.cfg["walk"]
+    fig = plt.figure(figsize=(11.5, 8.6))
+    ax = fig.add_axes([0.07, 0.13, 0.56, 0.78])
+    ax.scatter(T[:, 0], T[:, 1], s=7, c="#7d9a5a", lw=0, label="tree trunk", zorder=1)
+    paths = {p["id"]: np.array(p["polyline"]) for p in L.cfg["paths"]}
+    for i, P in enumerate(paths.values()):
+        ax.plot(P[:, 0], P[:, 1], c="#dcc7a0", lw=5, solid_capstyle="butt", zorder=2,
+                label="cleared path, 3 m wide" if i == 0 else None)
     th = np.linspace(0, 2 * np.pi, 361)
-    for r, ls, lab in ((50, ":", "50 m"), (30, "-.", "30 m (radio horizon)")):
-        ax.plot(r * np.cos(th), r * np.sin(th), ls, c="k", lw=0.8)
-        ax.text(r * 0.707, r * 0.707, lab, fontsize=7)
+    ax.plot(50 * np.cos(th), 50 * np.sin(th), ":", c="#555555", lw=1, zorder=2)
+    ax.text(50 * math.cos(-0.9), 50 * math.sin(-0.9), " 50 m", fontsize=8, color="#555555", va="top")
+    ax.plot(30 * np.cos(th), 30 * np.sin(th), "--", c="#9fb8d3", lw=0.9, zorder=2,
+            label="30 m: range limit of the simulated radio")
+    for k, e in enumerate(L.cfg["entries"]):
+        P = paths[e["path"]]
+        s0 = e["s_post"] - e["dir"] * W["start_before_post"]
+        ss = np.linspace(s0, e["s_end"], 200)
+        Q = np.array([along(P, s) for s in ss])
+        ax.plot(Q[:, 0], Q[:, 1], c="#7a4a1e", lw=1.8, zorder=3,
+                label="walked section (trials end 10 m from the mulcher)" if k == 0 else None)
+        for f in (0.08, 0.55):
+            a, b = Q[int(f * len(Q))], Q[int(f * len(Q)) + 6]
+            ax.annotate("", b, a, arrowprops=dict(arrowstyle="-|>", color="#7a4a1e", lw=1.4, mutation_scale=14),
+                        zorder=3)
+        ax.plot(*Q[0], "|", c="#7a4a1e", ms=12, mew=2, zorder=3,
+                label=f"trial start, {W['start_before_post']:.0f} ± {W['jitter_along']:.0f} m before the boundary"
+                if k == 0 else None)
+        ax.plot(*e["post_cross"], "o", mfc="white", mec=C_LINE, mew=2, ms=8, zorder=5,
+                label="where the path crosses the lookout boundary" if k == 0 else None)
+    placed = []
     for i, n in enumerate(L.lk):
-        c = LKCOL[i % len(LKCOL)]
         l = next(x for x in L.cfg["lookouts"] if x["name"] == n)
-        ax.plot([0, l["x"]], [0, l["y"]], c="#17becf", lw=1.2, label="radio link" if i == 0 else None)
-        ax.plot(l["x"], l["y"], "^", c=c, ms=9, label=f"{n} post ({l['r']} m, {l['side']})")
-        ax.arrow(l["x"], l["y"], 4 * math.cos(l["yaw"]), 4 * math.sin(l["yaw"]), color=c, width=0.2)
-    for e in L.cfg["entries"]:
-        ax.plot(*e["post_cross"], "o", mfc="none", c="k", ms=7)
-    ax.plot(0, 0, "s", c="k", ms=8, label="mulcher")
+        ax.plot([0, l["x"]], [0, l["y"]], c=C_TEAM, lw=1, ls=(0, (4, 2)), zorder=4,
+                label="radio link, lookout to mulcher" if i == 0 else None)
+        ax.plot(l["x"], l["y"], "^", c=C_TEAM, mec="white", ms=11, zorder=6,
+                label="lookout robot, parked (lidar on board)" if i == 0 else None)
+        placed.append(label_spot(L, l, placed))
+        ax.annotate(f"{lk_label(L, n)}\n{l['r']:.0f} m from the mulcher", (l["x"], l["y"]),
+                    xytext=placed[-1], fontsize=8.5, ha="center", va="center",
+                    zorder=7, bbox=dict(boxstyle="round,pad=0.25", fc="white", ec=C_TEAM, lw=0.8),
+                    arrowprops=dict(arrowstyle="-", color=C_TEAM, lw=0.8, shrinkA=0, shrinkB=6))
+    ax.plot(0, 0, "s", c="k", ms=9, zorder=6, label="mulcher (lidar on the roof)")
     ax.set_aspect("equal")
     ax.set_xlim(-80, 80); ax.set_ylim(-80, 80)
-    ax.set_xlabel("x (m)"); ax.set_ylabel("y (m)")
-    ax.set_title(f"{L.name}: paths, lookout posts (posts.py), radio links; o = post line")
-    ax.legend(fontsize=7, loc="lower left")
-    fig.tight_layout()
+    ax.set_xlabel("east (m)"); ax.set_ylabel("north (m)")
+    ax.set_title(f"{site(L.name)}: {SITE_SUB.get(L.name, '')}", fontsize=12, loc="left")
+    ax.legend(loc="upper left", bbox_to_anchor=(1.03, 1.0), fontsize=8.5, frameon=False, borderaxespad=0)
+    note(fig, "Plan view of the simulated oak forest, centred on the mulcher. A pedestrian walks along a "
+         "path toward the mulcher; the mulcher's heading was varied in 30° steps between trials. Each "
+         "lookout is parked beside its path, at the spot that sees an approaching pedestrian earliest "
+         "while keeping a radio link to the mulcher. " + NOTE_LINE, width=160)
     fig.savefig(os.path.join(figdir, f"layout_{L.name}.png"), dpi=130)
     plt.close(fig)
 
@@ -345,7 +434,7 @@ def fig_calib(calib_dir, figdir):
     S = read(os.path.join(calib_dir, "calib_summary.csv"))
     if not S:
         return
-    fig, axes = plt.subplots(2, 2, figsize=(10, 7), sharex=True, sharey=True)
+    fig, axes = plt.subplots(2, 2, figsize=(10, 8), sharex=True, sharey=True)
     for i, mount in enumerate(("lk0", "mulcher")):
         for j, orient in enumerate(("toward", "across")):
             ax = axes[i, j]
@@ -354,76 +443,123 @@ def fig_calib(calib_dir, figdir):
             for v, st in (("alarm_m3", dict(c="#9ecae1", lw=1)), ("alarm_m5", dict(c="#08519c", lw=2.5)),
                           ("alarm_m10", dict(c="#6baed6", lw=1)), ("alarm_m20", dict(c="#c6dbef", lw=1)),
                           ("alarm_xy5", dict(c="#e6550d", lw=1.5)), ("best", dict(c="k", lw=1.5, ls="--"))):
-                ax.plot(d, [100 * float(r[v]) for r in ss], label=VLABEL[v], **st)
+                ax.plot(d, [100 * float(r[v]) for r in ss], label=FIGLABEL[v], **st)
             ax.axvspan(30, 38, color="#dddddd", alpha=0.5, lw=0)
-            ax.set_title(f"{'Husky (lookout)' if mount == 'lk0' else 'mulcher roof'}, person walking {orient}")
+            ax.set_title(f"{'lidar on a lookout robot' if mount == 'lk0' else 'lidar on the mulcher roof'}, "
+                         f"person {'walking toward it' if orient == 'toward' else 'crossing its view'}",
+                         fontsize=10)
             ax.grid(alpha=0.3)
             if i == 1:
                 ax.set_xlabel("horizontal distance from the lidar (m)")
             if j == 0:
-                ax.set_ylabel("% of scans the rule fires")
-    axes[0, 0].legend(fontsize=7)
-    fig.suptitle("Calibration, open ground (grey band: ~30-38 m real-world sanity range)")
-    fig.tight_layout()
+                ax.set_ylabel("% of scans with an alarm")
+    fig.legend(*axes[0, 0].get_legend_handles_labels(), loc="lower center", ncol=3, fontsize=8.5,
+               bbox_to_anchor=(0.5, 0.125), frameon=False)
+    fig.suptitle("Calibration on open ground: how often each rule detects a person at a given distance")
+    note(fig, "Grey band: 30-38 m, the reliable and maximum ranges expected of a real sensor of this type. "
+         "The specified rule stops at 12.5 m for both mounts: the laser rings are 2° apart, so beyond about "
+         "14 m no 0.5 m cluster can span the two rings the rule requires. " + NOTE_RULES, width=145)
+    fig.tight_layout(rect=(0, 0.21, 1, 0.97))
     fig.savefig(os.path.join(figdir, "calibration.png"), dpi=130)
     plt.close(fig)
 
 
-def fig_curves(res, figdir):
-    lays = list(res)
-    fig, axes = plt.subplots(1, len(lays), figsize=(6 * len(lays), 4.5), sharey=True, squeeze=False)
-    for ax, ln in zip(axes[0], lays):
-        det = res[ln]["detection"]
-        ax.plot(TS, [100 * p for p in det[f"mulcher/{MAIN}"]["curve"]], c=COL["mulcher"], lw=2,
-                label="control: mulcher alone")
-        ax.plot(TS, [100 * p for p in det[f"team/{MAIN}"]["curve"]], c=COL["team"], lw=2,
-                label="team: mulcher + lookouts")
-        ax.plot(TS, [100 * p for p in det["mulcher/best"]["curve"]], c=COL["mulcher"], lw=1.2, ls="--",
-                label="control, best case")
-        ax.plot(TS, [100 * p for p in det["team/best"]["curve"]], c=COL["team"], lw=1.2, ls="--",
-                label="team, best case")
-        ax.plot(TS, [100 * p for p in det["team/alarm_xy5"]["curve"]], c="#e6550d", lw=1, ls=":",
-                label="team, xy-linkage variant")
-        ax.set_title(f"{ln}: walkers caught at least T s before the post line")
-        ax.set_xlabel("T (s)"); ax.grid(alpha=0.3); ax.set_ylim(-2, 102)
-    axes[0][0].set_ylabel("% of walks")
-    # below the panels: inside, the legend covered the control's best-case line
-    fig.legend(*axes[0][0].get_legend_handles_labels(), loc="lower center", ncol=3, fontsize=8)
-    fig.tight_layout(rect=(0, 0.1, 1, 1))
+def fig_curves(res, layouts, figdir):
+    """Warning time on every trial, mulcher alone vs combined, one panel per
+    site and rule: the share of trials warned at least t s ahead."""
+    lays = list(layouts)
+    tt = np.arange(-18, 50.001, 0.05)
+    fig, axes = plt.subplots(len(lays), len(RULES), figsize=(13, 3.9 * len(lays) + 2.6), sharex=True,
+                             sharey=True, squeeze=False)
+    for i, ln in enumerate(lays):
+        L = layouts[ln]
+        n = len(L.main)
+        for j, (var, rlab) in enumerate(RULES):
+            ax = axes[i][j]
+            ax.axvspan(tt[0], 0, color="#ececec", lw=0, zorder=0)
+            ax.axvline(0, c=C_LINE, lw=1.5, zorder=1)
+            meds = []
+            for det, c, lab in (("mulcher", C_ALONE, LAB_ALONE), ("team", C_TEAM, LAB_TEAM)):
+                wv = [x["warn"] for x in (L.fd(w["walk"], det, var) for w in L.main) if x]
+                ax.plot(tt, [100 * sum(1 for x in wv if x >= t) / n for t in tt], c=c, lw=2.2, zorder=3,
+                        label=lab)
+                meds.append((med(wv), n - len(wv)))
+            (mm, mmiss), (tm, tmiss) = meds
+            ax.text(33, 97, f"Median warning time\n"
+                    f"  mulcher only: {mm:+.1f} s\n  combined: {tm:+.1f} s\n"
+                    f"Never detected by the\nmulcher alone: {mmiss} of {n}",
+                    fontsize=8, va="top", zorder=4,
+                    bbox=dict(boxstyle="round,pad=0.35", fc="white", ec="#bbbbbb", lw=0.7))
+            ax.set_xlim(tt[0], tt[-1]); ax.set_ylim(-2, 104)
+            ax.set_yticks(range(0, 101, 25))
+            ax.grid(alpha=0.3, zorder=0)
+            if i == 0:
+                ax.set_title(rlab.replace("\n", " "), fontsize=11)
+            if j == 0:
+                ax.set_ylabel(f"{site(ln)} ({n} trials)\n% of trials warned at least t s ahead", fontsize=9.5)
+            if i == len(lays) - 1:
+                ax.set_xlabel("warning time t (s)")
+    h, lab = axes[0][0].get_legend_handles_labels()
+    from matplotlib.patches import Patch
+    from matplotlib.lines import Line2D
+    h += [Line2D([], [], c=C_LINE, lw=1.5), Patch(fc="#ececec")]
+    lab += ["t = 0: pedestrian reaches the lookout boundary", "alarm only after the boundary was crossed"]
+    fig.legend(h, lab, loc="lower center", ncol=2, fontsize=9, frameon=False, bbox_to_anchor=(0.5, 0.115))
+    fig.suptitle("Warning time before the pedestrian reaches the lookout boundary, on the same trials",
+                 fontsize=13)
+    note(fig, "Each curve shows, for a warning time t, the percentage of trials in which the first alarm came at "
+         "least t seconds before the pedestrian (walking at 1.3 m/s) reached the lookout boundary; negative t "
+         "means after it. A curve that starts below 100 % on the left includes trials that were never detected. "
+         "Both detectors observed each trial at the same time. " + NOTE_LINE + NOTE_RULES, width=175)
+    fig.tight_layout(rect=(0, 0.16, 1, 0.97))
     fig.savefig(os.path.join(figdir, "warning_curve.png"), dpi=130)
     plt.close(fig)
 
 
 def fig_bars(res, layouts, figdir):
-    lays = list(res)
-    fig, axes = plt.subplots(1, len(lays), figsize=(6 * len(lays), 4.5), sharey=True, squeeze=False)
-    for ax, ln in zip(axes[0], lays):
-        L = layouts[ln]
-        dets = ["mulcher"] + L.lk + ["team"]
-        det = res[ln]["detection"]
-        x = np.arange(len(dets))
-        for off, key, lab, col in ((-0.2, "caught_before_post", "before the post line", "#08519c"),
-                                   (0.2, "caught_before50", "before 50 m", "#6baed6")):
-            r = [det[f"{d}/{MAIN}"][key] for d in dets]
-            p = np.array([100 * (q["p"] or 0) for q in r])
-            err = np.array([[100 * ((q["p"] or 0) - (q["lo"] or 0)) for q in r],
-                            [100 * ((q["hi"] or 0) - (q["p"] or 0)) for q in r]])
-            ax.bar(x + off, p, 0.4, yerr=err, capsize=3, color=col, label=f"main rule, {lab}")
-            b = [100 * (det[f"{d}/best"][key]["p"] or 0) for d in dets]
-            ax.plot(x + off, b, "_", c="k", ms=18, mew=2, label="best case (tick on each bar)" if off < 0 else None)
-        ax.set_xticks(x); ax.set_xticklabels(dets)
-        ax.set_title(f"{ln}: % of walks caught (Wilson 95 %, approximate)")
-        ax.grid(axis="y", alpha=0.3); ax.set_ylim(0, 105)
-    axes[0][0].set_ylabel("% of walks")
-    fig.legend(*axes[0][0].get_legend_handles_labels(), loc="lower center", ncol=4, fontsize=8)
-    fig.tight_layout(rect=(0, 0.08, 1, 1))
+    """Share of trials detected in time, mulcher alone vs combined, per rule."""
+    lays = list(layouts)
+    crit = (("caught_before_post", "% of trials detected before\nthe lookout boundary"),
+            ("caught_before50", "% of trials detected while\nmore than 50 m from the mulcher"))
+    fig, axes = plt.subplots(len(crit), len(lays), figsize=(12, 9.6), sharey=True, squeeze=False)
+    x = np.arange(len(RULES))
+    for i, (key, ylab) in enumerate(crit):
+        for j, ln in enumerate(lays):
+            ax = axes[i][j]
+            det = res[ln]["detection"]
+            for off, d, c, lab in ((-0.19, "mulcher", C_ALONE, LAB_ALONE), (0.19, "team", C_TEAM, LAB_TEAM)):
+                r = [det[f"{d}/{v}"][key] for v, _ in RULES]
+                p = np.array([100 * q["p"] for q in r])
+                lo, hi = np.array([100 * q["lo"] for q in r]), np.array([100 * q["hi"] for q in r])
+                ax.bar(x + off, p, 0.36, color=c, label=lab, zorder=2)
+                ax.errorbar(x + off, p, yerr=[p - lo, hi - p], fmt="none", ecolor="#222222", capsize=3, lw=1,
+                            zorder=3, label="95 % confidence interval" if off > 0 else None)
+                for xi, pi, hii, q in zip(x + off, p, hi, r):
+                    ax.text(xi, hii + 1.5, f"{pi:.0f} %\n{q['k']}/{q['n']}", ha="center", va="bottom",
+                            fontsize=8, zorder=4)
+            ax.set_xticks(x); ax.set_xticklabels([lab for _, lab in RULES], fontsize=9)
+            ax.set_ylim(0, 122); ax.set_yticks(range(0, 101, 20))
+            ax.grid(axis="y", alpha=0.3, zorder=0)
+            if i == 0:
+                ax.set_title(f"{site(ln)} ({res[ln]['detection']['team/' + MAIN]['n']} trials)", fontsize=11)
+            if j == 0:
+                ax.set_ylabel(ylab, fontsize=10)
+    h, lab = axes[0][0].get_legend_handles_labels()
+    fig.legend(h, lab, loc="lower center", ncol=3, fontsize=9, frameon=False, bbox_to_anchor=(0.5, 0.125))
+    fig.suptitle("Trials in which the pedestrian was detected in time: mulcher alone vs. mulcher with lookouts",
+                 fontsize=13)
+    note(fig, "Top row: the first alarm came before the pedestrian reached the lookout boundary. Bottom row: "
+         "the first alarm came while the pedestrian was still more than 50 m from the mulcher. Each label gives "
+         "the percentage and the number of trials. Error bars: Wilson 95 % intervals, approximate, since trials "
+         "share mulcher headings and entry paths. " + NOTE_LINE + NOTE_RULES, width=160)
+    fig.tight_layout(rect=(0, 0.165, 1, 0.97))
     fig.savefig(os.path.join(figdir, "catch_rates.png"), dpi=130)
     plt.close(fig)
 
 
 def fig_fa(layouts, fa_pts, figdir):
     lays = list(layouts)
-    fig, axes = plt.subplots(1, len(lays), figsize=(7 * len(lays), 7), squeeze=False)
+    fig, axes = plt.subplots(1, len(lays), figsize=(7 * len(lays), 7.6), squeeze=False)
     for ax, ln in zip(axes[0], lays):
         L = layouts[ln]
         T = trees_of(L)
@@ -433,21 +569,26 @@ def fig_fa(layouts, fa_pts, figdir):
             ax.plot(P[:, 0], P[:, 1], c="#d2b48c", lw=1.5)
         for i, lid in enumerate(["mulcher"] + L.lk):
             P = [(float(a["x"]), float(a["y"])) for a in fa_pts if a["layout"] == ln and a["lidar"] == lid]
-            c = "k" if lid == "mulcher" else LKCOL[(i - 1) % len(LKCOL)]
+            c = "k" if lid == "mulcher" else C_TEAM
+            name = "mulcher" if lid == "mulcher" else lk_label(L, lid)
             if lid != "mulcher":
                 l = next(x for x in L.cfg["lookouts"] if x["name"] == lid)
                 ax.plot(l["x"], l["y"], "^", c=c, ms=8)
             if P:
                 P = np.array(P)
-                ax.scatter(P[:, 0], P[:, 1], s=14, c=c, marker="o", label=f"{lid} ({len(P)} false-alarm scans)")
+                ax.scatter(P[:, 0], P[:, 1], s=14, c=c, marker="o", label=f"{name}: {len(P)} false-alarm scans")
             else:
-                ax.scatter([], [], c=c, label=f"{lid} (0)")
+                ax.scatter([], [], c=c, label=f"{name}: no false alarms")
         ax.plot(0, 0, "s", c="k", ms=7)
         lim = L.cfg["forest"]["radius"]
         ax.set_xlim(-lim, lim); ax.set_ylim(-lim, lim); ax.set_aspect("equal")
-        ax.set_title(f"{ln}: false alarms, main rule (object centroids)")
-        ax.legend(fontsize=7, loc="lower left")
-    fig.tight_layout()
+        ax.set_xlabel("east (m)"); ax.set_ylabel("north (m)")
+        ax.set_title(f"{site(ln)}: false alarms, specified rule")
+        ax.legend(fontsize=8, loc="lower left")
+    note(fig, "Location of every alarm more than 1 m from the pedestrian (a false alarm), over all trials, for "
+         "each lidar (triangles: lookouts; square: mulcher). Grey dots: tree trunks; brown lines: paths.",
+         width=150)
+    fig.tight_layout(rect=(0, 0.05, 1, 1))
     fig.savefig(os.path.join(figdir, "false_alarms.png"), dpi=130)
     plt.close(fig)
 
@@ -565,7 +706,7 @@ def main():
     for L in layouts.values():
         fig_layout(L, figdir)
     fig_calib(a.calib, figdir)
-    fig_curves(res, figdir)
+    fig_curves(res, layouts, figdir)
     fig_bars(res, layouts, figdir)
     fig_fa(layouts, fa_pts, figdir)
     md = results_md(res, layouts, calib)

@@ -32,7 +32,7 @@ Wilson 95 %, and approximate, because walks share headings and entries.
 McNemar exact, team vs mulcher alone, caught before the post line: p = 7e-15
 (L2), 4e-22 (L3).
 
-![Walkers caught at least T s before the post line](results/figures/warning_curve.png)
+![Warning time before the walker reaches the post line, mulcher alone vs mulcher with lookouts, per rule](results/figures/warning_curve.png)
 
 What the numbers mean:
 
@@ -65,7 +65,7 @@ What the numbers mean:
   step in 23 of 24 per layout, and within one step (0.5 m, the lidar noise)
   in all 24.
 
-![Walks caught, per detector](results/figures/catch_rates.png)
+![Walks caught before the post line and before 50 m, mulcher alone vs mulcher with lookouts, per rule](results/figures/catch_rates.png)
 
 ## Limits
 

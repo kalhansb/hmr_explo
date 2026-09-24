@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Simulation results: robots parked on the paths into a mulching site warn of walkers about 22 s earlier than the mulcher's own lidar.">
-<title>Mulcher Path Lookouts</title>
+<meta name="description" content="Simulation study: lookout robots parked on the paths into a forestry mulching site detect approaching pedestrians about 22 s earlier than the mulcher's own lidar.">
+<title>Perceptive Exploitation for Support</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
@@ -58,7 +58,6 @@
 
 * { box-sizing: border-box; }
 body {
-  margin: 0;
   background: var(--ground);
   color: var(--ink);
   font-family: var(--body);
@@ -91,13 +90,13 @@ h3 { font-size: 1.25rem; margin-top: 28px; margin-bottom: 8px; }
 p { margin: 0 0 14px; }
 a { color: var(--team); text-underline-offset: 2px; }
 a:focus-visible { outline: 2px solid var(--team); outline-offset: 2px; }
-.eyebrow {
-  font-family: var(--mono);
-  font-size: 0.75rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
-  margin-bottom: 12px;
+.subtitle {
+  font-family: var(--display);
+  font-weight: 500;
+  font-size: clamp(1.4rem, 3.4vw, 1.9rem);
+  line-height: 1.2;
+  color: var(--post);
+  margin: 8px 0 0;
 }
 .lede { font-size: 1.2rem; line-height: 1.5; margin-top: 18px; max-width: 60ch; }
 .answer { font-size: 1.08rem; }
@@ -200,152 +199,156 @@ footer { margin-top: 56px; padding-top: 14px; border-top: 1px solid var(--rule);
 <body>
 <main class="page">
   <header>
-    <div class="eyebrow">Simulation study · Ignition Fortress · 24 Sep 2026</div>
-    <h1>Mulcher Path Lookouts</h1>
-    <p class="lede">Do robots parked on the paths into a mulching site warn the mulcher of a walker earlier than the mulcher's own lidar?</p>
-    <p class="prose">A forestry mulcher carries a lidar on its roof, but its cutting head blocks most of the view ahead, and a walker is only picked out at close range. The idea tested here is to park small robots (Huskies with the same lidar) as lookouts on the paths that lead into the site, and let them raise the alarm. Each simulated walk runs once, and every detector watches it at the same time. So the mulcher alone and the mulcher with its lookouts are compared on exactly the same walks.</p>
+    <h1>Multi-Robot Active Cooperative Perception</h1>
+    <p class="subtitle">Perceptive exploitation for support</p>
+    <p class="lede">Can robots parked as lookouts on the paths into a forestry mulching site warn the mulcher of an approaching pedestrian earlier than the mulcher's own lidar?</p>
+    <p class="prose">A forestry mulcher carries a lidar on its roof, but its cutting head obstructs much of the forward view, and the detection rule identifies a pedestrian only at short range. This study tests whether small ground robots, equipped with the same lidar and parked as lookouts on the paths that lead into the site, give earlier warning. All sensors observed every simulated trial at the same time, so the mulcher alone and the mulcher with its lookouts are compared on identical trials.</p>
   </header>
 
   <h2>The experiment</h2>
+  <dl class="setup prose">
+    <dt>Study type</dt>
+    <dd>Simulation study</dd>
+    <dt>Simulator</dt>
+    <dd>Ignition Gazebo, Fortress release</dd>
+    <dt>Trials run</dt>
+    <dd>24 September 2026</dd>
+    <dt>Trials</dt>
+    <dd>120 (48 in the two-entry site, 72 in the three-entry site), and 48 control trials</dd>
+  </dl>
 
   <h3>The site</h3>
-  <p class="prose">The site is an oak forest, 160 m in radius, at flatforest v2 density, on flat ground. The mulcher is in the middle. Paths 3 m wide are cleared through the trees. The mulcher's body and cutting head are static boxes to the real machine's dimensions, with a VLP-16 lidar on the roof at 2.1 m. The head blocks 15 of the lidar's 16 channels over ±30° ahead.</p>
-  <p class="prose">There are two layouts. <strong>L2</strong> has one path through the site, so two entries, with a lookout on each. <strong>L3</strong> has three paths and three lookouts.</p>
+  <p class="prose">The site is a simulated oak forest of 160 m radius on flat ground, with 83–85 trees per hectare spaced at least 6.5 m apart. The mulcher stands at the centre, and paths 3 m wide are cleared through the trees. The mulcher's body and cutting head are modelled as static boxes with the dimensions of the real machine, and a Velodyne VLP-16 lidar is mounted on its roof at a height of 2.1 m. Within ±30° of the machine's forward direction, the cutting head obstructs 15 of the lidar's 16 laser channels.</p>
+  <p class="prose">Two site layouts were tested. In the <strong>two-entry site</strong>, a single path crosses the site, so pedestrians can approach from either end; there is a lookout at each entry. In the <strong>three-entry site</strong>, three paths lead to the mulcher, each with its own lookout.</p>
   <div class="pair">
     <figure>
-      <div class="plate"><img src="figures/layout_L2.png" alt="Map of layout L2: one path through the mulcher site, oak trunks around it, two lookout posts at 28 m and 24 m with radio links to the mulcher, and circles at 30 m and 50 m."></div>
-      <figcaption>L2: one path, with posts at 28 m (lk2a) and 24 m (lk2b).</figcaption>
+      <div class="plate"><img src="figures/layout_L2.png" alt="Plan view of the two-entry site: one path crosses the forest past the mulcher at the centre. Lookout A is parked beside the path 28 m west of the mulcher and Lookout B 24 m to the east, each joined to the mulcher by a radio link. The walked sections of the path, with arrows toward the mulcher, start about 70 m out and end 10 m from the mulcher; circles mark 30 m (radio range limit) and 50 m."></div>
+      <figcaption><strong>Figure 1.</strong> Two-entry site, plan view. One path crosses the site, and pedestrians approach the mulcher from either end. Lookout A is parked 28 m and Lookout B 24 m from the mulcher, each beside its path and linked to the mulcher by radio. Open circles mark where each path meets its lookout boundary.</figcaption>
     </figure>
     <figure>
-      <div class="plate"><img src="figures/layout_L3.png" alt="Map of layout L3: three paths into the mulcher site, three lookout posts at 28 m with radio links to the mulcher, and circles at 30 m and 50 m."></div>
-      <figcaption>L3: three paths, with a post at 28 m on each.</figcaption>
+      <div class="plate"><img src="figures/layout_L3.png" alt="Plan view of the three-entry site: three paths lead through the forest to the mulcher at the centre, from the north, the south-west and the south-east. A lookout is parked beside each path 28 m from the mulcher and joined to it by a radio link. Circles mark 30 m (radio range limit) and 50 m."></div>
+      <figcaption><strong>Figure 2.</strong> Three-entry site, plan view. Three paths lead to the mulcher, and a lookout is parked beside each, 28 m from the mulcher and linked to it by radio. Open circles mark where each path meets its lookout boundary.</figcaption>
     </figure>
   </div>
 
-  <h3>Where the lookouts stand</h3>
-  <p class="prose">Each lookout's post is calculated from the map (<code>posts.py</code>). The post must be beside its path and 12–28 m from the mulcher, with no trunk within 3.7 m. It must also keep a radio link to the mulcher, with 28 m as the limit under the comms model. Of those spots, the chosen one sees a walker furthest from the mulcher: within 12.5 m of the post, with no trunk in the way.</p>
+  <h3>Placement of the lookouts</h3>
+  <p class="prose">Each lookout's position was computed from the map of the site before any trial. A candidate position lies beside its path, 12–28 m from the mulcher, with no tree trunk within 3.7 m, and must keep a radio link to the mulcher. The simulated radio has a range limit of 30 m, which caps the distance at 28 m. Among the candidates, the chosen position is the one from which an approaching pedestrian is first seen farthest from the mulcher, that is, within 12.5 m of the lookout and with no trunk blocking the line of sight.</p>
   <ul class="prose">
-    <li>Most posts come out at 28 m.</li>
-    <li>lk2b sits at 24 m, because every free spot further out along its path has a trunk too close.</li>
+    <li>Four of the five lookouts are 28 m from the mulcher.</li>
+    <li>Lookout B of the two-entry site is 24 m from the mulcher, because every free position farther out along its path has a trunk within 3.7 m.</li>
   </ul>
-  <p class="prose">Every lookout has the same VLP-16 lidar (0.5–100 m, 2 cm noise, 1800 × 16 points, 10 Hz) and stays parked, still, on its post.</p>
+  <p class="prose">Each lookout is a Clearpath Husky ground robot carrying the same VLP-16 lidar as the mulcher (range 0.5–100 m, 2 cm range noise, 1800 × 16 points per scan, 10 scans per second). It stays parked, motionless, at its position.</p>
 
-  <h3>The walks</h3>
-  <p class="prose">Each walk moves a person (a 1.74 m mid-stride mesh) along a path toward the mulcher, in 0.5 m steps at walking pace (1.3 m/s).</p>
+  <h3>The trials</h3>
+  <p class="prose">In each trial, a model pedestrian (a 1.74 m human figure in mid-stride) walks along a path toward the mulcher in 0.5 m steps at a walking pace of 1.3 m/s.</p>
   <ul class="prose">
-    <li><strong>Start and end:</strong> a walk starts 45 m (±5 m) before the post line and ends 10 m from the mulcher.</li>
-    <li><strong>Combinations:</strong> per layout, 12 mulcher headings (0–330°) × each entry × 2 repeats. That gives 48 walks for L2 and 72 for L3.</li>
-    <li><strong>Stepping:</strong> the world is paused. After each move it advances one lidar period, and every lidar's first scan taken after the move is used.</li>
+    <li><strong>Start and end:</strong> each trial starts 45 m (±5 m) before the lookout boundary, defined below, and ends 10 m from the mulcher.</li>
+    <li><strong>Design:</strong> for each site, 12 mulcher headings (0° to 330° in 30° steps) × each entry × 2 repetitions. This gives 48 trials for the two-entry site and 72 for the three-entry site.</li>
+    <li><strong>Procedure:</strong> the simulation is paused between steps. After each step it advances by one lidar period (0.1 s), and each lidar's first scan recorded after the step is used.</li>
   </ul>
 
-  <h3>Detection and what counts</h3>
-  <p class="prose">The detection rule is the brief's rule as written:</p>
+  <h3>Detection and outcome measures</h3>
+  <p class="prose">The detection rule was specified before the experiment:</p>
   <ul class="prose">
-    <li><strong>Background:</strong> the median of 10 scans.</li>
-    <li><strong>New return:</strong> at least 0.3 m closer than the background.</li>
-    <li><strong>Clusters:</strong> new returns are linked at 0.5 m.</li>
-    <li><strong>Alarm:</strong> at least 5 points on at least 2 rings, persisting for 2 steps within 1 m.</li>
+    <li><strong>Background:</strong> the median range of each laser beam over 10 scans without a pedestrian.</li>
+    <li><strong>New return:</strong> a return at least 0.3 m closer than the background.</li>
+    <li><strong>Clusters:</strong> new returns within 0.5 m of one another, in three dimensions, are grouped together.</li>
+    <li><strong>Alarm:</strong> a cluster of at least 5 points on at least 2 laser rings, present in two consecutive scans with centroids within 1 m of each other.</li>
   </ul>
-  <p class="prose">An alarm is a hit if it lies within 1 m of the walker. The <span class="team">team</span>'s alarm is the earliest of the mulcher's and the lookouts'. A lookout's alarm counts at once, because every post is linked by radio.</p>
+  <p class="prose">An alarm is a correct detection if its centroid lies within 1 m of the pedestrian; any other alarm is a false alarm. The <span class="team">combined system</span> raises an alarm as soon as the mulcher or any lookout does. A lookout's alarm reaches the mulcher at once, because every lookout is within radio range.</p>
   <dl class="setup prose">
-    <dt>Post line</dt>
-    <dd>Where the path crosses its lookout's distance from the mulcher (28 m, or 24 m for lk2b's path). The main question: is the walker caught before it?</dd>
+    <dt>Lookout boundary</dt>
+    <dd>The circle around the mulcher at the distance of the path's lookout: 28 m, or 24 m on the path of Lookout B in the two-entry site. The primary outcome is whether the pedestrian is detected before reaching it.</dd>
     <dt>50 m</dt>
-    <dd>A second, further catch line.</dd>
-    <dt>Warning</dt>
-    <dd>The time from the first alarm to the walker crossing the post line. A negative warning means the alarm came after they crossed.</dd>
-    <dt>Variants</dt>
-    <dd>Declared before any walk, to show how much the rule itself matters:
+    <dd>A second, more demanding outcome: detection while the pedestrian is still more than 50 m from the mulcher.</dd>
+    <dt>Warning time</dt>
+    <dd>The time from the first alarm until the pedestrian reaches the lookout boundary. A negative value means that the alarm came after the pedestrian had crossed it.</dd>
+    <dt>Alternative rules</dt>
+    <dd>Declared before any trial, to show how much the result depends on the rule itself:
       <ul>
-        <li><code>xy5</code>: the same rule, with the linkage done in the horizontal plane;</li>
-        <li>a best case: at least 5 returns in the person's box, taken from ground truth.</li>
+        <li><em>horizontal clustering</em>: the same rule, with the 0.5 m grouping measured in the horizontal plane only;</li>
+        <li><em>ideal detector</em>: at least 5 lidar points on the pedestrian in a single scan, counted from the simulator's ground truth. No real rule can do better.</li>
       </ul>
     </dd>
-    <dt>Check walks</dt>
-    <dd>12 walks per layout, repeated without the lookouts: once with them moved 1 km away, and once in a sim where they were never spawned. These show whether having the lookouts in the world changes what the mulcher itself sees.</dd>
+    <dt>Control trials</dt>
+    <dd>Twelve trials per site were repeated without lookouts: once with the lookouts moved 1 km away, and once in a simulation in which they were never created. These test whether the presence of the lookouts changes what the mulcher itself detects.</dd>
   </dl>
 
   <h2>Results</h2>
-  <p class="answer prose"><strong>The lookouts give a much earlier warning.</strong> With the rule as written, the <span class="mulch">mulcher alone</span> first raised the alarm when the walker was about 14 m away, always after they had crossed the post line. With the <span class="team">lookouts</span>, every walker was caught before the post line, about 40 m out. That is about <strong>22 s</strong> earlier on the same walk, and never less than 20 s.</p>
+  <p class="answer prose"><strong>The lookouts give substantially earlier warning.</strong> Under the specified rule, the <span class="mulch">mulcher alone</span> first raised an alarm when the pedestrian was about 14 m away, in every case after the pedestrian had crossed the lookout boundary. With the <span class="team">lookouts</span>, every pedestrian was detected before the boundary, about 40 m from the mulcher. On the same trial, the first alarm came a median of about <strong>22 s</strong> earlier, and never less than 20 s earlier.</p>
 
-  <section class="figs" aria-label="Headline results">
+  <section class="figs" aria-label="Principal results">
     <div class="fig">
       <div class="num">0 / 120</div>
-      <div class="lab">walkers caught before the post line by the mulcher alone</div>
+      <div class="lab">trials detected before the lookout boundary by the mulcher alone</div>
     </div>
     <div class="fig is-team">
       <div class="num">120 / 120</div>
-      <div class="lab">caught before the post line with the lookouts</div>
+      <div class="lab">trials detected before the lookout boundary with the lookouts</div>
     </div>
     <div class="fig is-gain">
       <div class="num">≈ 22 s</div>
-      <div class="lab">earlier first alarm, same walk (median; least 20 s)</div>
+      <div class="lab">earlier first alarm on the same trial (median; minimum 20 s)</div>
     </div>
     <div class="fig">
       <div class="num">0</div>
-      <div class="lab">false-alarm scans, any lidar, in either layout</div>
+      <div class="lab">false alarms from any lidar in either site</div>
     </div>
   </section>
 
   <div class="table-wrap">
     <table>
       <thead>
-        <tr><th scope="col">Main rule</th><th scope="col">L2 · 2 lookouts · 48 walks</th><th scope="col">L3 · 3 lookouts · 72 walks</th></tr>
+        <tr><th scope="col">Specified rule</th><th scope="col">Two-entry site · 2 lookouts · 48 trials</th><th scope="col">Three-entry site · 3 lookouts · 72 trials</th></tr>
       </thead>
       <tbody>
-        <tr><td>Caught before the post line, mulcher alone</td><td class="n">0 / 48 (0–7 %)</td><td class="n">0 / 72 (0–5 %)</td></tr>
-        <tr><td>Caught before the post line, mulcher + lookouts</td><td class="n">48 / 48 (93–100 %)</td><td class="n">72 / 72 (95–100 %)</td></tr>
-        <tr><td>Median warning, mulcher alone / team</td><td class="n">−12.5 s / 11.0 s</td><td class="n">−11.2 s / 10.8 s</td></tr>
-        <tr><td>Team's first alarm vs the mulcher's, same walk (median; least)</td><td class="n">23.1 s earlier; 20.0 s</td><td class="n">21.9 s earlier; 21.5 s</td></tr>
-        <tr><td>Walker's distance from the mulcher at the first alarm (median), mulcher / team</td><td class="n">13.9 m / 39.4 m</td><td class="n">13.7 m / 41.7 m</td></tr>
-        <tr><td>Walks the mulcher alone never caught (each walk ends 10 m out)</td><td class="n">4</td><td class="n">18</td></tr>
-        <tr><td>Caught before 50 m, anyone</td><td class="n">0</td><td class="n">0</td></tr>
-        <tr><td>McNemar exact, team vs mulcher alone, before the post line</td><td class="n">p = 7.1 × 10⁻¹⁵</td><td class="n">p = 4.2 × 10⁻²²</td></tr>
+        <tr><td>Detected before the lookout boundary, mulcher alone</td><td class="n">0 / 48 (0–7 %)</td><td class="n">0 / 72 (0–5 %)</td></tr>
+        <tr><td>Detected before the lookout boundary, mulcher and lookouts</td><td class="n">48 / 48 (93–100 %)</td><td class="n">72 / 72 (95–100 %)</td></tr>
+        <tr><td>Median warning time, mulcher alone / with lookouts</td><td class="n">−12.5 s / +11.0 s</td><td class="n">−11.2 s / +10.8 s</td></tr>
+        <tr><td>How much earlier the first alarm came with the lookouts, same trial (median; minimum)</td><td class="n">23.1 s; 20.0 s</td><td class="n">21.9 s; 21.5 s</td></tr>
+        <tr><td>Pedestrian's distance from the mulcher at the first alarm (median), mulcher alone / with lookouts</td><td class="n">13.9 m / 39.4 m</td><td class="n">13.7 m / 41.7 m</td></tr>
+        <tr><td>Trials never detected by the mulcher alone (each trial ends 10 m from the mulcher)</td><td class="n">4</td><td class="n">18</td></tr>
+        <tr><td>Detected more than 50 m from the mulcher, by any sensor</td><td class="n">0</td><td class="n">0</td></tr>
+        <tr><td>False alarms, per lidar</td><td class="n">0 in 6 596 scans</td><td class="n">0 in 9 085 scans</td></tr>
+        <tr><td>Exact McNemar test, with vs. without lookouts, detection before the boundary</td><td class="n">p = 7.1 × 10⁻¹⁵</td><td class="n">p = 4.2 × 10⁻²²</td></tr>
       </tbody>
     </table>
   </div>
-  <p class="note">Intervals are Wilson 95 % and only approximate, because walks share mulcher headings and entries and so aren't independent.</p>
+  <p class="note">Ranges in brackets are 95 % Wilson score intervals. They are approximate, because trials share mulcher headings and entry paths and are therefore not independent. The same-trial comparison uses the trials in which both the mulcher alone and the combined system raised an alarm (44 of 48 and 54 of 72).</p>
 
   <figure>
-    <div class="plate"><img src="figures/warning_curve.png" alt="Two panels, L2 and L3: percentage of walkers caught at least T seconds before the post line, for T from 0 to 30 s. The mulcher alone under the main rule stays at 0 %. The team stays at 100 % until about 10 s, then drops to 0 by 12 s. The best-case and xy-linkage team curves stay at 100 % until about 25 s."></div>
-    <figcaption>Warning-time curve: the share of walkers caught at least T s before the post line. Solid lines use the main rule; dashed lines use the best case and the dotted line the xy-linkage variant. The team's main-rule curve drops at about 11 s because each lookout sees about 14 m past its post.</figcaption>
+    <div class="plate"><img src="figures/catch_rates.png" alt="Grouped bar chart in four panels. Columns: two-entry site (48 trials) and three-entry site (72 trials). Top row, detection before the lookout boundary: the mulcher alone reaches 0 % under the specified rule, 62 % and 54 % with horizontal clustering, and 79 % and 76 % with the ideal detector; the mulcher with lookouts reaches 100 % under all three rules. Bottom row, detection more than 50 m from the mulcher: the mulcher alone reaches 0 % under every rule; the mulcher with lookouts reaches 0 % under the specified rule and 100 % under the other two."></div>
+    <figcaption><strong>Figure 3.</strong> Percentage of trials in which the pedestrian was detected in time, by the mulcher's own lidar alone (grey) and by the mulcher combined with the lookouts (blue), under the specified rule and the two alternative rules. Top row: detection before the pedestrian reached the lookout boundary. Bottom row: detection while the pedestrian was more than 50 m from the mulcher. Labels give the percentage and the number of trials; error bars are approximate 95 % Wilson intervals.</figcaption>
   </figure>
 
-  <h3>What the numbers mean</h3>
+  <figure>
+    <div class="plate"><img src="figures/warning_curve.png" alt="Six panels of curves: rows for the two sites, columns for the specified rule, horizontal clustering and the ideal detector. Each panel shows the percentage of trials warned at least t seconds before the lookout boundary, for t from −18 to 50 s. Under the specified rule the mulcher-alone curve falls to zero before t = −8 s, while the combined curve stays at 100 % until about 10 s. Under the other two rules the mulcher-alone curve falls to zero by about 10 s, while the combined curve stays at 100 % until about 25 s."></div>
+    <figcaption><strong>Figure 4.</strong> Warning times over all trials, for the mulcher alone (grey) and the mulcher with lookouts (blue). Each curve gives the percentage of trials in which the first alarm came at least <em>t</em> seconds before the pedestrian reached the lookout boundary; negative <em>t</em> means after it. Under the specified rule (left column), the combined curve falls at about 11 s: the rule detects a pedestrian only within about 14 m of a lidar, so a lookout 24–28 m from the mulcher first detects the pedestrian about 14 m beyond its own position.</figcaption>
+  </figure>
+
+  <h3>Interpretation</h3>
   <ul class="points prose">
-    <li><strong>The mulcher's 0 % is partly built in.</strong> The main rule links returns in 3D at 0.5 m. The VLP-16's rings are 2° apart, so beyond about 14.3 m no cluster spans the two rings the rule needs. It can't fire past about 14 m from any lidar (open-ground calibration: 12.5 m for every mount), and every post line is further out than that. The same limit is why nobody is caught before 50 m: a lookout 28 m out sees a walker at about 42 m. The paired time gain is the fairer measure.</li>
-    <li><strong>With looser rules the mulcher does better, and the lookouts better still.</strong> Under <code>xy5</code> or the best case, the mulcher alone catches 54–79 % before the post line, with a median warning of 1–8 s. The team catches all of them before 50 m too, with 27–29 s of warning.</li>
-    <li><strong>The mulcher's blind side.</strong> Every walk the mulcher alone never caught came in within 45° of its front, where the cutting head blocks its lidar. In L3 it missed all 18 walks that came in within 39° of the front. The lookouts caught every one of them.</li>
-    <li><strong>Each lookout covers one entry.</strong> On every walk, the lookout on the walker's own path raised the first alarm (24 walks each). Without any one lookout, L3 catches only 67 % before the post line.</li>
-    <li><strong>The lookouts don't change what the mulcher sees.</strong> In the check walks, the mulcher's first alarm fell on the same 0.5 m step as in the matching walk in 23 of 24 walks per layout, and within one step in all 24.</li>
+    <li><strong>The mulcher's 0 % is partly a property of the rule.</strong> The specified rule groups returns within 0.5 m in three dimensions, and the lidar's laser rings are 2° apart. Beyond about 14.3 m, returns on neighbouring rings are more than 0.5 m apart, so no cluster can span the two rings that the rule requires. The rule therefore cannot fire beyond about 14 m from any lidar (12.5 m in an open-ground calibration, for both mountings), and every lookout boundary lies farther out. The same limit explains why no sensor detected a pedestrian beyond 50 m: a lookout 28 m from the mulcher first detects a pedestrian at about 42 m. The same-trial advance of the first alarm is therefore the fairer comparison.</li>
+    <li><strong>Under less restrictive rules the mulcher performs better, and the lookouts better still.</strong> With horizontal clustering or the ideal detector, the mulcher alone detects 54–79 % of pedestrians before the boundary, with a median warning time of 1–8 s. With the lookouts, every pedestrian is detected before the boundary and beyond 50 m, with a median warning time of 27–29 s.</li>
+    <li><strong>The lookouts cover the mulcher's blind sector.</strong> Every trial that the mulcher alone never detected approached within 45° of its forward direction, where the cutting head obstructs its lidar (bearing taken with the pedestrian 20 m away). In the three-entry site, the mulcher missed all 18 trials that approached within 39° of its forward direction; the lookouts detected every one of them.</li>
+    <li><strong>Each lookout covers one entry.</strong> In every trial, the first alarm came from the lookout on the pedestrian's own path (24 trials per lookout). With any one lookout removed, the three-entry site detects only 67 % of pedestrians before the boundary.</li>
+    <li><strong>The lookouts do not alter what the mulcher detects.</strong> In the control trials, the mulcher's first alarm occurred at the same 0.5 m step as in the matching trial in 23 of 24 trials per site, and within one step in all 24.</li>
   </ul>
 
-  <figure>
-    <div class="plate"><img src="figures/catch_rates.png" alt="Bar charts for L2 and L3: percentage of walks caught before the post line by each detector. Mulcher 0 %, each lookout 50 % in L2 and 33 % in L3, team 100 %. Black ticks mark the best case: mulcher about 79 % in L2 and 76 % in L3."></div>
-    <figcaption>Walks caught by each detector (main rule, with Wilson 95 % bars). Each lookout catches the walkers on its own entry: half the walks in L2 and a third in L3. Black ticks show the best case.</figcaption>
-  </figure>
-
-  <h2>Limits</h2>
+  <h2>Limitations</h2>
   <ul class="points prose">
-    <li><strong>The lookouts watch the paths, and every walker used one.</strong> A walker coming through the trees away from a path wouldn't pass a lookout. That wasn't tested.</li>
-    <li><strong>The posts depend on the radio model.</strong> Posts are at most 28 m out because the comms model has a hard 30 m horizon and 70 dB of loss per trunk. These are stress settings, not measured radio: a real link might allow posts further out (more warning) or fail to reach these. Every post was linked in the model, and the radio model was not changed.</li>
-    <li><strong>The lookouts are parked on known posts.</strong> The posts are calculated from a perfect map (the world's trunk list). A real mission would explore first and drive out, which is out of scope. The lookouts are static models, because a parked Husky rocks on its wheels in this simulator (DART with bullet contact), and each rock looked like a person to the detector.</li>
-    <li><strong>The walker and forest are idealised.</strong> One mid-stride person mesh moves along the path at a steady pace. The forest is trunks only, with no branches, canopy or undergrowth, on flat ground. Lidar noise is Gaussian 2 cm, and lidar poses come from ground truth.</li>
-    <li><strong>Two layouts, one forest each.</strong> Read the intervals as rough.</li>
+    <li><strong>Only approaches along the paths were tested.</strong> The lookouts watch the paths, and every simulated pedestrian used one. A pedestrian approaching through the trees, away from any path, would not pass a lookout; this case was not tested.</li>
+    <li><strong>The lookout positions depend on the radio model.</strong> Lookouts are at most 28 m from the mulcher because the simulated radio has a hard range limit of 30 m and a loss of 70 dB per intervening trunk. These are deliberately conservative settings, not measured radio performance: a real link might permit positions farther out, and so more warning, or fail to reach these. Every lookout position had a radio link in the model, and the radio model was not changed.</li>
+    <li><strong>The lookouts were parked at precomputed positions.</strong> The positions were computed from a perfect map of the site, the list of tree trunks. In a real mission the robots would first explore the site and then drive to their positions, which was outside the scope of this study. The lookouts were modelled as static bodies, because a parked Husky rocked on its wheels in this simulator and each rocking motion was detected as a person.</li>
+    <li><strong>The pedestrian and the forest are idealised.</strong> A single mid-stride human model moves along the path at a constant pace. The forest consists of trunks only, without branches, canopy or undergrowth, on flat ground. Lidar noise is Gaussian with a standard deviation of 2 cm, and lidar poses are exact.</li>
+    <li><strong>Two layouts, with one forest each.</strong> The confidence intervals should be read as indicative only.</li>
   </ul>
 
   <h2>Code and data</h2>
-  <p class="prose">Everything is on branch <code>lookout_experiment</code> of <a href="https://github.com/kalhansb/hmr_explo/tree/lookout_experiment/lookout">kalhansb/hmr_explo</a>, under <code>lookout/</code>:</p>
+  <p class="prose">The code and data are on branch <code>lookout_experiment</code> of <a href="https://github.com/kalhansb/hmr_explo/tree/lookout_experiment/lookout">kalhansb/hmr_explo</a>, under <code>lookout/</code>:</p>
   <ul class="prose">
-    <li>the scripts, the plan with its full status log and deviations (<code>PLAN.md</code>), and the write-up (<code>README.md</code>);</li>
     <li>the analysis output (<code>results/</code>);</li>
     <li>the logs the analysis reads (<code>data/</code>).</li>
-  </ul>
-  <p class="prose">Submodule changes on the same branch:</p>
-  <ul class="prose">
-    <li>explo_planner: a lookout exploit mode and a 25 m lidar crop for mapping;</li>
-    <li>hmr_sim: the VLP-16 datasheet range and noise;</li>
-    <li>simple_nav_3d: launch arguments for the lidar topic and the map size.</li>
   </ul>
 <pre><code>LOOKOUT_GPU=1 lookout/docker_run.sh lk_L2 42 /lookout/run_layout.sh L2 /runs/lookout/L2_full full
 LOOKOUT_GPU=1 lookout/docker_run.sh lk_L3 43 /lookout/run_layout.sh L3 /runs/lookout/L3_full full
