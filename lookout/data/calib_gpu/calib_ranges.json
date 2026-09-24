@@ -1,0 +1,178 @@
+{
+ "lk0/toward/alarm_m3": {
+  "reliable_m": 12.5,
+  "max_m": 12.5
+ },
+ "lk0/toward/alarm_m5": {
+  "reliable_m": 12.5,
+  "max_m": 12.5
+ },
+ "lk0/toward/alarm_m10": {
+  "reliable_m": 12.5,
+  "max_m": 12.5
+ },
+ "lk0/toward/alarm_m20": {
+  "reliable_m": 12.5,
+  "max_m": 12.5
+ },
+ "lk0/toward/alarm_xy5": {
+  "reliable_m": 32.5,
+  "max_m": 32.5
+ },
+ "lk0/toward/cand_m3": {
+  "reliable_m": 12.5,
+  "max_m": 12.5
+ },
+ "lk0/toward/cand_m5": {
+  "reliable_m": 12.5,
+  "max_m": 12.5
+ },
+ "lk0/toward/cand_m10": {
+  "reliable_m": 12.5,
+  "max_m": 12.5
+ },
+ "lk0/toward/cand_m20": {
+  "reliable_m": 12.5,
+  "max_m": 12.5
+ },
+ "lk0/toward/cand_xy5": {
+  "reliable_m": 32.5,
+  "max_m": 32.5
+ },
+ "lk0/toward/best": {
+  "reliable_m": 32.5,
+  "max_m": 32.5
+ },
+ "lk0/across/alarm_m3": {
+  "reliable_m": 12.5,
+  "max_m": 12.5
+ },
+ "lk0/across/alarm_m5": {
+  "reliable_m": 12.5,
+  "max_m": 12.5
+ },
+ "lk0/across/alarm_m10": {
+  "reliable_m": 12.5,
+  "max_m": 12.5
+ },
+ "lk0/across/alarm_m20": {
+  "reliable_m": 12.5,
+  "max_m": 12.5
+ },
+ "lk0/across/alarm_xy5": {
+  "reliable_m": 27.5,
+  "max_m": 27.5
+ },
+ "lk0/across/cand_m3": {
+  "reliable_m": 12.5,
+  "max_m": 12.5
+ },
+ "lk0/across/cand_m5": {
+  "reliable_m": 12.5,
+  "max_m": 12.5
+ },
+ "lk0/across/cand_m10": {
+  "reliable_m": 12.5,
+  "max_m": 12.5
+ },
+ "lk0/across/cand_m20": {
+  "reliable_m": 12.5,
+  "max_m": 12.5
+ },
+ "lk0/across/cand_xy5": {
+  "reliable_m": 27.5,
+  "max_m": 27.5
+ },
+ "lk0/across/best": {
+  "reliable_m": 27.5,
+  "max_m": 27.5
+ },
+ "mulcher/toward/alarm_m3": {
+  "reliable_m": 12.5,
+  "max_m": 12.5
+ },
+ "mulcher/toward/alarm_m5": {
+  "reliable_m": 12.5,
+  "max_m": 12.5
+ },
+ "mulcher/toward/alarm_m10": {
+  "reliable_m": 12.5,
+  "max_m": 12.5
+ },
+ "mulcher/toward/alarm_m20": {
+  "reliable_m": 12.5,
+  "max_m": 12.5
+ },
+ "mulcher/toward/alarm_xy5": {
+  "reliable_m": 27.5,
+  "max_m": 37.5
+ },
+ "mulcher/toward/cand_m3": {
+  "reliable_m": 12.5,
+  "max_m": 12.5
+ },
+ "mulcher/toward/cand_m5": {
+  "reliable_m": 12.5,
+  "max_m": 12.5
+ },
+ "mulcher/toward/cand_m10": {
+  "reliable_m": 12.5,
+  "max_m": 12.5
+ },
+ "mulcher/toward/cand_m20": {
+  "reliable_m": 12.5,
+  "max_m": 12.5
+ },
+ "mulcher/toward/cand_xy5": {
+  "reliable_m": 27.5,
+  "max_m": 37.5
+ },
+ "mulcher/toward/best": {
+  "reliable_m": 27.5,
+  "max_m": 40.0
+ },
+ "mulcher/across/alarm_m3": {
+  "reliable_m": 12.5,
+  "max_m": 12.5
+ },
+ "mulcher/across/alarm_m5": {
+  "reliable_m": 12.5,
+  "max_m": 12.5
+ },
+ "mulcher/across/alarm_m10": {
+  "reliable_m": 12.5,
+  "max_m": 12.5
+ },
+ "mulcher/across/alarm_m20": {
+  "reliable_m": 12.5,
+  "max_m": 12.5
+ },
+ "mulcher/across/alarm_xy5": {
+  "reliable_m": 30.0,
+  "max_m": 37.5
+ },
+ "mulcher/across/cand_m3": {
+  "reliable_m": 12.5,
+  "max_m": 12.5
+ },
+ "mulcher/across/cand_m5": {
+  "reliable_m": 12.5,
+  "max_m": 12.5
+ },
+ "mulcher/across/cand_m10": {
+  "reliable_m": 12.5,
+  "max_m": 12.5
+ },
+ "mulcher/across/cand_m20": {
+  "reliable_m": 12.5,
+  "max_m": 12.5
+ },
+ "mulcher/across/cand_xy5": {
+  "reliable_m": 30.0,
+  "max_m": 37.5
+ },
+ "mulcher/across/best": {
+  "reliable_m": 30.0,
+  "max_m": 37.5
+ }
+}
