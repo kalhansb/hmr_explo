@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Simulation results: robots parked on the paths into a mulching site warn of walkers about 22 s earlier than the mulcher's own lidar.">
+<title>Mulcher Path Lookouts</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
+<style>
+:root {
+  --ground: #f3f5f2;
+  --surface: #ffffff;
+  --ink: #1b2420;
+  --muted: #56625b;
+  --rule: #d3dbd5;
+  --team: #1d6aad;
+  --mulcher: #3a403c;
+  --post: #a8620f;
+  --plate: #ffffff;
+  --plate-edge: #d3dbd5;
+  --code-bg: #e8ece8;
+  --display: "Barlow Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --body: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground: #101412;
+    --surface: #171d1a;
+    --ink: #e2e8e3;
+    --muted: #9aa79f;
+    --rule: #2b3430;
+    --team: #74acdf;
+    --mulcher: #cfd5d1;
+    --post: #e2a150;
+    --plate: #f6f7f5;
+    --plate-edge: #2b3430;
+    --code-bg: #1f2622;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #101412;
+  --surface: #171d1a;
+  --ink: #e2e8e3;
+  --muted: #9aa79f;
+  --rule: #2b3430;
+  --team: #74acdf;
+  --mulcher: #cfd5d1;
+  --post: #e2a150;
+  --plate: #f6f7f5;
+  --plate-edge: #2b3430;
+  --code-bg: #1f2622;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 17px;
+  line-height: 1.6;
+}
+.page {
+  max-width: 980px;
+  margin: 0 auto;
+  padding-inline: 20px;
+  padding-block: 40px 72px;
+}
+.prose { max-width: 68ch; }
+h1, h2, h3 {
+  font-family: var(--display);
+  font-weight: 600;
+  line-height: 1.1;
+  text-wrap: balance;
+  margin: 0;
+}
+h1 { font-size: clamp(2.4rem, 6vw, 3.6rem); letter-spacing: 0.005em; }
+h2 {
+  font-size: 1.75rem;
+  margin-top: 56px;
+  margin-bottom: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--rule);
+}
+h3 { font-size: 1.25rem; margin-top: 28px; margin-bottom: 8px; }
+p { margin: 0 0 14px; }
+a { color: var(--team); text-underline-offset: 2px; }
+a:focus-visible { outline: 2px solid var(--team); outline-offset: 2px; }
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+.lede { font-size: 1.2rem; line-height: 1.5; margin-top: 18px; max-width: 60ch; }
+.answer { font-size: 1.08rem; }
+.answer strong { font-weight: 600; }
+.team { color: var(--team); }
+.mulch { color: var(--mulcher); }
+
+/* headline figures */
+.figs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 0 28px;
+  margin: 34px 0 10px;
+}
+.fig {
+  border-top: 3px solid var(--mulcher);
+  padding-top: 10px;
+  padding-bottom: 18px;
+}
+.fig.is-team { border-top-color: var(--team); }
+.fig.is-gain { border-top-color: var(--post); }
+.fig .num {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 2.6rem;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.fig.is-team .num { color: var(--team); }
+.fig .lab { font-size: 0.95rem; color: var(--muted); margin-top: 6px; line-height: 1.4; }
+
+/* tables */
+.table-wrap { overflow-x: auto; margin: 18px 0 8px; }
+table {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 560px;
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+}
+th, td {
+  text-align: left;
+  padding: 9px 12px 9px 0;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: top;
+}
+th {
+  font-family: var(--mono);
+  font-weight: 500;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+td.n { font-family: var(--mono); font-size: 0.9rem; white-space: nowrap; }
+.note { font-size: 0.9rem; color: var(--muted); max-width: 72ch; }
+
+/* figures from the analysis (matplotlib, light) sit on a light plate in both themes */
+figure { margin: 26px 0 8px; }
+.plate {
+  background: var(--plate);
+  border: 1px solid var(--plate-edge);
+  border-radius: 4px;
+  padding: 10px;
+}
+.plate img { display: block; width: 100%; height: auto; }
+figcaption { font-size: 0.9rem; color: var(--muted); margin-top: 8px; max-width: 72ch; }
+.pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }
+.pair figure { margin-top: 18px; }
+
+ul.points { padding-left: 0; list-style: none; margin: 0; }
+ul.points li { padding: 10px 0 10px 18px; border-bottom: 1px solid var(--rule); position: relative; }
+ul.points li::before {
+  content: ""; position: absolute; left: 0; top: 21px;
+  width: 7px; height: 7px; background: var(--post); border-radius: 50%;
+}
+ul.points li strong { font-weight: 600; }
+
+dl.setup { display: grid; grid-template-columns: minmax(90px, 140px) 1fr; gap: 10px 20px; margin: 0; }
+dl.setup dt {
+  font-family: var(--mono); font-size: 0.78rem; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--muted); padding-top: 4px;
+}
+dl.setup dd { margin: 0; }
+@media (max-width: 520px) {
+  dl.setup { grid-template-columns: 1fr; gap: 2px; }
+  dl.setup dd { margin-bottom: 12px; }
+}
+code, .mono { font-family: var(--mono); font-size: 0.86em; }
+code { background: var(--code-bg); padding: 1px 5px; border-radius: 3px; }
+pre {
+  background: var(--code-bg); padding: 14px 16px; border-radius: 4px;
+  overflow-x: auto; font-size: 0.82rem; line-height: 1.5; margin: 12px 0;
+}
+pre code { background: none; padding: 0; }
+footer { margin-top: 56px; padding-top: 14px; border-top: 1px solid var(--rule); font-size: 0.9rem; color: var(--muted); }
+</style>
+
+</head>
+<body>
+<main class="page">
+  <header>
+    <div class="eyebrow">Simulation study · Ignition Fortress · 24 Sep 2026</div>
+    <h1>Mulcher Path Lookouts</h1>
+    <p class="lede">Do robots parked on the paths into a mulching site warn the mulcher of a walker earlier than the mulcher's own lidar?</p>
+    <p class="prose">A forestry mulcher carries a lidar on its roof, but its cutting head blocks most of the view ahead, and a walker is only picked out at close range. The idea tested here is to park small robots (Huskies with the same lidar) as lookouts on the paths that lead into the site, and let them raise the alarm. Each simulated walk runs once, and every detector watches it at the same time. So the mulcher alone and the mulcher with its lookouts are compared on exactly the same walks.</p>
+  </header>
+
+  <h2>The experiment</h2>
+
+  <h3>The site</h3>
+  <p class="prose">The site is an oak forest, 160 m in radius, at flatforest v2 density, on flat ground. The mulcher is in the middle. Paths 3 m wide are cleared through the trees. The mulcher's body and cutting head are static boxes to the real machine's dimensions, with a VLP-16 lidar on the roof at 2.1 m. The head blocks 15 of the lidar's 16 channels over ±30° ahead.</p>
+  <p class="prose">There are two layouts. <strong>L2</strong> has one path through the site, so two entries, with a lookout on each. <strong>L3</strong> has three paths and three lookouts.</p>
+  <div class="pair">
+    <figure>
+      <div class="plate"><img src="figures/layout_L2.png" alt="Map of layout L2: one path through the mulcher site, oak trunks around it, two lookout posts at 28 m and 24 m with radio links to the mulcher, and circles at 30 m and 50 m."></div>
+      <figcaption>L2: one path, with posts at 28 m (lk2a) and 24 m (lk2b).</figcaption>
+    </figure>
+    <figure>
+      <div class="plate"><img src="figures/layout_L3.png" alt="Map of layout L3: three paths into the mulcher site, three lookout posts at 28 m with radio links to the mulcher, and circles at 30 m and 50 m."></div>
+      <figcaption>L3: three paths, with a post at 28 m on each.</figcaption>
+    </figure>
+  </div>
+
+  <h3>Where the lookouts stand</h3>
+  <p class="prose">Each lookout's post is calculated from the map (<code>posts.py</code>). The post must be beside its path and 12–28 m from the mulcher, with no trunk within 3.7 m. It must also keep a radio link to the mulcher, with 28 m as the limit under the comms model. Of those spots, the chosen one sees a walker furthest from the mulcher: within 12.5 m of the post, with no trunk in the way.</p>
+  <ul class="prose">
+    <li>Most posts come out at 28 m.</li>
+    <li>lk2b sits at 24 m, because every free spot further out along its path has a trunk too close.</li>
+  </ul>
+  <p class="prose">Every lookout has the same VLP-16 lidar (0.5–100 m, 2 cm noise, 1800 × 16 points, 10 Hz) and stays parked, still, on its post.</p>
+
+  <h3>The walks</h3>
+  <p class="prose">Each walk moves a person (a 1.74 m mid-stride mesh) along a path toward the mulcher, in 0.5 m steps at walking pace (1.3 m/s).</p>
+  <ul class="prose">
+    <li><strong>Start and end:</strong> a walk starts 45 m (±5 m) before the post line and ends 10 m from the mulcher.</li>
+    <li><strong>Combinations:</strong> per layout, 12 mulcher headings (0–330°) × each entry × 2 repeats. That gives 48 walks for L2 and 72 for L3.</li>
+    <li><strong>Stepping:</strong> the world is paused. After each move it advances one lidar period, and every lidar's first scan taken after the move is used.</li>
+  </ul>
+
+  <h3>Detection and what counts</h3>
+  <p class="prose">The detection rule is the brief's rule as written:</p>
+  <ul class="prose">
+    <li><strong>Background:</strong> the median of 10 scans.</li>
+    <li><strong>New return:</strong> at least 0.3 m closer than the background.</li>
+    <li><strong>Clusters:</strong> new returns are linked at 0.5 m.</li>
+    <li><strong>Alarm:</strong> at least 5 points on at least 2 rings, persisting for 2 steps within 1 m.</li>
+  </ul>
+  <p class="prose">An alarm is a hit if it lies within 1 m of the walker. The <span class="team">team</span>'s alarm is the earliest of the mulcher's and the lookouts'. A lookout's alarm counts at once, because every post is linked by radio.</p>
+  <dl class="setup prose">
+    <dt>Post line</dt>
+    <dd>Where the path crosses its lookout's distance from the mulcher (28 m, or 24 m for lk2b's path). The main question: is the walker caught before it?</dd>
+    <dt>50 m</dt>
+    <dd>A second, further catch line.</dd>
+    <dt>Warning</dt>
+    <dd>The time from the first alarm to the walker crossing the post line. A negative warning means the alarm came after they crossed.</dd>
+    <dt>Variants</dt>
+    <dd>Declared before any walk, to show how much the rule itself matters:
+      <ul>
+        <li><code>xy5</code>: the same rule, with the linkage done in the horizontal plane;</li>
+        <li>a best case: at least 5 returns in the person's box, taken from ground truth.</li>
+      </ul>
+    </dd>
+    <dt>Check walks</dt>
+    <dd>12 walks per layout, repeated without the lookouts: once with them moved 1 km away, and once in a sim where they were never spawned. These show whether having the lookouts in the world changes what the mulcher itself sees.</dd>
+  </dl>
+
+  <h2>Results</h2>
+  <p class="answer prose"><strong>The lookouts give a much earlier warning.</strong> With the rule as written, the <span class="mulch">mulcher alone</span> first raised the alarm when the walker was about 14 m away, always after they had crossed the post line. With the <span class="team">lookouts</span>, every walker was caught before the post line, about 40 m out. That is about <strong>22 s</strong> earlier on the same walk, and never less than 20 s.</p>
+
+  <section class="figs" aria-label="Headline results">
+    <div class="fig">
+      <div class="num">0 / 120</div>
+      <div class="lab">walkers caught before the post line by the mulcher alone</div>
+    </div>
+    <div class="fig is-team">
+      <div class="num">120 / 120</div>
+      <div class="lab">caught before the post line with the lookouts</div>
+    </div>
+    <div class="fig is-gain">
+      <div class="num">≈ 22 s</div>
+      <div class="lab">earlier first alarm, same walk (median; least 20 s)</div>
+    </div>
+    <div class="fig">
+      <div class="num">0</div>
+      <div class="lab">false-alarm scans, any lidar, in either layout</div>
+    </div>
+  </section>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th scope="col">Main rule</th><th scope="col">L2 · 2 lookouts · 48 walks</th><th scope="col">L3 · 3 lookouts · 72 walks</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Caught before the post line, mulcher alone</td><td class="n">0 / 48 (0–7 %)</td><td class="n">0 / 72 (0–5 %)</td></tr>
+        <tr><td>Caught before the post line, mulcher + lookouts</td><td class="n">48 / 48 (93–100 %)</td><td class="n">72 / 72 (95–100 %)</td></tr>
+        <tr><td>Median warning, mulcher alone / team</td><td class="n">−12.5 s / 11.0 s</td><td class="n">−11.2 s / 10.8 s</td></tr>
+        <tr><td>Team's first alarm vs the mulcher's, same walk (median; least)</td><td class="n">23.1 s earlier; 20.0 s</td><td class="n">21.9 s earlier; 21.5 s</td></tr>
+        <tr><td>Walker's distance from the mulcher at the first alarm (median), mulcher / team</td><td class="n">13.9 m / 39.4 m</td><td class="n">13.7 m / 41.7 m</td></tr>
+        <tr><td>Walks the mulcher alone never caught (each walk ends 10 m out)</td><td class="n">4</td><td class="n">18</td></tr>
+        <tr><td>Caught before 50 m, anyone</td><td class="n">0</td><td class="n">0</td></tr>
+        <tr><td>McNemar exact, team vs mulcher alone, before the post line</td><td class="n">p = 7.1 × 10⁻¹⁵</td><td class="n">p = 4.2 × 10⁻²²</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="note">Intervals are Wilson 95 % and only approximate, because walks share mulcher headings and entries and so aren't independent.</p>
+
+  <figure>
+    <div class="plate"><img src="figures/warning_curve.png" alt="Two panels, L2 and L3: percentage of walkers caught at least T seconds before the post line, for T from 0 to 30 s. The mulcher alone under the main rule stays at 0 %. The team stays at 100 % until about 10 s, then drops to 0 by 12 s. The best-case and xy-linkage team curves stay at 100 % until about 25 s."></div>
+    <figcaption>Warning-time curve: the share of walkers caught at least T s before the post line. Solid lines use the main rule; dashed lines use the best case and the dotted line the xy-linkage variant. The team's main-rule curve drops at about 11 s because each lookout sees about 14 m past its post.</figcaption>
+  </figure>
+
+  <h3>What the numbers mean</h3>
+  <ul class="points prose">
+    <li><strong>The mulcher's 0 % is partly built in.</strong> The main rule links returns in 3D at 0.5 m. The VLP-16's rings are 2° apart, so beyond about 14.3 m no cluster spans the two rings the rule needs. It can't fire past about 14 m from any lidar (open-ground calibration: 12.5 m for every mount), and every post line is further out than that. The same limit is why nobody is caught before 50 m: a lookout 28 m out sees a walker at about 42 m. The paired time gain is the fairer measure.</li>
+    <li><strong>With looser rules the mulcher does better, and the lookouts better still.</strong> Under <code>xy5</code> or the best case, the mulcher alone catches 54–79 % before the post line, with a median warning of 1–8 s. The team catches all of them before 50 m too, with 27–29 s of warning.</li>
+    <li><strong>The mulcher's blind side.</strong> Every walk the mulcher alone never caught came in within 45° of its front, where the cutting head blocks its lidar. In L3 it missed all 18 walks that came in within 39° of the front. The lookouts caught every one of them.</li>
+    <li><strong>Each lookout covers one entry.</strong> On every walk, the lookout on the walker's own path raised the first alarm (24 walks each). Without any one lookout, L3 catches only 67 % before the post line.</li>
+    <li><strong>The lookouts don't change what the mulcher sees.</strong> In the check walks, the mulcher's first alarm fell on the same 0.5 m step as in the matching walk in 23 of 24 walks per layout, and within one step in all 24.</li>
+  </ul>
+
+  <figure>
+    <div class="plate"><img src="figures/catch_rates.png" alt="Bar charts for L2 and L3: percentage of walks caught before the post line by each detector. Mulcher 0 %, each lookout 50 % in L2 and 33 % in L3, team 100 %. Black ticks mark the best case: mulcher about 79 % in L2 and 76 % in L3."></div>
+    <figcaption>Walks caught by each detector (main rule, with Wilson 95 % bars). Each lookout catches the walkers on its own entry: half the walks in L2 and a third in L3. Black ticks show the best case.</figcaption>
+  </figure>
+
+  <h2>Limits</h2>
+  <ul class="points prose">
+    <li><strong>The lookouts watch the paths, and every walker used one.</strong> A walker coming through the trees away from a path wouldn't pass a lookout. That wasn't tested.</li>
+    <li><strong>The posts depend on the radio model.</strong> Posts are at most 28 m out because the comms model has a hard 30 m horizon and 70 dB of loss per trunk. These are stress settings, not measured radio: a real link might allow posts further out (more warning) or fail to reach these. Every post was linked in the model, and the radio model was not changed.</li>
+    <li><strong>The lookouts are parked on known posts.</strong> The posts are calculated from a perfect map (the world's trunk list). A real mission would explore first and drive out, which is out of scope. The lookouts are static models, because a parked Husky rocks on its wheels in this simulator (DART with bullet contact), and each rock looked like a person to the detector.</li>
+    <li><strong>The walker and forest are idealised.</strong> One mid-stride person mesh moves along the path at a steady pace. The forest is trunks only, with no branches, canopy or undergrowth, on flat ground. Lidar noise is Gaussian 2 cm, and lidar poses come from ground truth.</li>
+    <li><strong>Two layouts, one forest each.</strong> Read the intervals as rough.</li>
+  </ul>
+
+  <h2>Code and data</h2>
+  <p class="prose">Everything is on branch <code>lookout_experiment</code> of <a href="https://github.com/kalhansb/hmr_explo/tree/lookout_experiment/lookout">kalhansb/hmr_explo</a>, under <code>lookout/</code>:</p>
+  <ul class="prose">
+    <li>the scripts, the plan with its full status log and deviations (<code>PLAN.md</code>), and the write-up (<code>README.md</code>);</li>
+    <li>the analysis output (<code>results/</code>);</li>
+    <li>the logs the analysis reads (<code>data/</code>).</li>
+  </ul>
+  <p class="prose">Submodule changes on the same branch:</p>
+  <ul class="prose">
+    <li>explo_planner: a lookout exploit mode and a 25 m lidar crop for mapping;</li>
+    <li>hmr_sim: the VLP-16 datasheet range and noise;</li>
+    <li>simple_nav_3d: launch arguments for the lidar topic and the map size.</li>
+  </ul>
+<pre><code>LOOKOUT_GPU=1 lookout/docker_run.sh lk_L2 42 /lookout/run_layout.sh L2 /runs/lookout/L2_full full
+LOOKOUT_GPU=1 lookout/docker_run.sh lk_L3 43 /lookout/run_layout.sh L3 /runs/lookout/L3_full full
+python3 /lookout/analyse.py --layout L2=/runs/lookout/L2_full --layout L3=/runs/lookout/L3_full \
+    --calib /runs/lookout/calib_gpu --out /runs/lookout/results</code></pre>
+</main>
+</body>
+</html>
