@@ -2301,3 +2301,14 @@ data; that only makes an exchange wait for a later frame.
 - `campaign_guard_calib.sh` 201/201, `comms_gates_calib.py` 36/36,
   `gen34_check_calib.py` all pass; `bash -n` on both runners.
 - `fused_map_liveness.py` on the pilot flags `gen34n2_off_seed1` bestla only.
+
+**Smoke cell, partial** (`gen34n2smoke_off_seed1`, full arm, progressive,
+400 s cell stopped by hand at t_sim ~221 s to hand the campaign to the run
+box): gates ok (qos 6/6, no overflow, odom live). Sender at t ~220 s:
+bestla published 348 frames, skip_busy 0, lz4_fail 0, 1.06 M voxels ->
+3.1 MB raw, 2.2 MB LZ4; copy_ms mean 12.4 / max 51.1, work_ms mean 117.8 /
+max 290. Links both ways: latest_relayed 178/179, drop_superseded 249,
+drop_aborted 2, drop_overflow 0, backlog ~2.8 MB. Receiver: remote frames of
+~575 k voxels with ~460 k unchanged, age 0.2 s, wall_ms 105–130. The two
+remaining reviews (emulator; receiver and scripts) were not re-run before
+the hand-off.
