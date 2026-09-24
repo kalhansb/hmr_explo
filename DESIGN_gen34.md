@@ -101,7 +101,7 @@ closed on 2026-09-23** with Q8 and Q18–Q34 agreed.
 | Q51 | How a robot knows the maps have crossed (§9, blocker) | Q18 compared running totals: one lost map piece keeps a pair's totals apart for the rest of the run, so every later exchange with that peer ends on the 120 s give-up (dscovox's count never resets and nothing is resent; `map_agreement.py` measured 0.1–3.6 % loss). Done was also one-sided. **Number the map pieces.** scovox stamps a sequence number on each frame; dscovox reports, per source, the newest number received and the gaps. Each beacon carries my newest sent and, per peer, my newest received. The exchange with a peer is done when **both** sides have received up to the number the other had sent when contact began. Gaps are logged as loss and never block done. No `exchanged` field is needed: both halves are read from the two beacons | **decided** (Claude, under Kalhan's delegation, 2026-09-23): as recommended, with one simplification. Each robot's dscovox already subscribes to its own scovox directly, so the newest number in its own entry is the "sent" number; no extra topic. `ScovoxMapBinary` gets `seq`, `ScovoxFusionCounters` gets `newest_seq[]` and `seq_gaps[]` |
 | Q52 | Beacons lost while a map backlog drains (§9) | The emulator drains queued map data first from one shared airtime budget and drops best-effort messages while it is empty. After a long split every robot's beacons can vanish for tens of seconds, longer than the 10 s window. **The emulator keeps a small airtime reserve for best-effort messages**, so the reliable drain never takes the last slice. Links there are symmetric (`PairKey`), so presence stays "beacon heard". Record per-link `drop_airtime` in the smoke round with a threshold. Alternative: count arriving map data as hearing the peer, which leaves the radio alone but cannot confirm mutual contact (E2) while beacons are starved | **decided** (Claude, delegated, 2026-09-23): a variant of the reserve. New emulator parameter `best_effort_priority` (default false). When true, a best-effort message on an up link is always admitted and charged, so the balance can go negative and the map drain waits for it; beacons, intents and TeamWorld are small. The run script sets it for the gen-34 node. Per-link `drop_airtime` is still reported |
 | Q53 | How long a robot holds at a meeting (§9) | Three bounds overlap (window 120 s, no progress 120 s, total 600 s), a new contact restarts the no-progress clock so a flickering link holds forever, and Q32's drive is bounded by a record that ended with the contact. **One patience clock per booking:** 120 s from the last progress (a map piece received, or a missing attendee heard); a new contact does not reset it. A 600 s backstop per booking, not per contact. **Q32 kept, one mover:** of a pair that lost each other at the cell, only the higher id drives to the other's last heard position; the lower id holds | **decided** (Claude, delegated, 2026-09-23): as recommended. Progress is a sequence number rising from any attendee, or an attendee heard for the first time in this booking. The backstop runs from the later of the meeting time and departure |
-| Q54 | The meeting plan can split the team for good (§9, blocker) | At N = 3, robot 0 sees both echoes and leaves with the new plan; the other two lost each other before seeing each other's echo and keep the old one. Different cells for the rest of the run, since only a full meeting changes the plan. The design also lost today's 60 s start hold (`node:2725`, `4814`) and proposes once. **The plan carries a version and robot 0 is the only proposer; a robot adopts any higher version the moment it hears it, from any beacon, at any time.** Keep the 60 s start hold in every arm; robot 0 re-proposes each tick while everyone is in contact and no plan is agreed. A partial meeting keeps the standing plan (Q47) | **decided** (Claude, delegated, 2026-09-23): as recommended, plus: plan data may spread through relays (it is not presence); t0 and the interval are fixed by version 1 and only the cell changes; robot 0 re-solves a provisional plan while everyone is connected; at a met full meeting robot 0 issues version + 1 stamped `renewed_at_slot`, and the others leave only when every beacon shows it (or patience ends). Split recovery: each robot keeps its last two plans and the version each peer last showed directly; while a peer lags on a plan it still holds, slots alternate between the two cells by parity |
+| Q54 | The meeting plan can split the team for good (§9, blocker) | At N = 3, robot 0 sees both echoes and leaves with the new plan; the other two lost each other before seeing each other's echo and keep the old one. Different cells for the rest of the run, since only a full meeting changes the plan. The design also lost today's 60 s start hold (`node:2725`, `4814`) and proposes once. **The plan carries a version and robot 0 is the only proposer; a robot adopts any higher version the moment it hears it, from any beacon, at any time.** Keep the 60 s start hold in every arm; robot 0 re-proposes each tick while everyone is in contact and no plan is agreed. A partial meeting keeps the standing plan (Q47) | **decided** (Claude, delegated, 2026-09-23): as recommended, plus: plan data may spread through relays (it is not presence); t0 and the interval are fixed by version 1 and only the cell changes; robot 0 re-solves a provisional plan while everyone is connected; at a met full meeting robot 0 issues version + 1 stamped `renewed_at_slot`, and the others leave only when every beacon shows it (or patience ends). Split recovery: each robot keeps its last two plans and the version each peer last showed directly; while a peer lags on a plan it still holds, slots alternate between the two cells by parity. **Amended (§11.1):** a gossiped table of every robot's known plan replaces the direct view; odd slots use the lowest known version's cell |
 | Q55 | What counts as "met" at N > 2 (§9) | One trunk kills a link (70 dB). With robots stopped about 10 m apart at the cell, a reviewer estimates some pair is blocked in about 40 % of N = 3 meetings; at a cell with a trunk near the centre every meeting is partial, and the cell never moves. **Met = every pair has completed a direct exchange at some moment inside this meeting**; a pair that finished and then lost each other still counts. Amends Q26 | **decided** (Claude, delegated, 2026-09-23): as recommended. The beacon carries `meeting_slot` and `met_mask`; a pair is met if either member lists the other for the same slot; a full meeting also needs the Q54 renewal |
 | Q56 | When to leave and which slot (§9) | "Due" is recomputed each tick, so it turns false as the robot closes in (today it latches). After a split each robot books the first slot **it** can make, so at N = 3 they pick different slots. The lead assumes 0.5 m/s in a straight line; robots measure 0.40 m/s on longer paths and arrive near the window's end. **(a) Departure is stored and clears with the booking. (b) Book the first slot every robot can make, from each robot's last heard position and time. (c) The lead uses 0.40 m/s on the path distance from the cost grid, × 1.2** | **decided** (Claude, delegated, 2026-09-23): (a), (b), (c) as recommended. Path distance is the allocator's cell-to-cell cost (`GlobalAllocator::costMm`), straight line without a cell world. A robot that books a different slot from the rest misses and books the next, so a mismatch heals itself |
 | Q57 | Finished robots at the end of the run (§9, blocker) | (a) After the all-finished meeting, contact drops on the walk home, Book makes a new booking and Meet outranks Home: everyone turns back. Nothing stores "everyone finished". (b) One robot that never makes a meeting keeps the finished ones at the cell to the horizon, which counts as censored (the cell-12 shape). **(a) Store `team_finished`, set at a meeting where every beacon says finished; with it set nothing is booked and Home holds. (b) A finished robot goes home after 2 consecutive slots at which some robot never showed; the team can also learn "all finished" at home (homes are 3 m apart). (c) Q50's wait at home gets the 600 s homing bound** | **decided** (Claude, delegated, 2026-09-23): (a) and (b) as recommended. `team_finished` also spreads by beacon (finished never un-finishes, so it is a fact). (c) is moot in phase 1: with exploit off there is no wait at home (Q66) |
@@ -418,7 +418,7 @@ three kinds:
 |---|---|---|
 | E1 | A link at the edge of range flickers | Settled by Q43 |
 | E2 | One-way link: A hears B, B does not hear A | **Derived.** "In contact" means mutual. Each beacon lists whom its sender hears directly, and a pair is in contact only when both list each other. Every team test (met, all connected, exchange) uses mutual contact (Q8; rule: shared inputs) |
-| E3 | Robots briefly disagree about "all connected" or "met" because of beacon timing | **Derived.** Each robot acts on its own view, and the views converge within a beacon or two. A pair's exchange, once complete, stays complete for that contact. A robot that sees it one beacon late does not treat the leaving peer as lost; a property test checks this |
+| E3 | Robots briefly disagree about "all connected" or "met" because of beacon timing | **Derived.** Each robot acts on its own view, and the views converge within a beacon or two. A pair's exchange, once complete, stays complete for that contact. A robot that sees it one beacon late does not treat the leaving peer as lost; a property test checks this. **Amended (§11.2):** a gave-up exchange can still finish late in the same contact |
 | E4 | A node crashes or restarts | Hard fail (Q4). No recovery is designed |
 
 ### 7.2 Map exchange
@@ -602,10 +602,10 @@ unchanged: exploration claims work as today.
 - **Renewal.** At a met full meeting for slot k, robot 0 issues version + 1
   with `renewed_at_slot = k` and a fresh cell from the solver. If the solve
   fails, the new version keeps the same cell.
-- **Split recovery.** Each robot records the version each peer last showed
-  directly. While some peer last showed an older version that I still hold,
-  slots alternate between the two cells: even slots use mine, odd slots the
-  older one. This lasts until that peer is heard showing mine.
+- **Split recovery** (amended in §11.1). Each robot keeps a table of the
+  highest plan it knows every robot to hold, and the beacon carries it. Even
+  slots use my plan's cell; odd slots use the cell of the lowest version in
+  the table, while that is below mine.
 
 **Booking** (rendezvous and hybrid only)
 - **Book** when all of these hold: a plan exists; no booking is held; the team
@@ -934,7 +934,7 @@ fix. They are applied to §8 in the same pass as Q51–Q64.
 | K1 | §8.11 | `cells[]` grows with the map | The cell grid is fixed (100 m ROI, 10 m cells: 100 cells) and `toWire()` emits every cell (`cell_world.cpp:315-321`). The beacon is about 1.5 KB and constant; TeamWorld already sends the same at 1 Hz | Drop the risk row. The real airtime risk is Q52 |
 | K2 | §3.1, §8.3 GoalSelector | "moved unchanged", `selectGoal(inputs) -> goal` | Three outcomes: goal, none left, and "retry next tick" (`node:5616`). About 90 members, metric and event outputs. Allocation inputs come from TeamModel, including relayed positions (`node:5163-5191`) | Explicit Inputs and Outputs structs; the third outcome kept. The allocator takes each peer's last **directly** heard position and age. State that at N ≥ 3 allocation changes where a peer was known only by relay (a consequence of Q8) |
 | K3 | §3.1, §8.3 | The coverage latch moves unchanged | About 20 of the 96 lines of `maybeLatchCoverageDone` are the latch; the rest is RETURN_SYNC, appointment, homing and done-seek teardown (`node:6654-6748`) | Move only the unknown-fraction criterion; the endings are Mission's |
-| K4 | §8.4 row 5 | Explore holds while "goals remain" | No candidates is "retry next tick", not an ending (`node:5616`); finishing is the coverage latch or the step budget | Explore holds while not finished. Finished = coverage latch or step budget, latched once as today; it is the only source of the beacon's `finished` |
+| K4 | §8.4 row 5 | Explore holds while "goals remain" | No candidates is "retry next tick", not an ending (`node:5616`); finishing is the coverage latch or the step budget | Explore holds while not finished. Finished = coverage latch or step budget, latched once as today; it is the only source of the beacon's `finished`. **Amended (§11.7):** or PLAN starvation, a mission ending that the metric reader censors |
 | K5 | §8.4, E37 | Homing give-up "ends it" | Give-up parks and reports done with result `timeout` or `budget` (`node:9032-9044`) | Same; it is a hard fail by its event, not by the run's length |
 | K6 | §8.3 Book | Departure time is recomputed each tick | Today departure latches (`appointment_departed_`, `node:5352`) | Part of Q56 |
 | K7 | §3.1 | `RendezvousHandshake` reused | It encodes the provisional and re-agree protocol §8.6 deletes (`node:7397-7411`) | Drop it from the reuse list. Q54's versioned plan is new code |
@@ -1177,7 +1177,8 @@ finding below was checked against the code before it was fixed or deferred.
 | The run script read `NODE`, which npm also sets | the switch is removed | `campaign_guard_calib.sh` |
 
 **Deferred.** None of these blocks phase 1. Each is a cost or an observation
-item for the smoke round or phase 2.
+item for the smoke round or phase 2. All ten were later fixed or documented in
+§11 (2026-09-24); the section each went to is at the end of its entry.
 
 - **Split recovery.** Recovery keys on the last plan version a peer showed
   directly. It does not cover a peer that skipped a version, or a peer whose
@@ -1185,39 +1186,44 @@ item for the smoke round or phase 2.
   - Cost: a robot can be alone at an odd slot. This heals at the next direct
     contact.
   - The fix needs a plan-ack mask on the beacon, which is a design change.
+  - → §11.1: plan gossip.
 - **Exchange retry.** A gave-up exchange is not retried while the contact
   lasts (E3 and E8, as designed).
   - At the cell, a peer whose exchange stalled once leaves the robot
     re-booking until `team_finished`.
   - Retry after a stall is a phase-2 candidate, if campaigns show give-ups at
     meetings.
+  - → §11.2: a give-up can still finish while the contact lasts.
 - **Proximity exemption.** The Q65 exemption covers the whole Meet activity of
   both robots, including the reconnect move toward a braked peer. There,
   separation rests on the navigator's obstacle grid. The smoke round's
-  proximity check watches it.
+  proximity check watches it. → §11.3.
 - **Tick-event skew.** The 2 s tick event carries this tick's activity with the
   previous tick's node state. That gives one skewed sample per transition,
-  which the checker's 120 s window absorbs.
+  which the checker's 120 s window absorbs. → §11.4.
 - **`leg_legs`.** It counts hold restarts and activity changes as legs. Read it
-  as leg starts, not as distinct drives.
+  as leg starts, not as distinct drives. → §11.5.
 - **Hang heartbeat.** At 50 s (× 60 = 3000 sim-s), the hang heartbeat is inert
   at `--duration 3000`. There, the checker's progress rule is the only hang
-  detector.
+  detector. → §11.6.
 - **PLAN starvation.** Starvation is unbounded in the node, as in gen 33 (Q4).
   The progress rule fails an exploring robot whose candidates have all been
   rejected for 120 s. If the smoke round shows this on healthy runs, choose
   between a starvation latch in the node and an exemption in the checker.
+  → §11.7: both.
 - **equiv_gate keys.** equiv_gate does not register the new manifest keys, so
   a pre-change parent against a new child fails on them. equiv_gate is now a
-  gen-33 tool.
+  gen-33 tool. → §11.8: it refuses gen-34 cells.
 - **Emulator relay discovery.** The emulator's `best_effort_topics` always
   lists `team_beacon`, so a gen-33 COMMS=1 run would poll relay discovery for
-  the whole run. Gen 33 no longer runs.
+  the whole run. Gen 33 no longer runs. → §11.9: the list had the opposite
+  problem too, `team_world` in a gen-34 run.
 - **Map message layout.** `ScovoxMapBinary` gains `uint64 seq`.
   - Old bags of `scovox_bin` and `fusion_counters` do not deserialize with the
     new build.
   - The run box needs a full rebuild: `scovox_msgs`, then everything that uses
     it.
+  - → §11.10: documentation only.
 
 ### 10.6 Verification on this machine
 
@@ -1233,3 +1239,579 @@ item for the smoke round or phase 2.
   - `campaign_guard_calib.sh`: 177 of 177 pass.
   - `gate_g8_calib` and `equiv_gate_calib`: as in 10.3.
 - **Not verified here.** Simulations run only on the run box.
+
+## 11. Fixes for the deferred review findings (2026-09-24)
+
+The ten items §10.5 deferred, fixed before the smoke round. Each entry gives
+the defect in one line, the fix, and the tests. Nothing here changes an arm,
+a bound in §8.7 or the priority list. Three decisions are amended: E3 (11.2),
+K4 (11.7) and Q54's split recovery (11.1). Five Fable 5.1 reviewers attacked
+the first draft of this section before anything was built; 11.12 records what
+they found and what changed. Four more read the built code; 11.13 records
+that review and the verification.
+
+### 11.1 Split recovery: plan gossip
+
+**Defect.** Recovery keys on the version a peer last showed directly, and only
+alternates to the plan just before mine. It misses a peer that is two versions
+behind, and a peer whose last direct beacon predates its adoption. A robot can
+then stand alone at the old cell.
+
+**Fix.** Each robot keeps, for every robot, the highest plan it knows that
+robot to hold, and the beacon carries that table.
+- `TeamBeacon.msg` gains three arrays indexed by fleet id:
+  `plan_known_version`, `plan_known_cell` and `plan_known_center`. Entry
+  `[robot_id]` is the sender's own plan. Version 0 means nothing is known.
+- TeamCore keeps `known_[j]` = (version, cell, centre). Its own entry is its
+  plan, set on every adoption and proposal.
+- **Merge.** In `updatePlan`, every tick, from each peer's stored beacon with
+  a matching grid hash:
+  - the sender's own entry comes from its `plan` fields, never from its table;
+  - every other entry of its table merges by maximum version, except the
+    receiver's own;
+  - the three arrays must all have the team's length, or nothing from the
+    table merges and `beacon_gossip_bad` counts (once per beacon, on receipt).
+- A version only ever rises, per robot, so a merged entry is a lower bound on
+  what that robot holds.
+- **Invariant.** After `updatePlan`, the highest entry in my table is my own
+  version. An entry v for robot k reached me through a chain of beacons that
+  starts at k. The robot X whose beacon brought it held v or more itself
+  (X adopted v when it merged it), and I adopt X's plan in the same pass. The
+  harness checks this after every tick (property P6).
+- **`cellForSlot(k)`.** Even slots use my plan's cell. On odd slots, let L be
+  the lowest version of 1 or more in the table, over the other robots. If L is
+  below my version, the slot uses L's cell and centre, which travel with the
+  entry.
+  - L only rises, so a booking's cell changes at most once per version the
+    laggard adopts, and back to my cell once it catches up.
+- **Retarget.** `bookingPass` re-runs `cellForSlot` for the held booking,
+  except a fully met one. After a renewal proposed at a full meeting,
+  `cellForSlot` already names the new cell, and the proposer must stay while
+  it waits for its peers to show the renewal.
+  - Before arrival, a changed cell is taken as today. The event gains `late`
+    (true when my lead to the new cell no longer fits before the slot), and a
+    late retarget counts `booking_retarget_late`.
+  - After arrival, a changed cell is taken only if my lead to it still fits
+    before the slot. Arrival, the reconnect state and the contact mask are
+    cleared, and the drive gets a new leg key. Otherwise the robot stays.
+- **Renewal wait.** A fully met booking waits for every peer to show the
+  renewal. It now reads `known_[j].version`, so a renewal relayed by a third
+  robot counts.
+- `PeerRecord::version_seen` is removed; `prev_plan_` stays for tests and the
+  harness.
+
+**Why this converges, and the bound.** Assume that every robot eventually
+hears some robot that is in contact with the rest, grid hashes match, and
+robot 0 does not propose again meanwhile.
+- The robots at the newest version meet on even slots.
+- On odd slots the lowest-version robot goes to its own cell, or to the cell
+  of a still lower entry it holds for a peer that has since caught up. Every
+  entry is a lower bound, so such a detour ends at the next contact or even
+  slot. Every robot whose table holds the minimum goes to its cell on odd
+  slots.
+- One contact spreads a table entry one hop. So within one exchange of
+  beacons along a connected chain every table holds the minimum, and the next
+  odd slot gathers everyone. Being together on a met slot renews the plan, and
+  everyone adopts the renewal.
+
+**Residuals.**
+- If every robot's entry for C is older than what C really holds, the
+  believers go on odd slots to a cell C left. This needs C to adopt a version
+  and drop out of range within one beacon, before anyone hears it, and then
+  miss the next version too. It heals on any contact.
+- A robot heard only one way (it hears the team, nobody hears it) spreads
+  nothing. Its peers keep its last entry, as today.
+- A robot at version 0 (never heard a plan) is not in L. It joins at the
+  first beacon it hears.
+- `pairMet` ignores the cell: two robots listing each other for the same slot
+  count as met wherever they stood. That is pre-existing and harmless; it only
+  records that they exchanged.
+
+**§8.3 and Q54 amended.** Split recovery is the table above; "the version
+each peer last showed directly" and the two-plan alternation are gone.
+
+**Tests.** Replace `SplitRecoveryAlternatesOddSlotsToThePreviousCell`.
+- A version skipped (v1 to v3) while a third robot is at v2: odd slots use
+  v2's cell.
+- A stale direct view healed by gossip: no alternation.
+- A laggard two versions behind: odd slots use its cell, which is not
+  `prev_plan_`.
+- Monotone merge: a lower entry does not lower the table; my own entry and
+  the sender's table entry for itself are never taken.
+- A grid mismatch merges nothing; a wrong-length table is counted and ignored.
+- An arrived booking retargets when the lead fits, and stays when it does not.
+- A renewal known only through a relay ends the renewal wait.
+- Harness: P6 after every tick, in the property sweep and in the replay,
+  whose filter rewrites a beacon's table as well as its plan.
+
+### 11.2 Exchange: a give-up can still finish
+
+**Defect.** A gave-up exchange stays gave-up for the rest of the contact (E3),
+even when the maps catch up later. A pair in a long contact at the cell then
+can never be met.
+
+**Fix.** A gave-up record keeps watching its targets while the contact lasts.
+- If both targets are reached later in the same contact (the live received
+  sequence numbers, not the values stored at the give-up), the record becomes
+  done: action `done_late`, counter `exchange_done_late`.
+- It is its own branch, not the running record's end block: `exchange_done`
+  and `exchange_done_trivial` are not raised, so starts = done + gave-up +
+  lost + open still holds. The give-up stays counted.
+- Nothing waits on a gave-up record. `anyExchangeRunning()` is unchanged, so no
+  hold, deferral or bound moves.
+- `exchanged(j)` turns true, which feeds `met_mask`, the encounter rule and
+  `exchanged_mask`. A chase that ended `failed` on the give-up stays ended.
+- **Which booking gets it.** A pair is marked met only while a booking is
+  held. The booking's window ends it when no exchange is running, and a
+  gave-up record is not running. So a late finish counts for the current
+  booking only inside its window, or while another exchange keeps it open.
+  Otherwise it counts for the next booking, if the contact lasts that long.
+- **E3 amended.** Done stands for the rest of the contact. Gave-up stands
+  unless the targets are reached later in the contact.
+
+**Checker.** `exchange done_late` joins the contact claims checked against the
+link trace. `exchange_done_late` is optional firing. The give-ups rule is
+unchanged: a late finish is still a give-up.
+
+**Tests.** A stalled exchange finishes late and turns `exchanged` true without
+holding the window. A total give-up finishes late in the same way. A late
+finish after the contact ended does not happen: the record ended. Counters:
+`exchange_done` does not move.
+
+### 11.3 Proximity exemption narrowed; reconnect point
+
+**Defect.** The Q65 exemption covers all of Meet for both robots: the drive
+to the cell and the reconnect move toward a braked peer. On that move the
+walker drives to the peer's own last position.
+
+**What actually guards the reconnect walk.** The walker is the higher id, and
+the guard yields only to a lower id (the target). The target is braked, so
+after `peer_static_sec` it counts as parked and holds no one beyond
+`parked_keep_dist_m` (1.5 m). So the guard never protected this walk, with or
+without the exemption. What bounds it is the leg's arrival tolerance
+(`leg_arrive_m`, 1.5 m) and the navigator's obstacle grid. In the sim the
+guard's band is 1.5 m / 2.5 m (the run script's `PROX_HOLD_M` and
+`PROX_RESUME_M`), not the yaml's 5 m / 6 m. The checker's floor is 1.0 m.
+
+**Fix, exemption.** `proximityExempt(j)` holds only when all of these hold:
+- I am in Meet, with no reconnect move running.
+- I have a pose within `meet_exempt_radius_m` (8 m: `ring_max_m` 6 + 2) of my
+  booking's centre.
+- j is present, its beacon says Meet, and its beacon position is within the
+  same radius of my booking's centre.
+
+A peer booked at another cell (a split) is therefore not exempt. Two robots
+driving in from far away are guarded as on any drive. A peer that is walking
+inside the 8 m disc is exempt; that is the ring's own traffic, which the
+exemption is for.
+
+**Fix, reconnect point.** The first draft put the walker on a 6 m ring around
+the peer. Robots stand 4.2 to 6 m apart on the meeting ring, so that point is
+where the walker already is (review, 11.12). Instead:
+- Let P be the peer's last heard position and W the walker's pose.
+- If the map shows line of sight from P to W, the map does not explain the
+  lost link. The walker drives toward P, as today.
+- Otherwise it tries points around P at radius r = |W − P|, clamped to
+  [`meeting_ring_m`, `ring_max_m`] (3 to 6 m), at bearings 30°, 60°, 90°,
+  120° and 150° either side of W's bearing from P, in that order.
+  - A point must be at least 2 × `leg_arrive_m` (3 m) from W, so the move is
+    real.
+  - It must be standable, with line of sight from P.
+  - The first one wins. With none, the walker drives toward P.
+- A walk to a sight point that ends with no contact falls back to a walk
+  toward P (`reconnect_fallback`). A walk toward P that ends with no contact
+  ends the reconnect, as today.
+- The walk ends on contact, or on arrival within `leg_arrive_m`.
+- The move event says which it was (`kind`: `sight` or `peer`).
+- Everything stays inside the booking's patience and backstop. No bound moves.
+
+**Line of sight.** A braked robot is mapped as an obstacle, so a ray that
+ends inside it was always blocked. The plan map is also inflated
+(`global_planning_map_inflation_m`, 1.5 m in the sim launch, at 0.4 m cells),
+so a mapped robot is a disc about 2.3 m in radius, not a body.
+- At each end, the oracle skips the run of occupied samples that starts at
+  the end, for up to `sight_end_clear_m` (a new node parameter, 3.0 m: the
+  inflation, a Husky's half-diagonal, and a cell of rounding at each end of
+  the inflation, about 2.8 m). An occupied sample after the first free one
+  always blocks, even inside that distance.
+- A free end (a candidate point, which must be standable) has no run, so
+  nothing is skipped there.
+- Two ends under 2 × `sight_end_clear_m` apart whose runs meet read clear:
+  the map cannot tell two robots' discs from a wall between them. The walker
+  then drives toward P, which is the move when the map cannot explain the loss.
+- The first draft skipped a flat 0.5 m, which never left the inflated disc
+  (code review, 11.13).
+
+This also fixes `followPoint` and `pickEscape`, which ask the same question.
+Unknown cells still do not block: map sight is not radio sight, and the
+fallback toward P covers the difference.
+
+**Two id orders.** TeamCore picks the walker by fleet id. The guard yields by
+robot name. They agree when the roster lists names in sorted order. The node
+warns once at start if it does not. A mismatch cannot deadlock: the target is
+braked and parked.
+
+**Tests.**
+- Exemption: true near the centre for both; false when either is far from it;
+  false when the peer is booked at another cell; false while walking.
+- Reconnect: with sight between P and W, the point is P. With sight blocked,
+  a point with sight is chosen, at least 3 m from W. With every point
+  blocked, the point is P. A sight walk without contact falls back to P.
+- `FakeOracle` gains segment blockers for line of sight.
+- `LostPairAtTheCellHigherIdMovesLowerHolds` keeps P (its world has sight).
+- `segmentClear`: a ray ending in an occupied cell is clear; an inflated
+  robot disc at each end is skipped; an obstacle past a free cell blocks
+  inside `sight_end_clear_m`; a run longer than it blocks.
+
+### 11.4 Tick event after the dispatch
+
+**Defect.** The 2 s tick event is written inside `teamTick`, before
+`applyActivity` and the dispatch. It pairs this tick's activity with last
+tick's state.
+
+**Fix.** `tick()` becomes a wrapper around the old body (`tickBody()`).
+- `teamTick` marks the event due, and advances the next due time there.
+- The wrapper writes it after the body, including after the proximity-hold
+  early return. Activity, state, Leg status and the hold flag then describe
+  the same instant.
+- The event's time is the tick's own `now`, passed through, not a second read
+  of the clock.
+- Events the dispatch writes (a state change) now come before the tick event
+  of the same tick. The checker reads ticks and changes separately, so the
+  order does not matter to it.
+
+### 11.5 Leg counters
+
+**Defect.** `leg_legs` counts every leg (re)start. A hold, or an explore stint
+between two parts of one drive, counts as a new leg.
+
+**Fix.** `legs()` counts distinct drive keys. TeamCore's keys are unique and
+rise, and the tracker keeps the last counted key in its own field, which
+`reset()` does not clear. A new `starts()` counts every (re)start. `run_end`
+reports `leg_legs` and `leg_starts`. `ResetForgetsTheLeg` expects one leg and
+two starts.
+
+A key is a TeamCore drive segment, not a trip: a Meet booking spends one key
+to the cell and more on a reconnect, a chase one per point, and a retarget
+before arrival keeps its key.
+
+### 11.6 Hang heartbeat
+
+**Defect.** The run script's hang gate counts only `selected goal` lines, so
+it has to sit above a meeting's full course: 50 heartbeats, or 3000 sim-s.
+That is inert at `--duration 3000`. And any robot's "Exploration complete"
+disarms it for everyone.
+
+**Fix.**
+- The node prints `Team activity: <activity> (state <from> -> <to>)` when
+  `applyActivity` moves the state machine for a new activity. It is printed
+  where the state follows, not where TeamCore changes its mind: a robot in
+  WAIT_FOR_MAP that TeamCore books and releases prints nothing.
+- No other node line may contain `Team activity:`.
+- The gate counts `selected goal` and `Team activity:` lines, only over robots
+  that have not printed "Exploration complete". It fires when none of those
+  advanced for `HANG_HB` heartbeats. With every robot finished, it does not
+  run.
+- `HANG_HB` defaults to the larger of 25 and ⌈(12 × `ROI_HALF` + 600) / 60⌉:
+  25 at the default ROI (1500 sim-s). A smaller explicit value warns. 0 is
+  refused (exit 2): it would kill the cell at the first quiet heartbeat. To
+  disarm the gate, set it above the run's length in minutes.
+- The manifest records `hang_hb` and `hang_window_sim_s`, in place of the
+  misnamed `hang_hb_sim_s`.
+- The heartbeat and HUNG lines say what they count.
+
+**Sizing.** Per robot still exploring, the longest stretch with no goal and no
+state-following activity change:
+- One meeting: from the last departure to the backstop. That is at most the
+  latest departer's lead plus 600 s. Lead is 3 s per metre of path, and a path
+  inside a square ROI of half-width h is taken as at most 4h. At h = 50 that
+  is 600 + 600 = 1200 s. The 4h is assumed, not enforced (the lead has no
+  cap); a map whose paths run longer needs a larger `HANG_HB`.
+- A chase is 600 s at most.
+- Wait and Home need a finished robot, which leaves the gate.
+- PLAN starvation ends in the 11.7 latch.
+- The INERT warning stays, for shorter durations.
+
+### 11.7 PLAN starvation latch
+
+**Defect.** A robot whose candidates are all rejected (or that has none)
+stays in PLAN indefinitely, as in gen 33. The progress rule fails such a run
+after 120 s.
+
+**Fix.** Starvation becomes a bounded wait that ends in a finish.
+- **The clock.** It opens at the first starved PLAN tick (no candidates, or
+  all rejected), anchored at the pose.
+  - It counts only while the activity is Explore and the robot is not in a
+    proximity hold.
+  - A team activity pauses it, and the return to Explore re-anchors it at the
+    current pose. A proximity hold pauses it without re-anchoring.
+  - Moving 1.0 m from the anchor while it counts closes it.
+  - Selecting a goal does not close it. A robot that picks a goal, fails
+    without moving and starves again stays on one clock. Goals selected while
+    it is open are counted.
+  - The clock is not reset by a meeting. With 300 s slots, a robot that met
+    on every slot would otherwise never finish.
+  - The no-map path does not start the clock: a silent dscovox is a fault,
+    not the end of exploring.
+- **The latch.** At `plan_starve_finish_sec` (300 s) of counted time, the node
+  latches finished with reason `starved`. The check runs every tick, before
+  TeamCore's tick, so the latch holds in NAVIGATE too. 0 disables the clock.
+- **One ending per robot.** `exploration_complete` is written once. A coverage
+  crossing after another ending (peer maps arriving at a meeting) is recorded
+  as the coverage latch, with its own log line that does not say
+  "Exploration complete", and no second event.
+- **K4 amended.** Finished = the coverage latch, the step budget, or
+  starvation.
+- **Starved is a mission ending, not an exploration endpoint.** A starved
+  robot stopped for want of work, not because it reached coverage. Its done
+  time includes up to 300 s of counted waiting, and more in the meeting arms,
+  where the clock pauses. The metric reader keys exploration-done on
+  `coverage-latched`, as gen 33's did, and treats a starved robot as
+  censored. The event gives the reader what it needs.
+- **Logging.**
+  - The tick event gains `plan_starved_sec` (counted time) and
+    `plan_starved_open_sec` (when the clock opened). Both are written only
+    while the clock counts; null otherwise, and always null with the latch
+    disabled.
+  - While it counts, the tick's wait fields carry the starvation bound:
+    `now - counted` and `now - counted + plan_starve_finish_sec`.
+  - A starved `exploration_complete` carries `starved_open_t_sim`,
+    `starved_paused_sec` and `starved_goals`.
+  - `run_start` stamps `plan_starve_finish_sec`.
+  - `run_end` counts `plan_starved` (clock openings) and
+    `plan_starved_finish` (latches).
+  - "No valid candidates" is throttled to one line per 5 s, like the
+    all-rejected line.
+- **A navigation fault under an open clock.** A robot whose goals all fail
+  without moving stays on the clock and latches `starved`. The checker is
+  blind to it while the clock counts. It is caught after the latch: the Home
+  or Meet leg must move (progress), and the robot must reach home (horizon).
+  `starved_goals` in the event separates the two for the reader. The checker
+  does not fail on it: a frontier the amnesty re-offers and the robot cannot
+  reach looks the same.
+- **Checker.**
+  - `should_move` is false on a tick with `plan_starved_sec` and
+    `plan_starved_open_sec` both set.
+  - The existing waits rule enforces the bound through `wait_bound_sec`.
+  - **Consistency.** On consecutive ticks of one clock (same open time), the
+    counter may not run faster than the clock (0.3 s slack), and over any
+    stretch of 30 s or more it must advance by at least half of it. Either
+    violation fails `waits`: a stuck counter would otherwise hold the
+    exemption open forever.
+  - **Backstop.** An exploring robot (activity Explore, state not
+    WAIT_FOR_MAP or DONE) that moves less than 0.5 m in 540 s fails
+    `progress`, whatever its starvation clock claims. 540 s = the starvation
+    limit + two progress windows. Proximity-hold ticks pause the window, as
+    they pause the node's clock; they do not restart it.
+  - **Windows.** Both still-windows (120 s and 540 s) close at the first tick
+    at least the window past their start. Tick events are 2 s apart plus
+    executor lag, so a window that needs a tick exactly W s back would almost
+    never close (code review, 11.13).
+  - BOUNDS pins `plan_starve_finish_sec` at 300.
+  - Both counters are optional firing.
+  - Starved finishes are listed in the cell's notes with their open time,
+    paused time and goal count.
+- **Calib.**
+  - A starved robot still for 250 s passes progress.
+  - A starved tick past the bound fails waits.
+  - A stamped 200 fails bounds.
+  - A stuck counter fails waits; a counter faster than time fails waits.
+  - A robot still for 560 s under claims that each look valid (clocks
+    reopening) fails progress on the backstop; also with jittered ticks.
+  - With 40 s of that held, it passes; still 580 s with 20 s held fails.
+  - Still for 130 s on jittered ticks fails progress.
+  - A tick with a count and no open time is not exempt.
+
+### 11.8 equiv_gate
+
+**Defects.**
+- A gen-34 child carries five manifest keys that equiv_gate does not register
+  (`node`, `planner_exe`, `arm`, `team_exchange_topic`,
+  `best_effort_priority`). A banked gen-33 parent against it fails five times,
+  for the wrong reason.
+- The gate's default parser reads `dp(` but not `dp_f(`, so `fov_hfov` looks
+  undeclared. This is the calib failure 10.3 carried.
+- `dp_f` narrows its default to float, and the run logs the float widened
+  back. 6.28318 comes back as 6.283180236816406, outside the gate's 1e-9
+  tolerance.
+- The gate reads the event vocabulary from the current header, while its
+  defaults come from gen 33's backed-up node.
+
+**Fix.**
+- A side whose manifest names a node other than gen33 is refused with exit 2.
+  An absent `node` means gen33: the key arrived with gen 34.
+  - The refusal names `gen34_check.py`.
+  - The gate reads gen 33's node source, and a gen-33 parent against a gen-34
+    child is not a default-off equivalence claim.
+  - Using equiv_gate between gen-34 runs (K17) needs gen 34's vocabulary and
+    node source. That is its own change.
+- The parser reads `dp_f(` too, and narrows those defaults through float32
+  before comparing.
+- Gen 33's `experiment_log.hpp` is backed up beside its node, and the gate
+  reads the vocabulary from there.
+- `equiv_pair.sh` refuses up front when the child's run script pins gen 34,
+  before two builds and two runs.
+
+**Calib.** Adds a gen-34 child refused (rc 2) and a gen-34 parent refused
+(rc 2). The 360° FOV case passes again; its fixture writes the widened float.
+The real-root audit skips cells whose manifest names a node other than gen33,
+so a banked gen-34 cell does not break it.
+
+### 11.9 Emulator relay list
+
+**Defect.** The shared `best_effort_topics` lists `exploration/team_world`,
+which the gen-34 node never publishes. That topic stays pending for the whole
+run:
+- the discovery poll runs every second,
+- a "waiting" line prints every 10 s,
+- "All relay topics discovered" never prints.
+
+The yaml comment claims such a topic "costs nothing".
+
+**Fix.**
+- The list becomes `exploration/intents` and `exploration/team_beacon`, and
+  the comment says what a never-published entry costs.
+- The waiting line names the pending topics.
+- The emulator warns once when topics are still pending
+  `pending_warn_sec` (120 s) after the last topic it discovered, or after its
+  first poll if none. The planners start a minute or more after the emulator, so
+  the anchor is the last discovery, not the start. Discovery keeps polling,
+  so a late publisher is still relayed.
+
+### 11.10 Map message layout
+
+Documentation only. `ScovoxMapBinary` gained `uint64 seq`, so old bags of
+`scovox_bin` do not deserialize with the new build (`comms_gates.py` reads
+them). `ScovoxFusionCounters` changed in the same scovox commit. The run box
+needs a full rebuild: `scovox_msgs` first, then everything that uses it.
+`TeamBeacon.msg` changes again in 11.1, so `explo_planner_msgs` rebuilds too.
+The run-box prompt at the next push says both.
+
+### 11.11 Not changed
+
+- **Gen-33 run-script machinery.** The arm-token and `mtare_*` blocks after
+  the gen-34 planner block stay.
+  - The pinned `mtare_off` token still sets `CELL_WORLD`, `TEAM_WORLD` and
+    `GLOBAL_ALLOC` to 1. Those configure the cell world and the allocator
+    that the gen-34 oracle reads.
+  - Removing the blocks would change the manifest and the comparability key.
+    That is a campaign change, not a fix.
+- **Schema.** The schema stays at 13. The new fields, the `done_late` action
+  and the new counters are additive, and no schema-13 data exist yet: gen 34
+  has not reached the run box. The new TeamCore counters are in
+  `counterNames()`, so `run_end` reports them at zero.
+
+### 11.12 Adversarial review of this section
+
+Five Fable 5.1 reviewers read the first draft against the code before any of
+it was built. Four were steered: 11.1; 11.2 with 11.3; 11.4 to 11.7; and the
+scripts (11.6, 11.8 to 11.10). One was unsteered. Each finding was checked
+against the code before it was taken. The sections above are the result.
+
+**Taken.**
+
+| Finding | Severity | Change |
+|---|---|---|
+| The 6 m reconnect ring sits where the walker already stands (spots are 4.2 to 6 m apart), so the move degenerates | high | 11.3: tangential sight points at least 3 m away, fallback toward P |
+| An arrived booking never retargets, so a robot that learns the laggard caught up stays at the old cell | medium | 11.1: retarget after arrival when the lead fits |
+| The renewal wait reads direct beacons only | medium | 11.1: reads the table |
+| Convergence was stated, not bounded; one-way contact and version 0 unmentioned | medium | 11.1: assumptions, bound, residuals, P6 |
+| Merging in `onBeacon` lets a beacon's table race its own plan | medium | 11.1: merge in `updatePlan` from stored beacons |
+| The sender's table entry for itself could override its plan fields | low | 11.1: taken from `plan` only |
+| The starvation clock counts proximity holds (two reviewers) | medium | 11.7: a hold pauses it |
+| A starved robot could write `exploration_complete` twice (coverage after the finish) | medium | 11.7: one ending per robot |
+| Starved done time is biased by up to 300 s, more in meeting arms, and was counted as an exploration endpoint (two reviewers) | medium | 11.7: starved is a mission ending; the event carries open time, paused time, goals |
+| The checker's exemption is a pure self-claim | medium | 11.7: consistency rule and a claim-free backstop |
+| A disabled latch still wrote a bound, with 300 as a literal | low | 11.7: null when disabled; the bound uses the parameter |
+| The sight ray ends inside the braked peer, which is mapped | medium | 11.3: the oracle ignores 0.5 m at each end |
+| The design named the guard's 5 m hold as the reconnect's margin; the sim runs 1.5 m / 2.5 m, and the guard never held this walk | medium | 11.3: states the real bound |
+| A mapless robot's activity lines would keep the hang gate quiet | medium | 11.6: printed where the state follows |
+| One finished robot disarms the hang gate for all | low | 11.6: per-robot |
+| `HANG_HB` sized on an unstated ROI | low | 11.6: derived from `ROI_HALF` |
+| `dp_f` values come back widened from float | medium | 11.8: narrowed before comparing |
+| The calib's real-root audit breaks on the first banked gen-34 cell | medium | 11.8: skips non-gen-33 cells |
+| The emulator's warning anchored on its own start, before the planners exist | low | 11.9: anchored on the last discovery |
+| `equiv_pair.sh` builds and runs twice before the refusal | low | 11.8: refuses first |
+| The gate's vocabulary comes from the current header | low | 11.8: gen 33's header backed up |
+| A late finish may count for the next booking, not the current one | low | 11.2: stated |
+| Implementation hazards: `done_late` in its own branch, live sequence numbers, counters listed | — | 11.2, 11.11 |
+| Tick event re-read the clock; due time advanced at write | low | 11.4 |
+| `leg_legs` counts drive segments; `reset()` clears `key_` | low | 11.5 |
+| Two id orders (fleet id, name) | low | 11.3: warn at start |
+| §8.3 and Q54 left stale | low | amended |
+| `fusion_counters` wording in 11.10 | info | fixed |
+
+**Not taken.**
+
+| Finding | Why not |
+|---|---|
+| Fail a starved finish that selected goals (`starved-navfail`) | A frontier the amnesty re-offers and the robot cannot reach looks the same. A real navigation fault still fails the run at the Home or Meet leg (progress) or at the horizon. The goal count is in the event for the reader |
+| Close the clock on goal reached instead of 1 m of motion | A robot that drives far toward goals it never reaches is working, not starved. 1 m keeps that robot off the clock |
+| Shorten the latch to 240 s | With starved finishes censored in the metric (11.7), the latch only decides when the robot heads home. 300 s stays, one meeting interval |
+| Treat unknown cells as blocking for the sight query | Most of a cell's surroundings may be unknown, and every candidate would fail. The fallback toward P covers an unmapped blocker |
+| Freeze the cell at departure | L only rises, so the cell changes at most once per laggard version, and the lead check stops a late change after arrival |
+| Let a rising gave-up record hold the window | It would extend holds, which 11.2 promises not to do |
+
+### 11.13 Code review after the build, and verification
+
+Four Fable 5.1 reviewers read the built change. Three were steered: TeamCore
+and Leg; node integration; the scripts, checker and emulator. One was
+unsteered. Each finding was checked against the code before it was taken.
+
+**Taken.**
+
+| Finding | Severity | Change |
+|---|---|---|
+| The 0.5 m end skip never leaves a robot's disc on the 1.5 m-inflated plan map, so every ray from a mapped robot was blocked: sight points, `followPoint` and `pickEscape` were inert in the sim | high | 11.3: skip the occupied run at each end, up to `sight_end_clear_m` (3.0 m) |
+| Both checker still-windows closed only on a tick exactly W s back. Tick events are 2 s apart plus executor lag, so the 120 s progress rule and the 540 s backstop almost never fired on a real cell | high | 11.7: a window closes at the first tick at least W past its start; calib cases on jittered ticks |
+| `backup/gen33/experiment_log.hpp` was untracked, yet it is now the gate's default header (two reviewers) | medium | committed with this change |
+| The backstop counted proximity-hold ticks, which pause the node's clock | low | 11.7: a hold pauses the window |
+| A tick with a starvation count and no open time was exempt, yet the consistency rule skips it | low | 11.7: both fields required |
+| `HANG_HB=0` was accepted and kills the cell at the first quiet heartbeat | low | 11.6: refused |
+| The hang sizing's 4h path bound is not enforced | low | 11.6 and the script say so |
+| "The lowest-version robot always goes to its own cell" is false when it holds a still lower, stale entry | low | 11.1: reworded; the detour is bounded |
+| The `!B.full_met` retarget guard was not in the text | low | 11.1 |
+| The self-skip assertion of the merge test could not fail: adoption rewrote my entry after the merge | low | the claim is sent on a beacon that adopts nothing |
+| P6 was not checked in the replay | low | checked there too |
+| The emulator's comment on the sim clock was inexact | info | reworded |
+
+Both strengthened tests were checked by mutation: with the merge's self-skip
+removed, `TheMergeOnlyRisesAndSkipsMyEntryAndTheSendersOwn` fails; with the
+replay filter's table rewrite removed, the replay fails on P6. Each new calib
+case fails against the old window logic, the old hold handling, or the old
+exemption.
+
+**Not taken.**
+
+| Finding | Why not |
+|---|---|
+| A robot that loses its pose with the clock open keeps counting and latches `starved` | A fault case. The Home leg then fails `waits` |
+| A tick across an activity change is booked by the previous tick's view | At most 0.1 s per transition, inside the 0.3 s slack |
+| The coverage-latch time after another ending is in the console log only | No reader needs it. Add a `run_end` field if the metric does |
+| A held robot's activity line names the resume state, not PROXIMITY_HOLD | Cosmetic; the gate only counts the line |
+| A counter at 1.1× time is not caught | It latches early; it cannot hide a hang |
+| A laggard that adopts at radio range retargets before arrival while arrived peers stay | As before §11 |
+| `rc_sight` stays set after a sight walk ends by contact | Every reader also requires `rc_active` |
+
+The build's own test run found one more: the new `segmentClear` test placed
+its ray on a cell edge, where the float resolution put it in the row below.
+The test now uses cell centres.
+
+**Verification on this machine.**
+- **Build.** All six packages build in `hmrexplo:humble` with no warnings.
+- **Tests.**
+  - `explo_planner`: 727 tests pass, 78 of them in `test_team_core` and 10 in
+    `test_plan_map_query`.
+  - `scovox_mapping`: 117 tests pass.
+- **Calibs.**
+  - `gen34_check_calib`: all pass (95 cases).
+  - `rendezvous_agreement_calib`: all pass (31).
+  - `campaign_guard_calib.sh`: 177 of 177 pass.
+  - `gate_g8_calib` and `equiv_gate_calib`: every case passes except the
+    UNRESOLVED "no campaign root" line, which needs the run box's data.
+- **Emulator.** Run in the container with two robots, `pending_warn_sec` 4
+  and one topic published late: the waiting line named the six pending
+  topics, the late topic was relayed, and the one-time warning named the five
+  left, 5 s after that discovery.
+- **Not verified here.** Simulations run only on the run box. Its next build
+  must be a full one: `scovox_msgs` and `explo_planner_msgs` changed (11.10).
