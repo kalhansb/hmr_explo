@@ -4,7 +4,8 @@ Do robots parked on the paths into a mulching site warn the mulcher of a
 walker earlier than the mulcher's own lidar? Simulated in Ignition Fortress,
 2026-09-23/24. The plan, the full status log and every deviation from the
 brief are in [PLAN.md](PLAN.md); the generated numbers in
-[results/results.md](results/results.md).
+[results/results.md](results/results.md). Web page:
+<https://kalhansb.github.io/hmr_explo/lookout/> (source: `page/`).
 
 ## Answer
 
