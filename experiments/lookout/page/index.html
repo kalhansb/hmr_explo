@@ -298,6 +298,7 @@ footer { margin-top: 56px; padding-top: 14px; border-top: 1px solid var(--rule);
     <li><strong>Lookouts cover the blind sector.</strong> Every trial the mulcher never detected came within 45° of its front; the lookouts detected all of them.</li>
     <li><strong>Each lookout covers its own entry.</strong> Removing any one lookout in the three-entry site drops detection before the boundary to 67 %.</li>
     <li><strong>Lookouts do not change what the mulcher sees.</strong> In the control trials the mulcher's first alarm fell within one 0.5 m step of the matching trial in all 24 per site.</li>
+    <li><strong>The result holds with a published detector.</strong> A check made after the results (exploratory): all 120 trials re-run with M-detector (Wu et al., <em>Nature Communications</em>, 2024) as every lidar's detector, its parameters and our alarm rule fixed before its output was seen. The mulcher alone detected 34 / 48 (two lookouts) and 42 / 72 (three lookouts) before the boundary, median warning 2.3 and 3.5 s, at a median 27 and 32 m; with lookouts 48 / 48 and 72 / 72, median 28.8 and 26.9 s, at 60 and 62 m. The first alarm came a median 26.5 and 23.1 s earlier on the same trial; in 4 trials of the three-lookout site the mulcher alarmed first, from a few returns 62–66 m out. No false alarms in simulation; on a real recording M-detector raised many.</li>
   </ul>
 
   <h2>Limitations</h2>
@@ -314,6 +315,7 @@ footer { margin-top: 56px; padding-top: 14px; border-top: 1px solid var(--rule);
 LOOKOUT_GPU=1 experiments/lookout/docker_run.sh lk_L3 43 /lookout/run_layout.sh L3 /runs/lookout/L3_full full
 python3 /lookout/analyse.py --layout L2=/runs/lookout/L2_full --layout L3=/runs/lookout/L3_full \
     --calib /runs/lookout/calib_gpu --out /runs/lookout/results</code></pre>
+  <p class="prose">The M-detector check: <code>experiments/site_lookout/mdetector/</code> (its README has the settings and the commands); output in <code>runs/lookout_md/</code>.</p>
 </main>
 </body>
 </html>

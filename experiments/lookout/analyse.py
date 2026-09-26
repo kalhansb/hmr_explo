@@ -324,6 +324,16 @@ NOTE_LINE = ("Lookout boundary: the circle around the mulcher at the distance of
              "(28 m; 24 m for Lookout B of the two-entry site). ")
 
 
+def set_note_line(layouts):
+    """NOTE_LINE as written for L2/L3; for any other layout, from its config."""
+    global NOTE_LINE
+    if all(L.name in ("L2", "L3") for L in layouts):
+        return
+    NOTE_LINE = ("Lookout boundary: the circle around the mulcher at the distance of the path's lookout ("
+                 + "; ".join(f"entry {e['id']}: {e['r_post']:g} m" for L in layouts for e in L.cfg["entries"])
+                 + "). ")
+
+
 def site(ln):
     return SITE.get(ln, ln)
 
@@ -394,7 +404,8 @@ def fig_layout(L, figdir):
         ss = np.linspace(s0, e["s_end"], 200)
         Q = np.array([along(P, s) for s in ss])
         ax.plot(Q[:, 0], Q[:, 1], c="#7a4a1e", lw=1.8, zorder=3,
-                label="walked section (trials end 10 m from the mulcher)" if k == 0 else None)
+                label=f"walked section (trials end {round(L.cfg.get('end_radius', 10.0), 1):g} m from the mulcher)"
+                if k == 0 else None)
         for f in (0.08, 0.55):
             a, b = Q[int(f * len(Q))], Q[int(f * len(Q)) + 6]
             ax.annotate("", b, a, arrowprops=dict(arrowstyle="-|>", color="#7a4a1e", lw=1.4, mutation_scale=14),
@@ -486,7 +497,8 @@ def fig_curves(res, layouts, figdir):
                 meds.append((med(wv), n - len(wv)))
             (mm, mmiss), (tm, tmiss) = meds
             ax.text(33, 97, f"Median warning time\n"
-                    f"  mulcher only: {mm:+.1f} s\n  combined: {tm:+.1f} s\n"
+                    f"  mulcher only: {'none' if mm is None else f'{mm:+.1f} s'}\n"
+                    f"  combined: {'none' if tm is None else f'{tm:+.1f} s'}\n"
                     f"Never detected by the\nmulcher alone: {mmiss} of {n}",
                     fontsize=8, va="top", zorder=4,
                     bbox=dict(boxstyle="round,pad=0.35", fc="white", ec="#bbbbbb", lw=0.7))
@@ -580,7 +592,7 @@ def fig_fa(layouts, fa_pts, figdir):
             else:
                 ax.scatter([], [], c=c, label=f"{name}: no false alarms")
         ax.plot(0, 0, "s", c="k", ms=7)
-        lim = L.cfg["forest"]["radius"]
+        lim = L.cfg["forest"].get("radius", 120.0)
         ax.set_xlim(-lim, lim); ax.set_ylim(-lim, lim); ax.set_aspect("equal")
         ax.set_xlabel("east (m)"); ax.set_ylabel("north (m)")
         ax.set_title(f"{site(ln)}: false alarms, specified rule")
@@ -641,7 +653,7 @@ def results_md(res, layouts, calib):
               f"- First catcher (main rule): {pr['first_catcher']}.",
               f"- Best lookout warning time (s, quartiles): {pr['best_lookout_warn_s_q']}.",
               *(f"- Team vs mulcher alone, same walk ({VLABEL[v]}): first alarm {qfmt(g['s_q'])} s earlier "
-                f"(quartiles; least {g['s_min']:.1f} s) over the {g['n']} walks both caught; the mulcher never "
+                f"(quartiles; least {'-' if g['s_min'] is None else format(g['s_min'], '.1f')} s) over the {g['n']} walks both caught; the mulcher never "
                 f"raised it in {g['mulcher_never']}. Distance from the mulcher at the first alarm (m, quartiles): "
                 f"mulcher {qfmt(g['dist_mulcher_m_q'])}, team {qfmt(g['dist_team_m_q'])}."
                 for v, g in ((v, pr[f"extra_warning/{v}"]) for v in (MAIN, "best"))),
@@ -686,6 +698,7 @@ def main():
         layouts[n] = Layout(n, d)
         print(f"[analyse] {n}: {len(layouts[n].main)} walks, {len(layouts[n].check)} check walks, "
               f"{len(layouts[n].alarms)} alarm rows", flush=True)
+    set_note_line(layouts.values())
     res, det_rows, chk_rows, fa_pts = {}, [], [], []
     for n, L in layouts.items():
         det, dr = detection(L)

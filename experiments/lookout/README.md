@@ -50,6 +50,13 @@ What the numbers mean:
   walkers before the post line, with a median warning of 1-8 s; the team
   catches all of them, before 50 m too, with 27-29 s. Best case, same walk:
   the team's first alarm 26.5 s (L2) and 20.4 s (L3) earlier.
+- **The result holds with a published moving-object detector.** A check made after the results
+  (2026-09-26), both layouts re-run with M-detector (Wu et al., 2024) as every lidar's detector
+  (`../site_lookout/mdetector/`, output `runs/lookout_md/`): the mulcher alone caught 34/48 (L2) and
+  42/72 (L3) walkers before the post line, median warning 2.3 and 3.5 s; with the lookouts 48/48 and
+  72/72, median 28.8 and 26.9 s (McNemar exact p = 1e-4 and 2e-9); the first alarm a median 26.5 s
+  (L2) and 23.1 s (L3) earlier on the same walk. In 4 L3 walks the mulcher raised the first alarm
+  itself, from sparse hits on the walker 62-66 m out. No false alarms in simulation.
 - **The mulcher's blind side.** Every walk the mulcher alone never caught
   came in within 45 deg of its front, where the cutting head blocks 15 of its
   16 lidar channels (bearing measured with the walker 20 m out). In L3 it
@@ -156,6 +163,8 @@ python3 /lookout/gonogo.py --layout L2=/runs/lookout/L2_full --layout L3=/runs/l
     --calib /runs/lookout/calib_gpu
 python3 /lookout/analyse.py --layout L2=/runs/lookout/L2_full --layout L3=/runs/lookout/L3_full \
     --calib /runs/lookout/calib_gpu --out /runs/lookout/results
+# M-detector check (after the results): see ../site_lookout/mdetector/README.md
+experiments/site_lookout/mdetector/run_md_lookout.sh L2 L3
 ```
 
 One layout at a time: on this machine two sims in parallel are no faster. L3

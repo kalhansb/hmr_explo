@@ -1,0 +1,60 @@
+calibration
+  [PASS] calibration not far beyond ~30-38 m: lk0/toward/alarm_m5 max 12.5, lk0/toward/best max 32.5, lk0/across/alarm_m5 max 12.5, lk0/across/best max 27.5, mulcher/toward/alarm_m5 max 12.5, mulcher/toward/best max 40.0, mulcher/across/alarm_m5 max 12.5, mulcher/across/best max 37.5
+S1
+  [PASS] lksa sees the person: max 1339 non-static returns in the box over 6265 scans
+  [PASS] lksb sees the person: max 1188 non-static returns in the box over 6265 scans
+  [PASS] mulcher sees the person: max 22 non-static returns in the box over 6265 scans
+  [PASS] at_post logged for the lookouts: 2 at_post events
+  [PASS] lksa on its post and linked: 0.0 m from the calculated point; link 23.0 m, 0 trunks, SNR 54.6 dB
+  [PASS] lksb on its post and linked: 0.0 m from the calculated point; link 28.0 m, 0 trunks, SNR 52.9 dB
+  [PASS] S1-h000-A-r0 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h000-A-r1 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h000-B-r0 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h000-B-r1 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h030-A-r0 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h030-A-r1 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h030-B-r0 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h030-B-r1 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h060-A-r0 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h060-A-r1 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h060-B-r0 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h060-B-r1 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h090-A-r0 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h090-A-r1 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h090-B-r0 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h090-B-r1 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h120-A-r0 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h120-A-r1 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h120-B-r0 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h120-B-r1 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h150-A-r0 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h150-A-r1 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h150-B-r0 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h150-B-r1 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h180-A-r0 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h180-A-r1 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h180-B-r0 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h180-B-r1 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h210-A-r0 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h210-A-r1 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h210-B-r0 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h210-B-r1 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h240-A-r0 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h240-A-r1 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h240-B-r0 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h240-B-r1 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h270-A-r0 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h270-A-r1 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h270-B-r0 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h270-B-r1 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h300-A-r0 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h300-A-r1 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h300-B-r0 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h300-B-r1 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h330-A-r0 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h330-A-r1 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h330-B-r0 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] S1-h330-B-r1 lookouts held: lksa 0.0000 m, lksb 0.0000 m
+  [PASS] walks finished, every field filled: 72 walks in walks.csv; empty fields: []
+  [PASS] false alarms do not outnumber true detections (main rule): 2712 true / 0 false alarm scans; by lidar: lksa 1359/0, lksb 1353/0, mulcher 0/0
+GO

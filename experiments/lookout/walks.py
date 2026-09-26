@@ -39,6 +39,11 @@ re-run on restart and only the session in walks.csv counts):
   scans/<walk>.npz per step and lidar: returns >= 0.1 m closer than background
                    (or on a no-background beam) and the returns in the
                    person's box, world frame, with ring/col/range/background
+  fullscans/<walk>.npz  only with LOOKOUT_FULLSCANS=1 (added 2026-09-25 for the
+                   moving-object detector check, site_lookout/mdetector; off, it
+                   changes nothing): every lidar's whole scan per step, as
+                   range in cm (uint16, 0 = no return) with each beam's unit
+                   direction in the sensor frame, the lidar pose and walk time
 """
 import argparse
 import csv
@@ -192,6 +197,9 @@ class Session:
         self.names = ["mulcher"] + self.lk
         os.makedirs(os.path.join(out, "bg"), exist_ok=True)
         os.makedirs(os.path.join(out, "scans"), exist_ok=True)
+        self.full = os.environ.get("LOOKOUT_FULLSCANS") == "1"
+        if self.full:
+            os.makedirs(os.path.join(out, "fullscans"), exist_ok=True)
         self.ev = open(os.path.join(out, "events.jsonl"), "a")
         rclpy.init()
         self.node = ScanNode(self.W, {n: f"/{n}/velodyne_points" for n in self.names}, odoms=self.lk,
@@ -329,6 +337,7 @@ class Session:
         hold = {n: [0.0, 0.0] for n in self.lk}
         linked = {}
         rec = {k: [] for k in ("step", "lidar", "row", "col", "xyz", "ring", "range", "bg", "box")}
+        full = {n: {"r": [], "R": [], "t": [], "dirs": None} for n in self.names} if self.full else None
         retries, w0 = 0, time.time()
         tm = {"set_pose": 0.0, "step_fresh": 0.0, "process": 0.0}
         self.log("walk_start", walk=walk["id"], heading=walk["heading"], entry=walk["entry"], n_steps=len(pts),
@@ -348,6 +357,15 @@ class Session:
                 d = gz.decode(msgs[n])
                 R, t = self.lidar_pose(n)
                 Pw = gz.to_world(d, R, t)
+                if full is not None:
+                    fr = d["range"]
+                    ok = np.isfinite(fr) & (fr > 0)
+                    if full[n]["dirs"] is None:
+                        full[n]["dirs"] = np.zeros(fr.shape + (3,), np.float32)
+                    with np.errstate(invalid="ignore", divide="ignore"):
+                        full[n]["dirs"][ok] = (np.stack([d["x"], d["y"], d["z"]], -1)[ok] / fr[ok, None])
+                    full[n]["r"].append(np.where(ok, np.clip(np.round(fr * 100.0), 1, 65535), 0).astype(np.uint16))
+                    full[n]["R"].append(R.copy()); full[n]["t"].append(t.copy())
                 r, rings, bg = d["range"], d["ring"].astype(np.int64), self.bg[n]
                 m = D.new_mask(r, bg, D.RULE.closer)
                 cls = {False: D.clusters(Pw[m], rings[m]), True: D.clusters(Pw[m], rings[m], xy=True)}
@@ -416,6 +434,13 @@ class Session:
                             lidars=np.array(self.names), steps_t=np.array([q["t"] for q in pts]),
                             steps_xy=np.array([[q["x"], q["y"]] for q in pts]),
                             **{k: (np.concatenate(v) if v else np.zeros(0)) for k, v in rec.items()})
+        if full is not None:
+            np.savez_compressed(os.path.join(self.out, "fullscans", f"{walk['id']}__{self.sid}.npz"),
+                                lidars=np.array(self.names), steps_t=np.array([q["t"] for q in pts]),
+                                steps_xy=np.array([[q["x"], q["y"]] for q in pts]),
+                                steps_yaw=np.array([q["heading"] + self.yaw_off for q in pts]),
+                                **{f"{k}_{n}": np.stack(full[n][k]) for n in self.names for k in ("r", "R", "t")},
+                                **{f"dirs_{n}": full[n]["dirs"] for n in self.names})
         self.log("walk_timing", walk=walk["id"], svc_retries_total=len(gz.SVC_RETRIES),
                  **{k: round(v, 1) for k, v in tm.items()})
         self.summarise(walk, pts, b20, first, fa, linked, hold, retries, time.time() - w0)
