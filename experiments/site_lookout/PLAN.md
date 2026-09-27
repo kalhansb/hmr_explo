@@ -106,7 +106,7 @@ and give the comparison that is not decided by the walk's end point.
   changed only for the VLP-16 geometry and the walk timing (`md_vlp16.yaml`); alarm rule fixed before
   its output was seen (`md_sim.py`: frame-out moving points, 0.5 m horizontal linkage, >= 3 points,
   2 consecutive steps within 1 m, hit within 1 m). 48 main walks (`md_team.py`), oak models / map points:
-  mulcher detected 44/44 of 48 at all (missed the 4 blind-wedge walks), before the post line 18 / 16
+  mulcher detected 44 of 48 at all in each (missed the 4 blind-wedge walks), before the post line 18 / 15
   of 48, median warning -1.7 / -4.0 s; with lookouts 48/48 before the post line, median 24.6 / 25.0 s;
   first alarm earlier with lookouts on the same walk, median 25.6 / 28.7 s (least 18.1 / 20.4 s);
   false alarms 0 in every walk and lidar.
@@ -115,3 +115,7 @@ and give the comparison that is not decided by the walk's end point.
   line: L2 34/48 / 48/48 (median warning 2.3 / 28.8 s), L3 42/72 / 72/72 (3.5 / 26.9 s); same walk,
   lookouts earlier by a median 26.5 s (L2) and 23.1 s (L3); in 4 L3 walks the mulcher alarmed first
   (sparse hits on the walker 62-66 m out); false alarms 0. Recorded in `../lookout/README.md`.
+- 2026-09-27, review: S1G's mulcher-alone count before the post line corrected from 16 to 15 of 48.
+  md_team.py compares rounded alarm times with the exact crossing time; S1G-h090-A-r1's first alarm
+  is at 22.8 m, inside the 23 m post line. Also found: the path and both posts lie outside the ROI,
+  so the map's low objects along the path are not in S1 or S1G (README, Limits).

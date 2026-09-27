@@ -45,7 +45,7 @@ What the numbers mean:
 - **The trees hardly matter to the mulcher.** A check made after the results: the mulcher's 12 check
   walks repeated with every tree removed. Under the specified rule it detected no one either way. Under
   the looser rules its first detection came at the same distance in 8 of 11 walks, 0.5-0.9 m further
-  out in 2, and 4-7 m further out in 1; it missed the same walk (in its blind wedge). Its limit is the
+  out in 2, and 6.7 m (horizontal clustering) or 3.7 m (ideal detector) further out in 1; it missed the same walk (in its blind wedge). Its limit is the
   lidar's range for a person and the cutting head, not the trees.
 - **The real site blocks more than the oak models, from the east.** A second check made after the
   results: the same 12 walks with the oak models replaced by the map's own points (5 cm voxels, flat
@@ -54,7 +54,7 @@ What the numbers mean:
   (horizontal clustering) or 5.8 m (ideal detector) closer than among the oak models.
 - **The result holds with a published moving-object detector.** A check made after the results, with
   M-detector (Wu et al., 2024) as every lidar's detector, in the oak-model world and the map-point world:
-  the mulcher alone detected 18 and 16 of 48 walkers before the lookout boundary (median warning -1.7 and
+  the mulcher alone detected 18 and 15 of 48 walkers before the lookout boundary (median warning -1.7 and
   -4.0 s); with the lookouts, 48 of 48 (median 24.6 and 25.0 s), a median 25.6 and 28.7 s earlier on the
   same walk. No false alarms in simulation (on a real recording it raised many). The same check on the
   lookout experiment's layouts L2 and L3 gave the same answer; all four worlds are in
@@ -86,6 +86,11 @@ What the numbers mean:
 
 ## Limits
 
+- The worlds model only the region of interest. The path runs 2.5 m outside it and both lookout
+  posts lie south of the path, so the low objects the map shows along the path (about 3,100 points
+  more than 0.35 m above the ground within 1.5 m of it, most under 1.5 m high, a cluster around
+  lookout B) are not in S1 or S1G. They could block the lookouts' lidars, which would reduce their
+  advantage. (That no map point lies within 1.5 m of the path in S1G follows from this cut.)
 - The site is reduced to its trees: flat ground, no walls, fences, bushes
   or slope, and trees only inside the region of interest.
 - Tree positions and sizes come from the map automatically; where crowns

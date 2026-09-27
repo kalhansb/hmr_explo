@@ -163,7 +163,7 @@ python3 /lookout/gonogo.py --layout L2=/runs/lookout/L2_full --layout L3=/runs/l
     --calib /runs/lookout/calib_gpu
 python3 /lookout/analyse.py --layout L2=/runs/lookout/L2_full --layout L3=/runs/lookout/L3_full \
     --calib /runs/lookout/calib_gpu --out /runs/lookout/results
-# M-detector check (after the results): see ../site_lookout/mdetector/README.md
+# M-detector check (after the results), on the host: see ../site_lookout/mdetector/README.md
 experiments/site_lookout/mdetector/run_md_lookout.sh L2 L3
 ```
 
