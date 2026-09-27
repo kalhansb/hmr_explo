@@ -203,16 +203,18 @@ pre {
 pre code { background: none; padding: 0; }
 footer { margin-top: 56px; padding-top: 14px; border-top: 1px solid var(--rule); font-size: 0.9rem; color: var(--muted); }
 
-/* opening animation: the two-entry site, drawn to scale (6 px per metre); 28 s loop,
-   a pedestrian from the west (first half), then one from the east (second half) */
+/* opening animation: the two-entry site (L2) as simulated, 6 px per metre, real trunk positions;
+   distances and times are the L2 medians per entry (main rule). Generated; 32 s loop:
+   a pedestrian from the west (first half), then one from the east (second half). */
 .anim { margin: 28px 0 22px; }
 .anim svg { display: block; width: 100%; height: auto; background: var(--surface); border: 1px solid var(--rule); border-radius: 4px; }
 .anim .tree { fill: var(--tree); }
-.anim .pathband { fill: var(--pathc); }
+.anim .trunk { fill: var(--muted); opacity: 0.55; }
+.anim .pathband { fill: none; stroke: var(--pathc); stroke-width: 18; stroke-linecap: round; stroke-linejoin: round; }
 .anim .radio { fill: none; stroke: var(--team); stroke-opacity: 0.55; stroke-width: 1.4; stroke-dasharray: 7 6; }
 .anim .reach-m { fill: var(--mulcher); fill-opacity: 0.07; stroke: var(--mulcher); stroke-opacity: 0.5; stroke-width: 1.2; }
 .anim .reach-l { fill: var(--team); fill-opacity: 0.08; stroke: var(--team); stroke-opacity: 0.6; stroke-width: 1.2; }
-.anim .blind { fill: var(--post); fill-opacity: 0.18; }
+.anim .blind { fill: var(--post); fill-opacity: 0.2; }
 .anim .beam-m { stroke: var(--mulcher); stroke-opacity: 0.45; stroke-width: 1.5; }
 .anim .beam-l { stroke: var(--team); stroke-opacity: 0.55; stroke-width: 1.5; }
 .anim .body-m { fill: var(--mulcher); }
@@ -234,7 +236,7 @@ footer { margin-top: 56px; padding-top: 14px; border-top: 1px solid var(--rule);
 .anim .t-gap { fill: var(--post); }
 .anim-bar { display: flex; gap: 14px; align-items: flex-start; margin-top: 10px; }
 .anim-caps { display: grid; flex: 1; min-height: 4.4em; }
-.anim-caps p { grid-area: 1 / 1; margin: 0; opacity: 0; font-size: 1rem; line-height: 1.45; max-width: 70ch; }
+.anim-caps p { grid-area: 1 / 1; margin: 0; opacity: 0; font-size: 1rem; line-height: 1.45; max-width: 72ch; }
 .anim-caps b { font-family: var(--display); font-weight: 600; font-size: 1.1rem; margin-right: 6px; }
 .anim-btn {
   font-family: var(--mono); font-size: 0.78rem; letter-spacing: 0.04em; text-transform: uppercase;
@@ -243,39 +245,34 @@ footer { margin-top: 56px; padding-top: 14px; border-top: 1px solid var(--rule);
 }
 .anim-btn:focus-visible { outline: 2px solid var(--team); outline-offset: 2px; }
 
-.anim .a { animation-duration: 28s; animation-timing-function: linear; animation-iteration-count: infinite; }
-.anim .moveW { animation-name: moveW; } .anim .fadeW { animation-name: fadeW; }
-.anim .moveE { animation-name: moveE; } .anim .fadeE { animation-name: fadeE; }
-.anim .onW1 { animation-name: onW1; opacity: 0; } .anim .onW2 { animation-name: onW2; opacity: 0; }
-.anim .onE1 { animation-name: onE1; opacity: 0; } .anim .onE2 { animation-name: onE2; opacity: 0; }
-.anim .cW1 { animation-name: cW1; } .anim .cW2 { animation-name: cW2; } .anim .cW3 { animation-name: cW3; }
-.anim .cE1 { animation-name: cE1; } .anim .cE2 { animation-name: cE2; } .anim .cE3 { animation-name: cE3; }
+.anim .a { animation-duration: 32s; animation-timing-function: linear; animation-iteration-count: infinite; opacity: 0; }
+.anim .onA1 { animation-name: onA1; } .anim .onA2 { animation-name: onA2; }
+.anim .onB1 { animation-name: onB1; } .anim .onB2 { animation-name: onB2; }
+.anim .capA1 { animation-name: capA1; } .anim .capA2 { animation-name: capA2; } .anim .capA3 { animation-name: capA3; }
+.anim .capB1 { animation-name: capB1; } .anim .capB2 { animation-name: capB2; } .anim .capB3 { animation-name: capB3; }
+.anim .walkA { animation-name: walkA; } .anim .walkB { animation-name: walkB; }
 .anim .flow { animation: flow 0.9s linear infinite; }
 .anim .pulse { animation: pulse 1.2s ease-out infinite; transform-box: fill-box; transform-origin: center; }
 .anim.paused .a, .anim.paused .flow, .anim.paused .pulse { animation-play-state: paused; }
-@keyframes moveW { 0%, 2.5% { transform: translateX(0); } 42.5%, 100% { transform: translateX(434px); } }
-@keyframes fadeW { 0% { opacity: 0; } 1.5%, 48% { opacity: 1; } 50%, 100% { opacity: 0; } }
-@keyframes moveE { 0%, 52.5% { transform: translateX(0); } 92.5%, 100% { transform: translateX(-410px); } }
-@keyframes fadeE { 0%, 50% { opacity: 0; } 51.5%, 98% { opacity: 1; } 100% { opacity: 0; } }
-@keyframes onW1 { 0%, 20.8% { opacity: 0; } 21.3%, 48% { opacity: 1; } 50%, 100% { opacity: 0; } }
-@keyframes onW2 { 0%, 37.5% { opacity: 0; } 38%, 48% { opacity: 1; } 50%, 100% { opacity: 0; } }
-@keyframes onE1 { 0%, 72% { opacity: 0; } 72.5%, 98% { opacity: 1; } 100% { opacity: 0; } }
-@keyframes onE2 { 0%, 87.2% { opacity: 0; } 87.7%, 98% { opacity: 1; } 100% { opacity: 0; } }
-@keyframes cW1 { 0% { opacity: 0; } 1%, 20.3% { opacity: 1; } 20.8%, 100% { opacity: 0; } }
-@keyframes cW2 { 0%, 20.8% { opacity: 0; } 21.3%, 37% { opacity: 1; } 37.5%, 100% { opacity: 0; } }
-@keyframes cW3 { 0%, 37.5% { opacity: 0; } 38%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
-@keyframes cE1 { 0%, 50% { opacity: 0; } 51%, 71.5% { opacity: 1; } 72%, 100% { opacity: 0; } }
-@keyframes cE2 { 0%, 72% { opacity: 0; } 72.5%, 86.7% { opacity: 1; } 87.2%, 100% { opacity: 0; } }
-@keyframes cE3 { 0%, 87.2% { opacity: 0; } 87.7%, 98% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes onA1 { 0%, 19.95% { opacity: 0; } 20.45%, 49.50% { opacity: 1; } 50.00%, 100% { opacity: 0; } }
+@keyframes onA2 { 0%, 36.81% { opacity: 0; } 37.31%, 49.50% { opacity: 1; } 50.00%, 100% { opacity: 0; } }
+@keyframes onB1 { 0%, 68.57% { opacity: 0; } 69.07%, 99.00% { opacity: 1; } 99.50%, 100% { opacity: 0; } }
+@keyframes onB2 { 0%, 82.98% { opacity: 0; } 83.48%, 99.00% { opacity: 1; } 99.50%, 100% { opacity: 0; } }
+@keyframes capA1 { 0% { opacity: 0; } 0.5%, 19.95% { opacity: 1; } 20.45%, 100% { opacity: 0; } }
+@keyframes capA2 { 0%, 19.95% { opacity: 0; } 20.45%, 36.31% { opacity: 1; } 36.81%, 100% { opacity: 0; } }
+@keyframes capA3 { 0%, 36.81% { opacity: 0; } 37.31%, 49.50% { opacity: 1; } 50.00%, 100% { opacity: 0; } }
+@keyframes capB1 { 0%, 50.00% { opacity: 0; } 50.50%, 68.07% { opacity: 1; } 68.57%, 100% { opacity: 0; } }
+@keyframes capB2 { 0%, 68.57% { opacity: 0; } 69.07%, 82.48% { opacity: 1; } 82.98%, 100% { opacity: 0; } }
+@keyframes capB3 { 0%, 82.98% { opacity: 0; } 83.48%, 99.00% { opacity: 1; } 99.50%, 100% { opacity: 0; } }
+@keyframes walkA { 0%, 0.00% { opacity: 0; } 0.50%, 49.00% { opacity: 1; } 49.50%, 100% { opacity: 0; } }
+@keyframes walkB { 0%, 50.00% { opacity: 0; } 50.50%, 99.00% { opacity: 1; } 99.50%, 100% { opacity: 0; } }
 @keyframes flow { to { stroke-dashoffset: -30; } }
 @keyframes pulse { 0% { transform: scale(0.6); stroke-opacity: 1; } 100% { transform: scale(1.5); stroke-opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
   .anim .a, .anim .flow, .anim .pulse { animation: none; }
-  .anim .moveW { transform: translateX(198px); }
-  .anim .fadeE, .anim .onE1, .anim .onE2 { opacity: 0; }
-  .anim .onW1, .anim .onW2 { opacity: 1; }
+  .anim .onA1, .anim .onA2, .anim .walkA, .anim-caps p { opacity: 1; }
   .anim-caps { display: block; }
-  .anim-caps p { opacity: 1; margin-bottom: 6px; }
+  .anim-caps p { margin-bottom: 6px; }
   .anim-btn { display: none; }
 }
 </style>
@@ -289,136 +286,276 @@ footer { margin-top: 56px; padding-top: 14px; border-top: 1px solid var(--rule);
     <p class="lede">Can robots parked as lookouts on the paths into a forestry mulching site warn the mulcher of an approaching pedestrian earlier than the mulcher's own lidar?</p>
 
     <figure class="anim" id="idea" aria-labelledby="idea-cap">
-      <svg viewBox="0 0 900 370" role="img" aria-label="Animated plan view of the two-entry site, to scale. A path passes the parked mulcher, with a lookout robot beside it on each side, inside the 30 m radio range. A pedestrian comes from the west: Lookout A detects them about 40 m from the mulcher and warns it by radio, about 23 seconds before the mulcher's own lidar would at about 14 m. Then a pedestrian comes from the east: Lookout B detects them about 36 m out, about 20 seconds before the mulcher would.">
-        <rect class="pathband" x="0" y="231" width="900" height="18"/>
+      <svg viewBox="0 0 900 440" role="img" aria-label="Animated plan view of the two-entry site as simulated, to scale, with the real tree positions. A path passes 10 m north of the parked mulcher. Lookout A is parked beside the path 28 m to the west and Lookout B 24 m to the east, inside the 30 m radio range. A pedestrian comes from the west: Lookout A detects them 42 m from the mulcher, 23.5 s before the mulcher's own lidar does at 14 m (medians of 24 trials). Then a pedestrian comes from the east: Lookout B detects them 37 m out, 20 s before the mulcher does at 14 m.">
+        <path class="pathband" d="M-468.1 206.7 L-453.1 210.1 L-438.1 213.0 L-423.1 215.5 L-408.1 217.5 L-393.1 218.9 L-378.1 219.8 L-363.1 220.0 L-348.1 219.6 L-333.1 218.6 L-318.1 217.1 L-303.1 214.9 L-288.1 212.3 L-273.1 209.2 L-258.1 205.8 L-243.1 202.0 L-228.1 197.9 L-213.1 193.7 L-198.1 189.4 L-183.1 185.2 L-168.1 181.0 L-153.1 177.0 L-138.1 173.3 L-123.1 169.9 L-108.1 167.0 L-93.1 164.5 L-78.1 162.5 L-63.1 161.1 L-48.1 160.2 L-33.1 160.0 L-18.1 160.4 L-3.1 161.4 L11.9 162.9 L26.9 165.1 L41.9 167.7 L56.9 170.8 L71.9 174.2 L86.9 178.0 L101.9 182.1 L116.9 186.3 L131.9 190.6 L146.9 194.8 L161.9 199.0 L176.9 203.0 L191.9 206.7 L206.9 210.1 L221.9 213.0 L236.9 215.5 L251.9 217.5 L266.9 218.9 L281.9 219.8 L296.9 220.0 L311.9 219.6 L326.9 218.6 L341.9 216.6 L356.9 211.4 L371.9 206.4 L386.9 201.7 L401.9 197.6 L416.9 194.3 L431.9 191.9 L446.9 190.4 L461.9 190.0 L476.9 189.3 L491.9 187.6 L506.9 184.9 L521.9 181.4 L536.9 177.1 L551.9 172.4 L566.9 167.2 L581.9 162.5 L596.9 161.1 L611.9 160.2 L626.9 160.0 L641.9 160.4 L656.9 161.4 L671.9 162.9 L686.9 165.1 L701.9 167.7 L716.9 170.8 L731.9 174.2 L746.9 178.0 L761.9 182.1 L776.9 186.3 L791.9 190.6 L806.9 194.8 L821.9 199.0 L836.9 203.0 L851.9 206.7 L866.9 210.1 L881.9 213.0 L896.9 215.5 L911.9 217.5 L926.9 218.9 L941.9 219.8 L956.9 220.0 L971.9 219.6 L986.9 218.6 L1001.9 217.1 L1016.9 214.9 L1031.9 212.3 L1046.9 209.2 L1061.9 205.8 L1076.9 202.0 L1091.9 197.9 L1106.9 193.7 L1121.9 189.4 L1136.9 185.2 L1151.9 181.0 L1166.9 177.0 L1181.9 173.3 L1196.9 169.9 L1211.9 167.0 L1226.9 164.5 L1241.9 162.5 L1256.9 161.1 L1271.9 160.2 L1286.9 160.0 L1301.9 160.4 L1316.9 161.4 L1331.9 162.9 L1346.9 165.1 L1361.9 167.7 L1376.9 170.8"/>
         <g class="tree">
-        <circle cx="408" cy="206" r="13"/>
-        <circle cx="173" cy="189" r="11"/>
-        <circle cx="90" cy="295" r="11"/>
-        <circle cx="47" cy="356" r="13"/>
-        <circle cx="23" cy="195" r="8"/>
-        <circle cx="177" cy="94" r="8"/>
-        <circle cx="593" cy="170" r="9"/>
-        <circle cx="888" cy="360" r="12"/>
-        <circle cx="633" cy="120" r="9"/>
-        <circle cx="264" cy="33" r="12"/>
-        <circle cx="853" cy="308" r="8"/>
-        <circle cx="873" cy="149" r="8"/>
-        <circle cx="87" cy="126" r="13"/>
-        <circle cx="99" cy="29" r="12"/>
-        <circle cx="717" cy="116" r="12"/>
-        <circle cx="195" cy="148" r="12"/>
-        <circle cx="299" cy="113" r="8"/>
-        <circle cx="539" cy="140" r="10"/>
-        <circle cx="854" cy="179" r="11"/>
-        <circle cx="773" cy="73" r="9"/>
-        <circle cx="809" cy="298" r="9"/>
-        <circle cx="535" cy="112" r="9"/>
-        <circle cx="25" cy="103" r="10"/>
-        <circle cx="63" cy="70" r="10"/>
-        <circle cx="514" cy="55" r="10"/>
-        <circle cx="794" cy="355" r="11"/>
-        <circle cx="41" cy="14" r="13"/>
-        <circle cx="627" cy="349" r="8"/>
-        <circle cx="291" cy="362" r="8"/>
-        <circle cx="815" cy="133" r="11"/>
-        <circle cx="546" cy="36" r="11"/>
-        <circle cx="884" cy="319" r="12"/>
-        <circle cx="433" cy="89" r="11"/>
-        <circle cx="235" cy="12" r="10"/>
-        <circle cx="607" cy="80" r="9"/>
-        <circle cx="445" cy="120" r="12"/>
-        <circle cx="38" cy="317" r="8"/>
-        <circle cx="410" cy="17" r="12"/>
-        <circle cx="219" cy="58" r="8"/>
-        <circle cx="564" cy="166" r="11"/>
-        <circle cx="167" cy="12" r="10"/>
-        <circle cx="638" cy="71" r="9"/>
-        <circle cx="342" cy="209" r="12"/>
-        <circle cx="317" cy="37" r="10"/>
-        <circle cx="35" cy="294" r="8"/>
-        <circle cx="714" cy="69" r="10"/>
-        <circle cx="845" cy="38" r="9"/>
-        <circle cx="473" cy="111" r="12"/>
-        <circle cx="503" cy="118" r="10"/>
-        <circle cx="759" cy="351" r="11"/>
-        <circle cx="247" cy="175" r="9"/>
-        <circle cx="394" cy="141" r="10"/>
-        <circle cx="476" cy="65" r="9"/>
-        <circle cx="822" cy="85" r="13"/>
-        <circle cx="791" cy="55" r="9"/>
-        <circle cx="649" cy="100" r="8"/>
-        <circle cx="742" cy="157" r="12"/>
-        <circle cx="121" cy="151" r="11"/>
-        <circle cx="683" cy="124" r="10"/>
-        <circle cx="367" cy="77" r="9"/>
-        <circle cx="461" cy="13" r="12"/>
-        <circle cx="454" cy="356" r="12"/>
+        <circle cx="335.4" cy="440.8" r="9"/>
+        <circle cx="763.8" cy="342.1" r="9"/>
+        <circle cx="427.2" cy="21.9" r="9"/>
+        <circle cx="896.9" cy="54.1" r="9"/>
+        <circle cx="391.0" cy="344.2" r="9"/>
+        <circle cx="566.9" cy="287.9" r="9"/>
+        <circle cx="345.8" cy="92.3" r="9"/>
+        <circle cx="699.1" cy="441.4" r="9"/>
+        <circle cx="686.6" cy="359.6" r="9"/>
+        <circle cx="680.8" cy="54.5" r="9"/>
+        <circle cx="495.3" cy="1.0" r="9"/>
+        <circle cx="749.5" cy="75.4" r="9"/>
+        <circle cx="531.9" cy="392.6" r="9"/>
+        <circle cx="845.9" cy="-3.2" r="9"/>
+        <circle cx="236.8" cy="140.0" r="9"/>
+        <circle cx="522.2" cy="78.9" r="9"/>
+        <circle cx="654.5" cy="403.9" r="9"/>
+        <circle cx="426.2" cy="406.4" r="9"/>
+        <circle cx="203.1" cy="342.5" r="9"/>
+        <circle cx="598.4" cy="258.6" r="9"/>
+        <circle cx="146.6" cy="221.4" r="9"/>
+        <circle cx="218.5" cy="237.6" r="9"/>
+        <circle cx="130.8" cy="47.6" r="9"/>
+        <circle cx="320.8" cy="172.2" r="9"/>
+        <circle cx="374.3" cy="268.0" r="9"/>
+        <circle cx="262.1" cy="29.6" r="9"/>
+        <circle cx="814.9" cy="419.6" r="9"/>
+        <circle cx="409.6" cy="98.8" r="9"/>
+        <circle cx="880.0" cy="98.8" r="9"/>
+        <circle cx="712.3" cy="243.4" r="9"/>
+        <circle cx="520.0" cy="435.0" r="9"/>
+        <circle cx="-4.4" cy="435.9" r="9"/>
+        <circle cx="906.8" cy="245.2" r="9"/>
+        <circle cx="505.3" cy="361.6" r="9"/>
+        <circle cx="332.8" cy="41.8" r="9"/>
+        <circle cx="51.1" cy="72.7" r="9"/>
+        <circle cx="3.0" cy="9.0" r="9"/>
+        <circle cx="224.1" cy="68.2" r="9"/>
+        <circle cx="836.1" cy="237.4" r="9"/>
+        <circle cx="631.9" cy="286.4" r="9"/>
+        <circle cx="21.1" cy="345.7" r="9"/>
+        <circle cx="738.7" cy="288.8" r="9"/>
+        <circle cx="250.6" cy="412.1" r="9"/>
+        <circle cx="149.8" cy="307.4" r="9"/>
+        <circle cx="724.9" cy="31.4" r="9"/>
+        <circle cx="816.8" cy="99.1" r="9"/>
+        <circle cx="74.8" cy="195.5" r="9"/>
+        <circle cx="377.7" cy="-6.4" r="9"/>
+        <circle cx="894.9" cy="306.0" r="9"/>
+        <circle cx="755.2" cy="436.8" r="9"/>
+        <circle cx="837.9" cy="373.1" r="9"/>
+        <circle cx="605.9" cy="15.9" r="9"/>
+        <circle cx="787.4" cy="135.5" r="9"/>
+        <circle cx="58.2" cy="382.5" r="9"/>
+        <circle cx="96.6" cy="285.9" r="9"/>
+        <circle cx="530.0" cy="326.7" r="9"/>
+        <circle cx="749.0" cy="157.3" r="9"/>
+        <circle cx="297.2" cy="129.7" r="9"/>
+        <circle cx="-1.0" cy="276.8" r="9"/>
+        <circle cx="877.4" cy="159.7" r="9"/>
+        <circle cx="448.6" cy="343.0" r="9"/>
+        <circle cx="334.0" cy="264.5" r="9"/>
+        <circle cx="679.6" cy="282.9" r="9"/>
+        <circle cx="541.7" cy="35.3" r="9"/>
+        <circle cx="708.0" cy="394.2" r="9"/>
+        <circle cx="92.4" cy="348.6" r="9"/>
+        <circle cx="599.4" cy="139.5" r="9"/>
+        <circle cx="140.2" cy="124.3" r="9"/>
+        <circle cx="211.1" cy="14.3" r="9"/>
+        <circle cx="275.2" cy="67.6" r="9"/>
+        <circle cx="519.5" cy="150.7" r="9"/>
+        <circle cx="578.4" cy="223.2" r="9"/>
+        <circle cx="451.5" cy="58.9" r="9"/>
+        <circle cx="423.8" cy="307.3" r="9"/>
+        <circle cx="177.9" cy="264.4" r="9"/>
+        <circle cx="809.6" cy="310.2" r="9"/>
+        <circle cx="287.2" cy="355.1" r="9"/>
+        <circle cx="487.6" cy="325.9" r="9"/>
+        <circle cx="89.2" cy="23.1" r="9"/>
+        <circle cx="100.2" cy="419.2" r="9"/>
+        <circle cx="579.2" cy="81.3" r="9"/>
+        <circle cx="172.6" cy="62.5" r="9"/>
+        <circle cx="691.2" cy="111.0" r="9"/>
+        <circle cx="599.5" cy="189.3" r="9"/>
+        <circle cx="96.4" cy="95.6" r="9"/>
+        <circle cx="317.6" cy="400.5" r="9"/>
+        <circle cx="26.0" cy="231.5" r="9"/>
+        <circle cx="664.0" cy="235.9" r="9"/>
+        <circle cx="762.3" cy="214.0" r="9"/>
+        <circle cx="141.1" cy="422.0" r="9"/>
+        <circle cx="387.9" cy="415.2" r="9"/>
+        <circle cx="0.8" cy="51.2" r="9"/>
+        <circle cx="773.4" cy="270.9" r="9"/>
+        <circle cx="758.0" cy="389.0" r="9"/>
+        <circle cx="454.2" cy="159.4" r="9"/>
         </g>
-        <circle class="radio" cx="460" cy="180" r="180"/>
-        <text x="588" y="40" class="t-team">radio range, 30 m</text>
-        <text x="12" y="222">path</text>
-        <circle class="reach-m" cx="460" cy="180" r="81"/>
-        <path class="blind" d="M460 180 L390 140 A81 81 0 0 0 390 220 Z"/>
-        <circle class="reach-l" cx="303" cy="221" r="81"/>
-        <circle class="reach-l" cx="591" cy="221" r="81"/>
-        <g transform="translate(460 180)"><line class="beam-m" x1="0" y1="0" x2="81" y2="0"><animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="2.4s" repeatCount="indefinite"/></line></g>
-        <g transform="translate(303 221)"><line class="beam-l" x1="0" y1="0" x2="81" y2="0"><animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="2.4s" repeatCount="indefinite"/></line></g>
-        <g transform="translate(591 221)"><line class="beam-l" x1="0" y1="0" x2="81" y2="0"><animateTransform attributeName="transform" type="rotate" from="120" to="480" dur="2.4s" repeatCount="indefinite"/></line></g>
-        <line class="link" x1="303" y1="221" x2="460" y2="180"/>
-        <line class="link" x1="591" y1="221" x2="460" y2="180"/>
-        <g class="a onW1"><line class="link-on flow" x1="303" y1="221" x2="460" y2="180"/><circle class="alarm pulse" cx="460" cy="180" r="30"/></g>
-        <g class="a onE1"><line class="link-on flow" x1="591" y1="221" x2="460" y2="180"/><circle class="alarm pulse" cx="460" cy="180" r="30"/></g>
-        <rect class="body-m" x="440" y="169" width="40" height="22" rx="3"/>
-        <rect class="head-m" x="427" y="161" width="11" height="38" rx="2"/>
-        <circle class="dot" cx="460" cy="180" r="3.5"/>
-        <text x="460" y="152" text-anchor="middle" class="t-mulch">mulcher</text>
-        <rect class="body-l" x="293" y="214" width="20" height="14" rx="3"/>
-        <circle class="dot" cx="303" cy="221" r="2.5"/>
-        <text x="292" y="206" text-anchor="end" class="t-team">lookout A, 28 m out</text>
-        <rect class="body-l" x="581" y="214" width="20" height="14" rx="3"/>
-        <circle class="dot" cx="591" cy="221" r="2.5"/>
-        <text x="602" y="206" class="t-team">lookout B, 24 m out</text>
-        <g class="a onW1"><line class="tick-l" x1="224" y1="226" x2="224" y2="262"/><text x="218" y="280" text-anchor="end" class="t-team">A detects · 40 m</text></g>
-        <g class="a onW2">
-          <line class="tick-m" x1="406" y1="226" x2="406" y2="262"/><text x="412" y="280" class="t-mulch">mulcher alone · 14 m</text>
-          <path class="gap" d="M224 290 v8 H406 v-8"/><text x="315" y="326" text-anchor="middle" class="big t-gap">≈ 23 s earlier warning</text>
+        <g class="trunk">
+        <circle cx="335.4" cy="440.8" r="2.1"/>
+        <circle cx="763.8" cy="342.1" r="2.1"/>
+        <circle cx="427.2" cy="21.9" r="2.1"/>
+        <circle cx="896.9" cy="54.1" r="2.1"/>
+        <circle cx="391.0" cy="344.2" r="2.1"/>
+        <circle cx="566.9" cy="287.9" r="2.1"/>
+        <circle cx="345.8" cy="92.3" r="2.1"/>
+        <circle cx="699.1" cy="441.4" r="2.1"/>
+        <circle cx="686.6" cy="359.6" r="2.1"/>
+        <circle cx="680.8" cy="54.5" r="2.1"/>
+        <circle cx="495.3" cy="1.0" r="2.1"/>
+        <circle cx="749.5" cy="75.4" r="2.1"/>
+        <circle cx="531.9" cy="392.6" r="2.1"/>
+        <circle cx="845.9" cy="-3.2" r="2.1"/>
+        <circle cx="236.8" cy="140.0" r="2.1"/>
+        <circle cx="522.2" cy="78.9" r="2.1"/>
+        <circle cx="654.5" cy="403.9" r="2.1"/>
+        <circle cx="426.2" cy="406.4" r="2.1"/>
+        <circle cx="203.1" cy="342.5" r="2.1"/>
+        <circle cx="598.4" cy="258.6" r="2.1"/>
+        <circle cx="146.6" cy="221.4" r="2.1"/>
+        <circle cx="218.5" cy="237.6" r="2.1"/>
+        <circle cx="130.8" cy="47.6" r="2.1"/>
+        <circle cx="320.8" cy="172.2" r="2.1"/>
+        <circle cx="374.3" cy="268.0" r="2.1"/>
+        <circle cx="262.1" cy="29.6" r="2.1"/>
+        <circle cx="814.9" cy="419.6" r="2.1"/>
+        <circle cx="409.6" cy="98.8" r="2.1"/>
+        <circle cx="880.0" cy="98.8" r="2.1"/>
+        <circle cx="712.3" cy="243.4" r="2.1"/>
+        <circle cx="520.0" cy="435.0" r="2.1"/>
+        <circle cx="-4.4" cy="435.9" r="2.1"/>
+        <circle cx="906.8" cy="245.2" r="2.1"/>
+        <circle cx="505.3" cy="361.6" r="2.1"/>
+        <circle cx="332.8" cy="41.8" r="2.1"/>
+        <circle cx="51.1" cy="72.7" r="2.1"/>
+        <circle cx="3.0" cy="9.0" r="2.1"/>
+        <circle cx="224.1" cy="68.2" r="2.1"/>
+        <circle cx="836.1" cy="237.4" r="2.1"/>
+        <circle cx="631.9" cy="286.4" r="2.1"/>
+        <circle cx="21.1" cy="345.7" r="2.1"/>
+        <circle cx="738.7" cy="288.8" r="2.1"/>
+        <circle cx="250.6" cy="412.1" r="2.1"/>
+        <circle cx="149.8" cy="307.4" r="2.1"/>
+        <circle cx="724.9" cy="31.4" r="2.1"/>
+        <circle cx="816.8" cy="99.1" r="2.1"/>
+        <circle cx="74.8" cy="195.5" r="2.1"/>
+        <circle cx="377.7" cy="-6.4" r="2.1"/>
+        <circle cx="894.9" cy="306.0" r="2.1"/>
+        <circle cx="755.2" cy="436.8" r="2.1"/>
+        <circle cx="837.9" cy="373.1" r="2.1"/>
+        <circle cx="605.9" cy="15.9" r="2.1"/>
+        <circle cx="787.4" cy="135.5" r="2.1"/>
+        <circle cx="58.2" cy="382.5" r="2.1"/>
+        <circle cx="96.6" cy="285.9" r="2.1"/>
+        <circle cx="530.0" cy="326.7" r="2.1"/>
+        <circle cx="749.0" cy="157.3" r="2.1"/>
+        <circle cx="297.2" cy="129.7" r="2.1"/>
+        <circle cx="-1.0" cy="276.8" r="2.1"/>
+        <circle cx="877.4" cy="159.7" r="2.1"/>
+        <circle cx="448.6" cy="343.0" r="2.1"/>
+        <circle cx="334.0" cy="264.5" r="2.1"/>
+        <circle cx="679.6" cy="282.9" r="2.1"/>
+        <circle cx="541.7" cy="35.3" r="2.1"/>
+        <circle cx="708.0" cy="394.2" r="2.1"/>
+        <circle cx="92.4" cy="348.6" r="2.1"/>
+        <circle cx="599.4" cy="139.5" r="2.1"/>
+        <circle cx="140.2" cy="124.3" r="2.1"/>
+        <circle cx="211.1" cy="14.3" r="2.1"/>
+        <circle cx="275.2" cy="67.6" r="2.1"/>
+        <circle cx="519.5" cy="150.7" r="2.1"/>
+        <circle cx="578.4" cy="223.2" r="2.1"/>
+        <circle cx="451.5" cy="58.9" r="2.1"/>
+        <circle cx="423.8" cy="307.3" r="2.1"/>
+        <circle cx="177.9" cy="264.4" r="2.1"/>
+        <circle cx="809.6" cy="310.2" r="2.1"/>
+        <circle cx="287.2" cy="355.1" r="2.1"/>
+        <circle cx="487.6" cy="325.9" r="2.1"/>
+        <circle cx="89.2" cy="23.1" r="2.1"/>
+        <circle cx="100.2" cy="419.2" r="2.1"/>
+        <circle cx="579.2" cy="81.3" r="2.1"/>
+        <circle cx="172.6" cy="62.5" r="2.1"/>
+        <circle cx="691.2" cy="111.0" r="2.1"/>
+        <circle cx="599.5" cy="189.3" r="2.1"/>
+        <circle cx="96.4" cy="95.6" r="2.1"/>
+        <circle cx="317.6" cy="400.5" r="2.1"/>
+        <circle cx="26.0" cy="231.5" r="2.1"/>
+        <circle cx="664.0" cy="235.9" r="2.1"/>
+        <circle cx="762.3" cy="214.0" r="2.1"/>
+        <circle cx="141.1" cy="422.0" r="2.1"/>
+        <circle cx="387.9" cy="415.2" r="2.1"/>
+        <circle cx="0.8" cy="51.2" r="2.1"/>
+        <circle cx="773.4" cy="270.9" r="2.1"/>
+        <circle cx="758.0" cy="389.0" r="2.1"/>
+        <circle cx="454.2" cy="159.4" r="2.1"/>
         </g>
-        <g class="a onE1"><line class="tick-l" x1="670" y1="226" x2="670" y2="262"/><text x="676" y="280" class="t-team">B detects · 36 m</text></g>
-        <g class="a onE2">
-          <line class="tick-m" x1="514" y1="226" x2="514" y2="262"/><text x="508" y="280" text-anchor="end" class="t-mulch">mulcher alone · 14 m</text>
-          <path class="gap" d="M514 290 v8 H670 v-8"/><text x="592" y="326" text-anchor="middle" class="big t-gap">≈ 20 s earlier warning</text>
+        <circle class="radio" cx="460" cy="250" r="180"/>
+        <text x="572" y="428" class="t-team">radio range, 30 m</text>
+        <circle class="reach-m" cx="460" cy="250" r="84"/>
+        <path class="blind" d="M460 250 L532.7 208 A84 84 0 0 1 532.7 292 Z"/>
+        <circle class="reach-l" cx="293.0" cy="231.8" r="84"/>
+        <circle class="reach-l" cx="582.5" cy="174.4" r="84"/>
+        <g transform="translate(460 250)"><line class="beam-m" x1="0" y1="0" x2="84" y2="0"><animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="2.4s" repeatCount="indefinite"/></line></g>
+        <g transform="translate(293.0 231.8)"><line class="beam-l" x1="0" y1="0" x2="84" y2="0"><animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="2.4s" repeatCount="indefinite"/></line></g>
+        <g transform="translate(582.5 174.4)"><line class="beam-l" x1="0" y1="0" x2="84" y2="0"><animateTransform attributeName="transform" type="rotate" from="120" to="480" dur="2.4s" repeatCount="indefinite"/></line></g>
+        <line class="link" x1="293.0" y1="231.8" x2="460" y2="250"/>
+        <line class="link" x1="582.5" y1="174.4" x2="460" y2="250"/>
+        <g class="a onA1"><line class="link-on flow" x1="293.0" y1="231.8" x2="460" y2="250"/><circle class="alarm pulse" cx="460" cy="250" r="30"/></g>
+        <g class="a onB1"><line class="link-on flow" x1="582.5" y1="174.4" x2="460" y2="250"/><circle class="alarm pulse" cx="460" cy="250" r="30"/></g>
+        <rect class="body-m" x="448.3" y="242.4" width="23.4" height="15.2" rx="2"/>
+        <rect class="head-m" x="469.2" y="242.4" width="7.2" height="15.2" rx="1.5"/>
+        <circle class="dot" cx="460" cy="250" r="3"/>
+        <text x="460" y="284" text-anchor="middle" class="t-mulch">mulcher</text>
+        <rect class="body-l" x="284.0" y="225.3" width="18" height="13" rx="2.5"/>
+        <circle class="dot" cx="293.0" cy="231.8" r="2.3"/>
+        <text x="293.0" y="261.8" text-anchor="middle" class="t-team">lookout A, 28 m</text>
+        <rect class="body-l" x="573.5" y="167.9" width="18" height="13" rx="2.5"/>
+        <circle class="dot" cx="582.5" cy="174.4" r="2.3"/>
+        <text x="596.5" y="200.4" class="t-team">lookout B, 24 m</text>
+        <g class="a onA1"><line class="tick-l" x1="212.7" y1="221.2" x2="212.7" y2="118"/><text x="206.7" y="136" text-anchor="end" class="t-team">A detects · 42 m</text></g>
+        <g class="a onA2">
+          <line class="tick-m" x1="393.2" y1="210.0" x2="393.2" y2="118"/><text x="399.2" y="136" class="t-mulch">mulcher · 14 m</text>
+          <path class="gap" d="M212.7 118 V110 H393.2 V118"/><text x="303.0" y="100" text-anchor="middle" class="big t-gap">23.5 s earlier</text>
         </g>
-        <g class="a fadeW"><g class="a moveW">
-          <circle class="walker" cx="26" cy="240" r="7"/>
-          <text x="30" y="270" class="t-walk a cW1">pedestrian</text>
-        </g></g>
-        <g class="a fadeE"><g class="a moveE">
-          <circle class="walker" cx="870" cy="240" r="7"/>
-          <text x="866" y="270" text-anchor="end" class="t-walk a cE1">pedestrian</text>
-        </g></g>
+        <g class="a onB1"><line class="tick-l" x1="664.3" y1="172.1" x2="664.3" y2="118"/><text x="670.3" y="136" class="t-team">B detects · 37 m</text></g>
+        <g class="a onB2">
+          <line class="tick-m" x1="510.6" y1="194.1" x2="510.6" y2="118"/><text x="504.6" y="136" text-anchor="end" class="t-mulch">mulcher · 14 m</text>
+          <path class="gap" d="M510.6 118 V110 H664.3 V118"/><text x="587.4" y="100" text-anchor="middle" class="big t-gap">20.0 s earlier</text>
+        </g>
+        <g class="a walkA">
+          <g><animateMotion dur="32s" repeatCount="indefinite" calcMode="linear" keyPoints="0;0;1;1" keyTimes="0;0.0250;0.4250;1" path="M28.1 165.3 L30.3 165.6 L32.4 166.0 L34.6 166.4 L36.7 166.8 L38.9 167.2 L41.0 167.5 L43.2 167.9 L45.3 168.4 L47.4 168.8 L49.6 169.3 L51.7 169.7 L53.8 170.1 L56.0 170.6 L58.1 171.0 L60.2 171.5 L62.4 172.0 L64.5 172.5 L66.6 173.0 L68.7 173.5 L70.9 174.0 L73.0 174.5 L75.1 175.0 L77.2 175.6 L79.3 176.1 L81.4 176.7 L83.6 177.2 L85.7 177.7 L87.8 178.3 L89.9 178.8 L92.0 179.4 L94.1 180.0 L96.2 180.5 L98.3 181.1 L100.4 181.7 L102.5 182.2 L104.6 182.8 L106.7 183.4 L108.8 184.0 L110.9 184.6 L113.0 185.2 L115.1 185.8 L117.2 186.4 L119.3 187.0 L121.4 187.6 L123.5 188.2 L125.6 188.8 L127.7 189.3 L129.8 189.9 L131.9 190.5 L134.0 191.1 L136.1 191.7 L138.2 192.3 L140.3 192.9 L142.4 193.5 L144.5 194.1 L146.6 194.7 L148.7 195.3 L150.8 195.9 L152.9 196.5 L155.0 197.1 L157.1 197.6 L159.2 198.2 L161.3 198.8 L163.4 199.4 L165.5 199.9 L167.6 200.5 L169.7 201.1 L171.9 201.6 L174.0 202.2 L176.1 202.7 L178.2 203.3 L180.3 203.8 L182.4 204.3 L184.5 204.8 L186.7 205.4 L188.8 205.9 L190.9 206.4 L193.0 206.9 L195.1 207.4 L197.3 207.9 L199.4 208.4 L201.5 208.8 L203.6 209.3 L205.8 209.8 L207.9 210.3 L210.0 210.7 L212.2 211.1 L214.3 211.5 L216.5 211.9 L218.6 212.4 L220.7 212.8 L222.9 213.2 L225.0 213.5 L227.2 213.9 L229.3 214.3 L231.5 214.6 L233.7 215.0 L235.8 215.3 L238.0 215.7 L240.1 216.0 L242.3 216.2 L244.4 216.5 L246.6 216.8 L248.8 217.1 L250.9 217.4 L253.1 217.6 L255.3 217.8 L257.4 218.0 L259.6 218.2 L261.8 218.4 L264.0 218.7 L266.1 218.9 L268.3 219.0 L270.5 219.1 L272.7 219.3 L274.8 219.4 L277.0 219.5 L279.2 219.6 L281.4 219.7 L283.6 219.8 L285.7 219.8 L287.9 219.9 L290.1 219.9 L292.3 219.9 L294.5 220.0 L296.6 220.0 L298.8 219.9 L301.0 219.9 L303.2 219.8 L305.4 219.8 L307.5 219.7 L309.7 219.7 L311.9 219.6 L314.1 219.5 L316.3 219.3 L318.4 219.2 L320.6 219.0 L322.8 218.9 L325.0 218.8 L327.1 218.6 L329.3 218.3 L331.5 218.0 L333.6 217.7 L335.8 217.4 L338.0 217.2 L340.1 216.9 L342.3 216.5 L344.3 215.8 L346.4 215.1 L348.4 214.4 L350.5 213.6 L352.6 212.9 L354.6 212.2 L356.7 211.5 L358.8 210.8 L360.8 210.1 L362.9 209.4 L365.0 208.7 L367.0 208.0 L369.1 207.3 L371.2 206.6 L373.2 206.0 L375.3 205.3 L377.4 204.7 L379.5 204.0 L381.6 203.4 L383.7 202.7 L385.7 202.1 L387.8 201.5 L389.9 200.9 L392.0 200.3 L394.1 199.7 L396.2 199.2 L398.3 198.6 L400.5 198.0 L402.6 197.5 L404.7 197.0 L406.8 196.5 L409.0 196.1 L411.1 195.6 L413.2 195.1 L415.3 194.6 L417.5 194.2 L419.6 193.9 L421.8 193.5 L423.9 193.2 L426.1 192.8 L428.2 192.5 L430.4 192.1 L432.6 191.8 L434.7 191.6 L436.9 191.4 L439.1 191.2 L441.2 191.0 L443.4 190.7 L445.6 190.5 L447.8 190.4 L449.9 190.3 L452.1 190.3 L454.3 190.2"/>
+            <circle class="walker" cx="0" cy="0" r="6.5"/>
+            <text x="0" y="-14" text-anchor="middle" class="t-walk a capA1">pedestrian</text>
+          </g>
+        </g>
+        <g class="a walkB">
+          <g><animateMotion dur="32s" repeatCount="indefinite" calcMode="linear" keyPoints="0;0;1;1" keyTimes="0;0.5250;0.8818;1" path="M834.7 202.4 L832.8 201.9 L830.9 201.4 L829.1 200.9 L827.2 200.4 L825.3 199.9 L823.4 199.4 L821.5 198.9 L819.7 198.4 L817.8 197.8 L815.9 197.3 L814.0 196.8 L812.2 196.3 L810.3 195.7 L808.4 195.2 L806.5 194.7 L804.7 194.2 L802.8 193.6 L800.9 193.1 L799.1 192.6 L797.2 192.0 L795.3 191.5 L793.4 191.0 L791.6 190.4 L789.7 189.9 L787.8 189.4 L786.0 188.8 L784.1 188.3 L782.2 187.8 L780.3 187.2 L778.5 186.7 L776.6 186.2 L774.7 185.7 L772.8 185.1 L771.0 184.6 L769.1 184.1 L767.2 183.6 L765.4 183.0 L763.5 182.5 L761.6 182.0 L759.7 181.5 L757.8 181.0 L756.0 180.5 L754.1 180.0 L752.2 179.5 L750.3 179.0 L748.5 178.4 L746.6 177.9 L744.7 177.5 L742.8 177.0 L740.9 176.5 L739.0 176.0 L737.1 175.6 L735.3 175.1 L733.4 174.6 L731.5 174.1 L729.6 173.7 L727.7 173.3 L725.8 172.8 L723.9 172.4 L722.0 171.9 L720.1 171.5 L718.2 171.1 L716.3 170.6 L714.4 170.3 L712.5 169.9 L710.6 169.5 L708.7 169.1 L706.8 168.7 L704.9 168.3 L703.0 167.9 L701.1 167.5 L699.1 167.2 L697.2 166.9 L695.3 166.5 L693.4 166.2 L691.5 165.9 L689.6 165.5 L687.6 165.2 L685.7 164.9 L683.8 164.6 L681.9 164.3 L679.9 164.1 L678.0 163.8 L676.1 163.5 L674.2 163.3 L672.2 163.0 L670.3 162.8 L668.4 162.6 L666.4 162.4 L664.5 162.2 L662.6 162.0 L660.6 161.8 L658.7 161.6 L656.7 161.4 L654.8 161.2 L652.9 161.1 L650.9 161.0 L649.0 160.9 L647.0 160.7 L645.1 160.6 L643.2 160.5 L641.2 160.4 L639.3 160.3 L637.3 160.3 L635.4 160.2 L633.4 160.2 L631.5 160.1 L629.5 160.1 L627.6 160.0 L625.7 160.0 L623.7 160.1 L621.8 160.1 L619.8 160.1 L617.9 160.1 L615.9 160.2 L614.0 160.2 L612.0 160.2 L610.1 160.3 L608.1 160.4 L606.2 160.6 L604.3 160.7 L602.3 160.8 L600.4 160.9 L598.4 161.0 L596.5 161.1 L594.6 161.3 L592.6 161.5 L590.7 161.7 L588.7 161.8 L586.8 162.0 L584.9 162.2 L582.9 162.4 L581.0 162.8 L579.2 163.4 L577.3 163.9 L575.5 164.5 L573.6 165.1 L571.8 165.7 L569.9 166.3 L568.1 166.9 L566.2 167.5 L564.4 168.1 L562.5 168.8 L560.7 169.4 L558.8 170.0 L557.0 170.6 L555.1 171.3 L553.3 171.9 L551.5 172.5 L549.6 173.1 L547.8 173.7 L545.9 174.3 L544.0 174.9 L542.2 175.5 L540.3 176.1 L538.5 176.6 L536.6 177.2 L534.8 177.8 L532.9 178.3 L531.0 178.8 L529.1 179.3 L527.3 179.9 L525.4 180.4 L523.5 180.9 L521.6 181.5 L519.8 181.9 L517.9 182.4 L516.0 182.8 L514.1 183.2 L512.2 183.7 L510.3 184.1 L508.4 184.6 L506.5 185.0 L504.6 185.4 L502.7 185.7 L500.7 186.0 L498.8 186.4 L496.9 186.7 L495.0 187.1 L493.1 187.4 L491.2 187.7 L489.2 187.9 L487.3 188.1 L485.4 188.4 L483.4 188.6 L481.5 188.8 L479.6 189.0 L477.6 189.2 L475.7 189.4 L473.7 189.5 L471.8 189.6 L469.9 189.6 L467.9 189.7 L466.0 189.8 L464.0 189.9 L462.1 190.0 L460.1 190.0 L458.2 190.1 L456.2 190.2 L454.3 190.2"/>
+            <circle class="walker" cx="0" cy="0" r="6.5"/>
+            <text x="0" y="-14" text-anchor="middle" class="t-walk a capB1">pedestrian</text>
+          </g>
+        </g>
       </svg>
       <div class="anim-bar">
         <div class="anim-caps" id="idea-cap" aria-live="off">
-          <p class="a cW1"><b>1</b>A pedestrian walks toward the working mulcher from the west. The mulcher's own lidar picks out a person only within about 14 m, and its cutting head blocks the view ahead. A lookout robot is parked on each path, inside the 30 m radio range.</p>
-          <p class="a cW2"><b>2</b>Lookout A, with the same lidar, detects the pedestrian about 40 m from the mulcher and warns it by radio.</p>
-          <p class="a cW3"><b>3</b>On its own, the mulcher would first detect them at about 14 m: about 23 s later.</p>
-          <p class="a cE1"><b>4</b>Next, a pedestrian comes from the east. Lookout B covers this side, 24 m out, the farthest free spot within radio range.</p>
-          <p class="a cE2"><b>5</b>Lookout B detects the pedestrian about 36 m from the mulcher and warns it.</p>
-          <p class="a cE3"><b>6</b>The mulcher alone would detect them at about 14 m: about 20 s later. With a lookout on each path, every pedestrian was detected before reaching the lookout.</p>
+          <p class="a capA1"><b>1</b>The two-entry site as simulated, to scale, with its real tree positions. Posts were allowed at most 28 m out, 2 m inside the 30 m radio range; Lookout A sits at that limit. A pedestrian enters from the west.</p>
+          <p class="a capA2"><b>2</b>Lookout A detects the pedestrian 42 m from the mulcher and warns it by radio.</p>
+          <p class="a capA3"><b>3</b>The mulcher's own lidar first detects them at 14 m, 23.5 s later. Under the specified rule its lidar picks out a person only within about 14 m.</p>
+          <p class="a capB1"><b>4</b>A pedestrian enters from the east. Lookout B is 24 m out: on this side no spot farther out had a clear radio link.</p>
+          <p class="a capB2"><b>5</b>Lookout B detects the pedestrian 37 m from the mulcher and warns it.</p>
+          <p class="a capB3"><b>6</b>The mulcher's own lidar detects them at 14 m, 20.0 s later.</p>
         </div>
         <button type="button" class="anim-btn" id="idea-btn" aria-pressed="false">Pause</button>
       </div>
+      <figcaption>Distances and times are medians of the 24 trials from each side (specified rule). The mulcher's heading was varied between trials and is drawn facing east; it never detected 4 of the 48 pedestrians, all coming within 45° of its front.</figcaption>
     </figure>
     <script>
     (function () {
       var fig = document.getElementById('idea'), btn = document.getElementById('idea-btn'), svg = fig.querySelector('svg');
-      btn.addEventListener('click', function () {
-        var p = fig.classList.toggle('paused');
+      function pause(p) {
+        fig.classList.toggle('paused', p);
         btn.textContent = p ? 'Play' : 'Pause';
         btn.setAttribute('aria-pressed', p ? 'true' : 'false');
         try { p ? svg.pauseAnimations() : svg.unpauseAnimations(); } catch (e) {}
-      });
+      }
+      btn.addEventListener('click', function () { pause(!fig.classList.contains('paused')); });
+      try {
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+          svg.pauseAnimations(); svg.setCurrentTime(12.10);
+        }
+      } catch (e) {}
     })();
     </script>
     <p class="prose">The mulcher's cutting head blocks much of its lidar's forward view. Small ground robots with the same lidar were parked on the access paths as lookouts. Every sensor observed each trial at the same time, so the mulcher alone and the mulcher with lookouts are compared on identical trials.</p>
