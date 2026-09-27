@@ -21,6 +21,9 @@
   --plate: #ffffff;
   --plate-edge: #d3dbd5;
   --code-bg: #e8ece8;
+  --tree: #d5e2cf;
+  --pathc: #e9e0cc;
+  --walker: #c2412d;
   --display: "Barlow Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
   --body: "Source Serif 4", Georgia, "Times New Roman", serif;
   --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
@@ -39,6 +42,9 @@
     --plate: #f6f7f5;
     --plate-edge: #2b3430;
     --code-bg: #1f2622;
+    --tree: #213027;
+    --pathc: #3a3428;
+    --walker: #f08a6f;
   }
 }
 :root[data-theme="dark"] {
@@ -54,6 +60,9 @@
   --plate: #f6f7f5;
   --plate-edge: #2b3430;
   --code-bg: #1f2622;
+  --tree: #213027;
+  --pathc: #3a3428;
+  --walker: #f08a6f;
 }
 
 * { box-sizing: border-box; }
@@ -193,6 +202,74 @@ pre {
 }
 pre code { background: none; padding: 0; }
 footer { margin-top: 56px; padding-top: 14px; border-top: 1px solid var(--rule); font-size: 0.9rem; color: var(--muted); }
+
+/* opening animation: one trial, drawn to scale (8 px per metre) */
+.anim { margin: 28px 0 22px; }
+.anim svg { display: block; width: 100%; height: auto; background: var(--surface); border: 1px solid var(--rule); border-radius: 4px; }
+.anim .tree { fill: var(--tree); }
+.anim .pathband { fill: var(--pathc); }
+.anim .ring { fill: none; stroke: var(--muted); stroke-width: 1.2; stroke-dasharray: 5 6; }
+.anim .reach-m { fill: var(--mulcher); fill-opacity: 0.07; stroke: var(--mulcher); stroke-opacity: 0.5; stroke-width: 1.2; }
+.anim .reach-l { fill: var(--team); fill-opacity: 0.08; stroke: var(--team); stroke-opacity: 0.6; stroke-width: 1.2; }
+.anim .blind { fill: var(--post); fill-opacity: 0.18; }
+.anim .beam-m { stroke: var(--mulcher); stroke-opacity: 0.45; stroke-width: 1.5; }
+.anim .beam-l { stroke: var(--team); stroke-opacity: 0.55; stroke-width: 1.5; }
+.anim .body-m { fill: var(--mulcher); }
+.anim .head-m { fill: var(--post); }
+.anim .body-l { fill: var(--team); }
+.anim .dot { fill: var(--surface); }
+.anim .walker { fill: var(--walker); stroke: var(--surface); stroke-width: 2; }
+.anim .link { stroke: var(--team); stroke-width: 1.2; stroke-dasharray: 4 5; opacity: 0.35; }
+.anim .link-on { stroke: var(--team); stroke-width: 3; stroke-dasharray: 8 7; }
+.anim .alarm { fill: none; stroke: var(--walker); stroke-width: 3; }
+.anim text { font-family: var(--mono); font-size: 17px; fill: var(--muted); }
+.anim text.big { font-family: var(--display); font-size: 28px; font-weight: 600; }
+.anim .t-team { fill: var(--team); }
+.anim .t-mulch { fill: var(--mulcher); }
+.anim .t-walk { fill: var(--walker); }
+.anim .tick-l { stroke: var(--team); stroke-width: 2.5; }
+.anim .tick-m { stroke: var(--mulcher); stroke-width: 2.5; }
+.anim .gap { stroke: var(--post); stroke-width: 2.5; fill: none; }
+.anim .t-gap { fill: var(--post); }
+.anim-bar { display: flex; gap: 14px; align-items: flex-start; margin-top: 10px; }
+.anim-caps { display: grid; flex: 1; min-height: 3.2em; }
+.anim-caps p { grid-area: 1 / 1; margin: 0; opacity: 0; font-size: 1rem; line-height: 1.45; max-width: 70ch; }
+.anim-caps b { font-family: var(--display); font-weight: 600; font-size: 1.1rem; margin-right: 6px; }
+.anim-btn {
+  font-family: var(--mono); font-size: 0.78rem; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--ink); background: var(--code-bg); border: 1px solid var(--rule); border-radius: 3px;
+  padding: 5px 10px; cursor: pointer; white-space: nowrap;
+}
+.anim-btn:focus-visible { outline: 2px solid var(--team); outline-offset: 2px; }
+
+.anim .mover { animation: walk 16s linear infinite; }
+.anim .walkfade { animation: walkfade 16s linear infinite; }
+.anim .on1 { animation: on1 16s linear infinite; opacity: 0; }
+.anim .on2 { animation: on2 16s linear infinite; opacity: 0; }
+.anim .link-on { animation: on1 16s linear infinite, flow 0.9s linear infinite; }
+.anim .alarm { animation: on1 16s linear infinite, pulse 1.2s ease-out infinite; transform-box: fill-box; transform-origin: center; }
+.anim-caps .c1, .anim .walk-lab { animation: cap1 16s linear infinite; }
+.anim-caps .c2 { animation: cap2 16s linear infinite; }
+.anim-caps .c3 { animation: cap3 16s linear infinite; }
+.anim.paused .mover, .anim.paused .walkfade, .anim.paused .on1, .anim.paused .on2,
+.anim.paused .link-on, .anim.paused .alarm, .anim.paused .anim-caps p, .anim.paused .walk-lab { animation-play-state: paused; }
+@keyframes walk { 0%, 5% { transform: translateX(0); } 85%, 100% { transform: translateX(578px); } }
+@keyframes walkfade { 0% { opacity: 0; } 3%, 96% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes on1 { 0%, 42% { opacity: 0; } 43%, 96% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes on2 { 0%, 74% { opacity: 0; } 75%, 96% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes cap1 { 0% { opacity: 0; } 2%, 41% { opacity: 1; } 42%, 100% { opacity: 0; } }
+@keyframes cap2 { 0%, 42% { opacity: 0; } 43%, 73% { opacity: 1; } 74%, 100% { opacity: 0; } }
+@keyframes cap3 { 0%, 74% { opacity: 0; } 75%, 96% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes flow { to { stroke-dashoffset: -30; } }
+@keyframes pulse { 0% { transform: scale(0.6); stroke-opacity: 1; } 100% { transform: scale(1.5); stroke-opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .anim .mover, .anim .walkfade, .anim .on1, .anim .on2, .anim .link-on, .anim .alarm, .anim-caps p, .anim .walk-lab { animation: none; }
+  .anim .mover { transform: translateX(269px); }
+  .anim .on1, .anim .on2 { opacity: 1; }
+  .anim-caps { display: block; }
+  .anim-caps p { opacity: 1; margin-bottom: 6px; }
+  .anim-btn { display: none; }
+}
 </style>
 
 </head>
@@ -202,6 +279,125 @@ footer { margin-top: 56px; padding-top: 14px; border-top: 1px solid var(--rule);
     <h1>Multi-Robot Active Cooperative Perception</h1>
     <p class="subtitle">Perceptive exploitation for support</p>
     <p class="lede">Can robots parked as lookouts on the paths into a forestry mulching site warn the mulcher of an approaching pedestrian earlier than the mulcher's own lidar?</p>
+
+    <figure class="anim" id="idea" aria-labelledby="idea-cap">
+      <svg viewBox="0 0 900 340" role="img" aria-label="Animated plan view of one trial, to scale. A pedestrian walks along a forest path toward a parked mulcher. A lookout robot parked beside the path, 28 m from the mulcher, detects the pedestrian about 40 m from the mulcher and warns the mulcher by radio. The mulcher's own lidar, whose front is blocked by its cutting head, would first detect the pedestrian only at about 14 m, about 22 seconds later.">
+        <rect class="pathband" x="0" y="238" width="900" height="24"/>
+        <g class="tree">
+        <circle cx="295" cy="57" r="11"/>
+        <circle cx="74" cy="182" r="10"/>
+        <circle cx="392" cy="31" r="8"/>
+        <circle cx="518" cy="137" r="13"/>
+        <circle cx="137" cy="46" r="10"/>
+        <circle cx="728" cy="67" r="11"/>
+        <circle cx="572" cy="129" r="11"/>
+        <circle cx="65" cy="27" r="9"/>
+        <circle cx="609" cy="147" r="10"/>
+        <circle cx="652" cy="101" r="13"/>
+        <circle cx="114" cy="143" r="12"/>
+        <circle cx="144" cy="166" r="8"/>
+        <circle cx="260" cy="133" r="11"/>
+        <circle cx="30" cy="158" r="9"/>
+        <circle cx="113" cy="27" r="12"/>
+        <circle cx="124" cy="88" r="10"/>
+        <circle cx="777" cy="34" r="10"/>
+        <circle cx="770" cy="98" r="10"/>
+        <circle cx="326" cy="294" r="13"/>
+        <circle cx="215" cy="165" r="11"/>
+        <circle cx="241" cy="9" r="10"/>
+        <circle cx="335" cy="191" r="13"/>
+        <circle cx="355" cy="137" r="9"/>
+        <circle cx="194" cy="61" r="10"/>
+        <circle cx="232" cy="121" r="10"/>
+        <circle cx="420" cy="165" r="8"/>
+        <circle cx="100" cy="119" r="9"/>
+        <circle cx="847" cy="179" r="9"/>
+        <circle cx="466" cy="123" r="8"/>
+        <circle cx="35" cy="99" r="9"/>
+        <circle cx="331" cy="79" r="9"/>
+        <circle cx="670" cy="163" r="9"/>
+        <circle cx="865" cy="136" r="10"/>
+        <circle cx="832" cy="149" r="12"/>
+        <circle cx="268" cy="86" r="11"/>
+        <circle cx="811" cy="123" r="10"/>
+        <circle cx="171" cy="9" r="12"/>
+        <circle cx="503" cy="89" r="9"/>
+        <circle cx="74" cy="86" r="8"/>
+        <circle cx="136" cy="294" r="13"/>
+        <circle cx="203" cy="317" r="10"/>
+        <circle cx="696" cy="96" r="9"/>
+        <circle cx="238" cy="56" r="13"/>
+        <circle cx="74" cy="312" r="11"/>
+        <circle cx="715" cy="35" r="12"/>
+        <circle cx="450" cy="66" r="10"/>
+        <circle cx="655" cy="187" r="9"/>
+        <circle cx="414" cy="59" r="10"/>
+        <circle cx="242" cy="320" r="13"/>
+        <circle cx="346" cy="162" r="11"/>
+        <circle cx="187" cy="172" r="8"/>
+        <circle cx="215" cy="198" r="11"/>
+        <circle cx="877" cy="56" r="12"/>
+        <circle cx="37" cy="51" r="10"/>
+        <circle cx="441" cy="9" r="12"/>
+        <circle cx="278" cy="192" r="8"/>
+        <circle cx="465" cy="159" r="10"/>
+        <circle cx="406" cy="95" r="9"/>
+        <circle cx="842" cy="76" r="11"/>
+        <circle cx="800" cy="166" r="8"/>
+        </g>
+        <circle class="ring" cx="740" cy="170" r="224"/>
+        <text x="548" y="34" text-anchor="end">lookout boundary, 28 m</text>
+        <text x="12" y="230">path</text>
+        <circle class="reach-m" cx="740" cy="170" r="112"/>
+        <path class="blind" d="M740 170 L643 114 A112 112 0 0 0 643 226 Z"/>
+        <circle class="reach-l" cx="531" cy="222" r="100"/>
+        <g transform="translate(740 170)"><line class="beam-m" x1="0" y1="0" x2="112" y2="0"><animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="2.4s" repeatCount="indefinite"/></line></g>
+        <g transform="translate(531 222)"><line class="beam-l" x1="0" y1="0" x2="100" y2="0"><animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="2.4s" repeatCount="indefinite"/></line></g>
+        <line class="link" x1="531" y1="222" x2="740" y2="170"/>
+        <line class="link-on" x1="531" y1="222" x2="740" y2="170"/>
+        <rect class="body-m" x="716" y="157" width="46" height="26" rx="3"/>
+        <rect class="head-m" x="702" y="148" width="12" height="44" rx="2"/>
+        <circle class="dot" cx="740" cy="170" r="3.5"/>
+        <circle class="alarm" cx="740" cy="170" r="34"/>
+        <text x="740" y="140" text-anchor="middle" class="t-mulch">mulcher</text>
+        <rect class="body-l" x="520" y="214" width="22" height="16" rx="3"/>
+        <circle class="dot" cx="531" cy="222" r="2.5"/>
+        <text x="520" y="200" text-anchor="end" class="t-team">lookout robot</text>
+        <g class="on1">
+          <line class="tick-l" x1="435" y1="232" x2="435" y2="276"/>
+          <text x="435" y="294" text-anchor="middle" class="t-team">lookout · 40 m</text>
+        </g>
+        <g class="on2">
+          <line class="tick-m" x1="662" y1="232" x2="662" y2="276"/>
+          <text x="662" y="294" text-anchor="middle" class="t-mulch">mulcher alone · 14 m</text>
+          <path class="gap" d="M435 304 v8 H662 v-8"/>
+          <text x="548" y="336" text-anchor="middle" class="big t-gap">≈ 22 s earlier warning</text>
+        </g>
+        <g class="walkfade"><g class="mover">
+          <circle class="walker" cx="162" cy="250" r="7"/>
+          <text x="162" y="228" text-anchor="middle" class="t-walk walk-lab">pedestrian</text>
+        </g></g>
+      </svg>
+      <div class="anim-bar">
+        <div class="anim-caps" id="idea-cap" aria-live="off">
+          <p class="c1"><b>1</b>A pedestrian walks along the path toward the working mulcher. The mulcher's own lidar picks out a person only within about 14 m, and its cutting head blocks the view ahead.</p>
+          <p class="c2"><b>2</b>A lookout robot with the same lidar, parked on the path 28 m out, detects the pedestrian about 40 m from the mulcher and warns it by radio.</p>
+          <p class="c3"><b>3</b>On its own, the mulcher would first detect the pedestrian at about 14 m: a median of 22 s later on the same trial.</p>
+        </div>
+        <button type="button" class="anim-btn" id="idea-btn" aria-pressed="false">Pause</button>
+      </div>
+    </figure>
+    <script>
+    (function () {
+      var fig = document.getElementById('idea'), btn = document.getElementById('idea-btn'), svg = fig.querySelector('svg');
+      btn.addEventListener('click', function () {
+        var p = fig.classList.toggle('paused');
+        btn.textContent = p ? 'Play' : 'Pause';
+        btn.setAttribute('aria-pressed', p ? 'true' : 'false');
+        try { p ? svg.pauseAnimations() : svg.unpauseAnimations(); } catch (e) {}
+      });
+    })();
+    </script>
     <p class="prose">The mulcher's cutting head blocks much of its lidar's forward view. Small ground robots with the same lidar were parked on the access paths as lookouts. Every sensor observed each trial at the same time, so the mulcher alone and the mulcher with lookouts are compared on identical trials.</p>
   </header>
 
