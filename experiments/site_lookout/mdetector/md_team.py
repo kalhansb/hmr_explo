@@ -13,7 +13,7 @@ RP = {e['id']: float(e['r_post']) for e in yaml.safe_load(open(cfgp))['entries']
 first = {}
 for r in csv.DictReader(open(f'{run}/mdet/md_first.csv')):
     if r['labels'] == lab:
-        first.setdefault(r['walk'], {})[r['lidar']] = float(r['t_s']) if r['t_s'] else None
+        first.setdefault(r['walk'], {})[r['lidar']] = int(r['step']) if r['step'] else None
 rows = []
 d_lidars = lambda f: np.load(f)['lidars']
 for f in sorted(glob.glob(f'{run}/fullscans/*.npz')):
@@ -23,7 +23,9 @@ for f in sorted(glob.glob(f'{run}/fullscans/*.npz')):
     d = np.load(f); t, xy = d['steps_t'], d['steps_xy']
     dist = np.hypot(xy[:, 0], xy[:, 1]); rp = RP[w.split('-')[2]]
     t_post = float(t[np.argmax(dist <= rp)]) if (dist <= rp).any() else float(t[-1])
-    m = first[w].get('mulcher'); tm = min([v for v in first[w].values() if v is not None], default=None)
+    # alarm times from the step index, exact (t_s in md_first.csv is rounded)
+    tt = {k: (float(t[v]) if v is not None else None) for k, v in first[w].items()}
+    m = tt.get('mulcher'); tm =min([v for v in tt.values() if v is not None], default=None)
     rows.append((w, m, tm, t_post))
 n = len(rows)
 bp = lambda v, tp: v is not None and v < tp

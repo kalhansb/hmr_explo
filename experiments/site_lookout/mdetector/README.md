@@ -67,11 +67,13 @@ came a median 23–29 s earlier on the same walk.
   with 0.5 m linkage in the horizontal plane; a group of at least 3 points
   that reappears within 1 m in the next step is an alarm; an alarm within
   1 m of the walker is a hit, any other a false alarm.
-- **Correction.** `md_team.py` compares alarm times rounded to 1 ms with the
-  exact time the walker crosses the post line. In one walk (S1G-h090-A-r1)
-  the mulcher's first alarm fell on the crossing step, 22.8 m out, inside the
-  23 m post line, and the script counted it as before the line (16 / 48). The
-  table gives the corrected 15 / 48 and its p value.
+- **Correction.** `md_team.py` first compared alarm times rounded to 1 ms
+  with the exact time the walker crosses the post line. In one walk
+  (S1G-h090-A-r1) the mulcher's first alarm fell on the crossing step, 22.8 m
+  out, inside the 23 m post line, and was counted as before the line
+  (16 / 48). It now takes alarm times from the step index; re-run on the
+  saved outputs it gives 15 / 48 for S1G and the same numbers as before for
+  S1, L2 and L3.
 - **Comparison** (`md_team.py`): as in the lookout experiment, per walk the
   mulcher's first hit against the first hit by any lidar; the boundary is
   each entry's post distance.
