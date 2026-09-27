@@ -208,7 +208,7 @@ footer { margin-top: 56px; padding-top: 14px; border-top: 1px solid var(--rule);
   <h2>The experiment</h2>
   <dl class="setup prose">
     <dt>Type</dt>
-    <dd>Simulated experiment (Ignition Gazebo, Fortress release), run on 24 September 2026</dd>
+    <dd>Simulated experiment (Ignition Gazebo, Fortress release). Two further checks, made after these results, follow the main results: the same experiment on the tree layout of a real site, and all trials again with a published moving-object detector.</dd>
     <dt>Site</dt>
     <dd>Oak forest, 160 m radius, flat ground, 83–85 trees per hectare, 3 m paths; mulcher at the centre with a Velodyne VLP-16 lidar on its roof (2.1 m). The cutting head blocks 15 of the 16 laser channels within ±30° ahead.</dd>
     <dt>Layouts</dt>
@@ -243,7 +243,7 @@ footer { margin-top: 56px; padding-top: 14px; border-top: 1px solid var(--rule);
   </dl>
 
   <h2>Results</h2>
-  <p class="answer prose"><strong>The lookouts give much earlier warning.</strong> The <span class="mulch">mulcher alone</span> first detected the pedestrian at about 14 m, always after the boundary. With the <span class="team">lookouts</span>, every pedestrian was detected before the boundary, about 40 m out: a median of <strong>22 s</strong> earlier on the same trial, never less than 20 s.</p>
+  <p class="answer prose"><strong>The lookouts give much earlier warning.</strong> The <span class="mulch">mulcher alone</span> first detected the pedestrian at about 14 m, always after the boundary. With the <span class="team">lookouts</span>, every pedestrian was detected before the boundary, about 40 m out: a median of <strong>22 s</strong> earlier on the same trial, never less than 20 s. The same held at a real site's tree layout and with a published detector (Checks 1 and 2 below).</p>
 
   <section class="figs" aria-label="Principal results">
     <div class="fig">
@@ -300,12 +300,79 @@ footer { margin-top: 56px; padding-top: 14px; border-top: 1px solid var(--rule);
     <li><strong>Lookouts do not change what the mulcher sees.</strong> In the control trials the mulcher's first alarm fell within one 0.5 m step of the matching trial in all 24 per site.</li>
   </ul>
 
+  <h2>Check 1: the tree layout of a real site</h2>
+  <p class="prose">Do the lookouts still help among the trees of a real mulching site, rather than in an evenly spaced forest? The experiment was repeated on the trees of a surveyed site. Only the site changed; the lidar, detection rules, pedestrian, trial design and lookout placement rule were the same.</p>
+  <dl class="setup prose">
+    <dt>Site</dt>
+    <dd>The 38 trees found in the site's lidar map, inside the surveyed area, each as the oak model scaled to its measured height (4.8–21.9 m) and crown. Flat ground; no bushes, fences or walls.</dd>
+    <dt>Mulcher</dt>
+    <dd>Parked among the trees, turned through the same 12 headings.</dd>
+    <dt>Path</dt>
+    <dd>One straight path along the edge of the trees, 3.3 m from the nearest trunk. It passes 14.8 m from the mulcher at its closest, where the trials end.</dd>
+    <dt>Lookouts</dt>
+    <dd>Placed by the same rule: Lookout A 23 m and Lookout B 28 m from the mulcher. 48 trials and 24 control trials.</dd>
+  </dl>
+  <figure>
+    <div class="plate"><img src="figures/layout_S1.png" alt="Plan view of the site layout: the mulcher at the centre among 38 tree trunks spread mostly to its north-east. One straight path runs from south-west to north-east, passing south of the mulcher. Lookout A is parked beside the path 23 m south-west of the mulcher and Lookout B 28 m to the east, each joined to the mulcher by a radio link. The walked sections start about 45 m before each lookout boundary and end where the path is 14.8 m from the mulcher; circles mark 30 m (radio range limit) and 50 m."></div>
+    <figcaption><strong>Figure 5.</strong> Site layout: the site's 38 trees, one path, Lookout A at 23 m and Lookout B at 28 m.</figcaption>
+  </figure>
+
+  <p class="answer prose"><strong>The result holds at the site.</strong> Under the specified rule the <span class="mulch">mulcher alone</span> never detected the pedestrian. This follows from the layout: the rule cannot fire beyond about 14 m, and the path never comes closer than 14.8 m. Under the looser rules, which the mulcher can meet, the <span class="team">lookouts</span> still gave the first alarm a median 22–23 s earlier on the same trial.</p>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th scope="col">Site · 48 trials</th><th scope="col">Specified rule</th><th scope="col">Horizontal clustering</th><th scope="col">Ideal detector</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Detected before the boundary: mulcher alone / with lookouts</td><td class="n">0 / 48 · 48 / 48</td><td class="n">33 / 48 · 48 / 48</td><td class="n">36 / 48 · 48 / 48</td></tr>
+        <tr><td>Median warning time: mulcher alone / with lookouts</td><td class="n">— / 9.6 s</td><td class="n">2.8 s / 25.8 s</td><td class="n">5.2 s / 26.6 s</td></tr>
+        <tr><td>First alarm earlier with lookouts, same trial (median; minimum)</td><td class="n">—</td><td class="n">23.1 s; 13.5 s</td><td class="n">22.3 s; 12.7 s</td></tr>
+        <tr><td>Distance at first alarm (median): mulcher alone / with lookouts</td><td class="n">— / 36.4 m</td><td class="n">26.3 m / 55.5 m</td><td class="n">28.5 m / 57.5 m</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="note">Exact McNemar test, detection before the boundary under the specified rule: p = 7.1 × 10⁻¹⁵. No false alarms from any lidar. Median warning times of the mulcher alone are over the trials it detected.</p>
+  <ul class="points prose">
+    <li><strong>Each lookout covers its own end of the path.</strong> Lookout A gave the first alarm in all 24 trials from the west, Lookout B in all 24 from the east.</li>
+    <li><strong>The trees hardly limit the mulcher.</strong> With every tree removed, the mulcher's first detection in the 12 control trials came at the same distance in 8 of 11. Its limits are the lidar's range for a person and its cutting head: under horizontal clustering it missed 4 of the 8 trials that came in within 30° of its front, and none of the other 40.</li>
+    <li><strong>The real site blocks more than the oak models.</strong> With the oak models replaced by the site map's own points (5 cm cubes), the mulcher detected the same 11 of 12 control trials, but those from the east a median 4.6 m closer.</li>
+  </ul>
+
+  <h2>Check 2: a published moving-object detector</h2>
+  <p class="prose">Is the result a product of our own detection rule? Every trial of the two forest layouts and of the site was simulated again with each lidar's full scans saved, and M-detector (Wu et al., <em>Nature Communications</em>, 2024), a published detector of moving objects in lidar scans, was run as every lidar's detector. Its published parameters for a similar lidar were changed only for the simulated lidar's geometry and the scan timing, and were not tuned on the trials. Our alarm rule on its output was fixed before any output was seen: points it marks as moving, grouped within 0.5 m horizontally, at least 3 points, seen in two consecutive scans within 1 m.</p>
+
+  <p class="answer prose"><strong>The result holds.</strong> With M-detector the <span class="mulch">mulcher alone</span> sees the pedestrian much farther out than under the specified rule, and detects 31–71 % before the boundary. With the <span class="team">lookouts</span>, every pedestrian was detected before the boundary, and the first alarm came a median 23–29 s earlier on the same trial.</p>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th scope="col">M-detector</th><th scope="col">Two-entry site · 48</th><th scope="col">Three-entry site · 72</th><th scope="col">Real site, oak models · 48</th><th scope="col">Real site, map points · 48</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Detected before the boundary: mulcher alone / with lookouts</td><td class="n">34 / 48 · 48 / 48</td><td class="n">42 / 72 · 72 / 72</td><td class="n">18 / 48 · 48 / 48</td><td class="n">15 / 48 · 48 / 48</td></tr>
+        <tr><td>Median warning time: mulcher alone / with lookouts</td><td class="n">2.3 s / 28.8 s</td><td class="n">3.5 s / 26.9 s</td><td class="n">−1.7 s / 24.6 s</td><td class="n">−4.0 s / 25.0 s</td></tr>
+        <tr><td>First alarm earlier with lookouts, same trial (median; minimum)</td><td class="n">26.5 s; 0.8 s</td><td class="n">23.1 s; 0 s</td><td class="n">25.6 s; 18.1 s</td><td class="n">28.7 s; 20.4 s</td></tr>
+        <tr><td>Distance at first alarm (median): mulcher alone / with lookouts</td><td class="n">27.2 m / 59.9 m</td><td class="n">32.1 m / 62.1 m</td><td class="n">24.7 m / 54.1 m</td><td class="n">21.5 m / 55.7 m</td></tr>
+        <tr><td>Never detected by the mulcher alone</td><td class="n">2</td><td class="n">15</td><td class="n">4</td><td class="n">4</td></tr>
+        <tr><td>Exact McNemar test, detection before the boundary</td><td class="n">p = 1.2 × 10⁻⁴</td><td class="n">p = 1.9 × 10⁻⁹</td><td class="n">p = 1.9 × 10⁻⁹</td><td class="n">p = 2.3 × 10⁻¹⁰</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="note">"Map points": the site with its oak models replaced by the site map's own points; all 48 trials of this world were simulated for this check. Median warning times of the mulcher alone are over the trials it detected. No false alarms from any lidar in any world.</p>
+  <ul class="points prose">
+    <li><strong>M-detector reaches about as far as horizontal clustering.</strong> The mulcher's first detections came at about the distance of the horizontal clustering rule, and 3–6 m short of the ideal detector's.</li>
+    <li><strong>Most trials the mulcher never detected came in near its front,</strong> where the cutting head blocks its lidar, as under the other rules.</li>
+    <li><strong>In 4 trials of the three-entry site the mulcher gave the first alarm itself,</strong> from a few returns on the pedestrian 62–66 m out along a path. In the other 116 forest trials and all 96 site trials, a lookout was earlier.</li>
+    <li><strong>No false alarms in simulation says little about the field.</strong> On a real recording from the site, with the machine standing still, M-detector followed a pedestrian but also produced many short false tracks from the canopy and the ground. The simulation has no wind, no pose error and clean scans.</li>
+  </ul>
+
   <h2>Limitations</h2>
   <ul class="points prose">
     <li>Only approaches along paths were tested.</li>
     <li>Lookout distance is capped by a conservative radio model (30 m range, 70 dB loss per trunk), not measured radio.</li>
     <li>Lookouts were placed from a perfect map and modelled as static; exploring and driving to position were out of scope.</li>
-    <li>The pedestrian and forest are idealised: constant pace, trunks only, flat ground, exact lidar poses. Two layouts, one forest each.</li>
+    <li>The pedestrian and forest are idealised: constant pace, trunks only, flat ground, exact lidar poses. Two forest layouts and one site layout.</li>
+    <li>The site worlds model only the surveyed area. The path and the lookouts' spots lie just outside it, so the low objects the site map shows there (mostly under 1.5 m, close to Lookout B) were left out. They could block the lookouts' view, which would reduce their advantage.</li>
+    <li>The two checks were made after the main results and are exploratory. M-detector was not tuned or tested for false alarms on real data.</li>
   </ul>
 
   <h2>Code and data</h2>
@@ -314,6 +381,7 @@ footer { margin-top: 56px; padding-top: 14px; border-top: 1px solid var(--rule);
 LOOKOUT_GPU=1 experiments/lookout/docker_run.sh lk_L3 43 /lookout/run_layout.sh L3 /runs/lookout/L3_full full
 python3 /lookout/analyse.py --layout L2=/runs/lookout/L2_full --layout L3=/runs/lookout/L3_full \
     --calib /runs/lookout/calib_gpu --out /runs/lookout/results</code></pre>
+  <p class="prose">The site check is in <a href="https://github.com/kalhansb/hmr_explo/tree/exploitation_experiment/experiments/site_lookout"><code>experiments/site_lookout/</code></a> and the M-detector check in <a href="https://github.com/kalhansb/hmr_explo/tree/exploitation_experiment/experiments/site_lookout/mdetector"><code>experiments/site_lookout/mdetector/</code></a>; each README gives the set-up and the commands.</p>
 </main>
 </body>
 </html>
