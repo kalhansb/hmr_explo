@@ -19,9 +19,9 @@ cost was the same as in the single-robot pinned runs.
 - **Running two robots does not slow either mapper.** bunker's scovox frame p50
   was 89.2 ms (single-robot `pin1`: 87.4 ms), curt's 71.5 ms (69.6 ms).
 - **bunker integrates only about 7.6 of its 10 Hz scans, alone or with curt.**
-  Its p95 frame (about 104 ms) sits just over the 100 ms budget. curt keeps up
+  Its p95 frame (about 105 ms) sits just over the 100 ms budget. curt keeps up
   at 10 Hz.
-- **The planner is cheap.** Plan time is 175–250 ms per step and average CPU is
+- **The planner is cheap.** Plan time is 150–275 ms per step and average CPU is
   0.07 cores. The average only reflects the open-loop duty cycle.
 - **The dual run changed the DDS as well as the robot count**: FastDDS over
   shared memory, against CycloneDDS over UDP in the pinned runs. CPU
@@ -106,13 +106,18 @@ where it is worth seeing.
 | scovox frame max (ms) | 112–154 | 237–246 |
 | Merger fused voxels (of contributed) | 1.10 M (of 1.58 M) | 1.07 M (of 1.55 M) |
 | Planner steps (CSV rows) | 5 in every run | 4 in every run |
-| Plan time p50 (ms) | 200 | 225 (224–250) |
+| Plan time per step, median (min–max) over all 3 runs (ms) | 200 (150–249) | 225 (175–250) |
 | Planner observed voxels, last step | 224 k | 224 k |
 | Localizer (cores avg; peak RSS MB) | 1.03; 252–256 | 1.11; 228–233 |
 | scovox (cores avg; peak RSS MB) | 0.82; 313–320 | 0.84; 230–241 |
 | dscovox (cores avg; peak RSS MB) | 0.28; 348–366 | 0.31; 314–349 |
 | Planner (cores avg / peak; peak RSS MB) | 0.06 / 0.52–0.62; 304–309 | 0.08 / 0.53–0.58; 300–303 |
 | Localization divergences | 0 in every run | 0 in every run |
+
+Plan times pool every step in the three runs' CSVs. Each planner log has one
+more selected goal per run than its CSV (the last one, chosen before
+shutdown); the longest of those was 275 ms (curt, `dual_r3`), so the longest
+logged step is 275 ms.
 
 Per-run outputs are in `~/explo-output/dual/dual_r{1,2,3}_{bunker,curt}.*`.
 
@@ -167,7 +172,7 @@ All columns are 3-run means; repeats agree to about 1% in every group.
 ## Why bunker's scans take longer than curt's
 
 bunker's frames average 89.5 ms against curt's 73.9 ms (3-run means; each run
-within 0.6 ms of that), and almost all of the gap is the ray walk. The Hesai gives the mapper about 19% more rays
+within 0.6 ms of that), and almost all of the gap is the ray walk. The Hesai gives the mapper about 18% more rays
 per scan than the Ouster. The scenes are not the cause: mean ray length is the
 same on both bags.
 
@@ -204,7 +209,7 @@ gate (1–20 m) and a 0.2 m voxel downsample:
   +1.8 ms pre-processing.
 - **curt waits about 4.5 ms per frame for its pose**, which narrows the gap.
 
-bunker's p95 frame (about 104 ms) sits just over the 100 ms budget, which is
+bunker's p95 frame (about 105 ms) sits just over the 100 ms budget, which is
 why it drops about a quarter of its scans. Levers that cut the ray count: a
 slightly larger `downsample_voxel_size` for bunker, or a `max_range` below
 20 m, each at some cost in map density or reach.
